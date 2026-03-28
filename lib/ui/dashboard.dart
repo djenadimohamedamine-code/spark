@@ -3,6 +3,7 @@ import 'package:syncfusion_flutter_gauges/gauges.dart';
 import '../vocal/tts_service.dart';
 import '../logic/fuel_calculator.dart';
 import '../core/obd_service.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 import 'diagnostic.dart';
 
 class Dashboard extends StatefulWidget {
@@ -17,6 +18,10 @@ class _DashboardState extends State<Dashboard> {
   double temperature = 0.0;
   double rpm = 0.0;
   double speed = 0.0;
+  double tension = 0.0;
+  bool isHudMode = false;
+  double gX = 0.0;
+  double gY = 0.0;
   
   final TtsService _ttsService = TtsService();
   final FuelCalculator _fuelCalculator = FuelCalculator();
@@ -30,6 +35,17 @@ class _DashboardState extends State<Dashboard> {
   void initState() {
     super.initState();
     _connectObd();
+    _initSensors();
+  }
+
+  void _initSensors() {
+    accelerometerEvents.listen((AccelerometerEvent event) {
+      setState(() {
+        // Sensibilité G-Force
+        gX = event.x / 9.81;
+        gY = event.y / 9.81;
+      });
+    });
   }
 
   void _connectObd() async {
@@ -64,6 +80,18 @@ class _DashboardState extends State<Dashboard> {
       setState(() {
         speed = int.parse(hex, radix: 16).toDouble();
       });
+    }
+    // Mode 01 42: Control Module Voltage (Battery)
+    if (data.contains('41 42')) {
+      String hex = data.split('41 42')[1].trim();
+      List<String> parts = hex.split(' ');
+      if (parts.length >= 2) {
+        int a = int.parse(parts[0], radix: 16);
+        int b = int.parse(parts[1], radix: 16);
+        setState(() {
+          tension = ((a * 256) + b) / 1000.0;
+        });
+      }
     }
   }
 
@@ -141,31 +169,111 @@ class _DashboardState extends State<Dashboard> {
                 Navigator.push(context, MaterialPageRoute(builder: (context) => const DiagnosticPage()));
               },
             ),
+            ListTile(
+              leading: Icon(isHudMode ? Icons.flip_to_front : Icons.flip_to_back),
+              title: Text(isHudMode ? 'Mode Normal' : 'Mode HUD (Miroir)'),
+              onTap: () {
+                setState(() {
+                  isHudMode = !isHudMode;
+                });
+                Navigator.pop(context);
+                _ttsService.speak(isHudMode ? "Mode miroir activé pour Mimo" : "Retour au mode normal");
+              },
+            ),
           ],
         ),
       ),
       backgroundColor: Colors.black,
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
+      body: Transform(
+        alignment: Alignment.center,
+        transform: isHudMode ? Matrix4.identity()..rotateY(3.14159) : Matrix4.identity(),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                _buildBatteryStatus(),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(child: _buildFuelGauge()),
+                    Expanded(child: _buildTempGauge()),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(child: _buildRpmGauge()),
+                    Expanded(child: _buildSpeedGauge()),
+                  ],
+                ),
+                const SizedBox(height: 30),
+                _buildGForceMeter(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGForceMeter() {
+    return Column(
+      children: [
+        const Text('G-FORCE METER', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 10),
+        Container(
+          width: 150,
+          height: 150,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white24, width: 2),
+            color: Colors.black,
+          ),
+          child: Stack(
             children: [
-              Row(
-                children: [
-                  Expanded(child: _buildFuelGauge()),
-                  Expanded(child: _buildTempGauge()),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(child: _buildRpmGauge()),
-                  Expanded(child: _buildSpeedGauge()),
-                ],
+              // Axes
+              Center(child: Container(width: 150, height: 1, color: Colors.white12)),
+              Center(child: Container(width: 1, height: 150, color: Colors.white12)),
+              // La bille G-Force
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 100),
+                left: 75 - 10 - (gX * 50), // Inversé pour le mouvement
+                top: 75 - 10 + (gY * 50),
+                child: Container(
+                  width: 20,
+                  height: 20,
+                  decoration: const BoxDecoration(
+                    color: Colors.redAccent,
+                    shape: BoxShape.circle,
+                    boxShadow: [BoxShadow(color: Colors.red, blurRadius: 10)],
+                  ),
+                ),
               ),
             ],
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildBatteryStatus() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.battery_charging_full, color: tension > 13.5 ? Colors.green : Colors.orange),
+          const SizedBox(width: 10),
+          Text(
+            'Batterie : ${tension.toStringAsFixed(1)} V',
+            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ],
       ),
     );
   }
