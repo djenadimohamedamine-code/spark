@@ -57,7 +57,8 @@ class _DashboardState extends State<Dashboard> {
       _obdService.dataStream.listen((data) {
         if (mounted) {
           setState(() {
-            rawLog = data; // Affiche le texte brut en bas pour Mimo
+            rawLog = "$rawLog\n> $data"; // On garde l'historique pour Mimo
+            if (rawLog.length > 1000) rawLog = rawLog.substring(500); // Nettoyage auto
           });
           _parseObdData(data);
         }
@@ -213,16 +214,20 @@ class _DashboardState extends State<Dashboard> {
                 ),
               ),
             ),
-            // CONSOLE DE LOG (LE TEST DE VERITE)
+            // CONSOLE DE LOG (LE TEST DE VÉRITÉ POUR MIMO)
             Container(
+              height: 60,
               width: double.infinity,
-              padding: const EdgeInsets.all(8),
-              color: Colors.blueGrey[900],
-              child: Text(
-                "CONSOLE: $rawLog",
-                style: const TextStyle(color: Colors.greenAccent, fontSize: 10, fontFamily: 'monospace'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              color: Colors.black.withOpacity(0.8),
+              child: SingleChildScrollView(
+                reverse: true,
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: Text(
+                    rawLog,
+                    style: const TextStyle(color: Colors.greenAccent, fontSize: 9, fontFamily: 'monospace'),
+                  ),
+                ),
               ),
             ),
           ],
