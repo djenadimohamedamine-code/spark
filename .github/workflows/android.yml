@@ -38,8 +38,9 @@ jobs:
           # We place them before the <application tag
           sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\n    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />\n    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' android/app/src/main/AndroidManifest.xml
           
-          # 3. Inject Cleartext Traffic permission in application tag
+          # 3. Inject Cleartext Traffic permission and update App Label
           sed -i 's/<application/<application android:usesCleartextTraffic="true"/' android/app/src/main/AndroidManifest.xml
+          sed -i 's/android:label=".*"/android:label="Mimo Spark"/' android/app/src/main/AndroidManifest.xml
           
           # Verification
           cat android/app/src/main/AndroidManifest.xml

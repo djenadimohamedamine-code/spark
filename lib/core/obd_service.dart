@@ -14,7 +14,7 @@ class ObdService {
 
   Future<bool> connect() async {
     try {
-      _socket = await Socket.connect(ip, port, timeout: const Duration(seconds: 5));
+      _socket = await Socket.connect(ip, port, timeout: const Duration(seconds: 10));
       
       String responseBuffer = "";
       _socket!.listen(
