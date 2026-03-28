@@ -6,7 +6,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final ttsService = TtsService();
   await ttsService.init();
-  await ttsService.speak('Système Mimo Smart Car prêt');
+  await ttsService.speak('Salut Mimo. Système Mimo Spark prêt.');
   
   runApp(const MimoSmartCarApp());
 }
