@@ -186,7 +186,7 @@ class _DashboardState extends State<Dashboard> {
       backgroundColor: Colors.black,
       body: Transform(
         alignment: Alignment.center,
-        transform: isHudMode ? Matrix4.identity()..rotateY(3.14159) : Matrix4.identity(),
+        transform: isHudMode ? (Matrix4.identity()..rotateY(3.14159)) : Matrix4.identity(),
         child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.all(16.0),

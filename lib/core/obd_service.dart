@@ -32,10 +32,19 @@ class ObdService {
           _handleDisconnect();
         },
       );
-      // Init ELM327 (ex: ATZ, ATE0, ATF1, etc.)
-      sendCommand('ATZ');
+      // Initialisation PRO ELM327
+      await Future.delayed(const Duration(milliseconds: 500));
+      sendCommand('ATZ'); // Reset
+      await Future.delayed(const Duration(milliseconds: 500));
+      sendCommand('ATE0'); // Echo OFF
+      await Future.delayed(const Duration(milliseconds: 500));
+      sendCommand('ATL0'); // Linefeeds OFF
+      await Future.delayed(const Duration(milliseconds: 500));
+      sendCommand('ATSP0'); // Auto Protocol Search
+      await Future.delayed(const Duration(milliseconds: 500));
+      sendCommand('01 00'); // Test OBD Ping
       
-      // Démarrage du polling haute fréquence (100ms) pour Temp et RPM
+      _ttsService.speak("Connexion établie avec la Spark.");
       _startPolling();
     } catch (e) {
       print('Erreur de connexion ELM327: $e');
