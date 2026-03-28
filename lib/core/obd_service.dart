@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-
 import '../vocal/tts_service.dart';
 
 class ObdService {
@@ -13,64 +12,57 @@ class ObdService {
   Timer? _pollingTimer;
   final TtsService _ttsService = TtsService();
 
-  Future<void> connect() async {
+  Future<bool> connect() async {
     try {
       _socket = await Socket.connect(ip, port, timeout: const Duration(seconds: 5));
+      
+      String responseBuffer = "";
       _socket!.listen(
         (List<int> event) {
-          final String data = String.fromCharCodes(event).trim();
-          _dataStreamController.add(data);
+          final String chunk = String.fromCharCodes(event);
+          responseBuffer += chunk;
+          if (responseBuffer.contains('>')) {
+            print("Spark Data: $responseBuffer"); // Debugging Wi-Fi Flow
+            _dataStreamController.add(responseBuffer.trim());
+            responseBuffer = "";
+          }
         },
-        onError: (error) {
-          print('Erreur Socket: $error');
-          _ttsService.speak("Mimo, j'ai perdu la connexion avec la Spark");
-          _handleDisconnect();
-        },
-        onDone: () {
-          print('Socket fermé');
-          _ttsService.speak("Mimo, j'ai perdu la connexion avec la Spark");
-          _handleDisconnect();
-        },
+        onError: (error) => _handleDisconnect(),
+        onDone: () => _handleDisconnect(),
       );
-      // Initialisation PRO ELM327
-      await Future.delayed(const Duration(milliseconds: 500));
-      sendCommand('ATZ'); // Reset
-      await Future.delayed(const Duration(milliseconds: 500));
-      sendCommand('ATE0'); // Echo OFF
-      await Future.delayed(const Duration(milliseconds: 500));
-      sendCommand('ATL0'); // Linefeeds OFF
-      await Future.delayed(const Duration(milliseconds: 500));
-      sendCommand('ATSP0'); // Auto Protocol Search
-      await Future.delayed(const Duration(milliseconds: 500));
-      sendCommand('01 00'); // Test OBD Ping
+
+      // Réactivation PRO de l'adaptateur
+      await sendCommandWait('ATZ');
+      await sendCommandWait('ATE0');
+      await sendCommandWait('ATL0');
+      await sendCommandWait('ATSP0');
+      await sendCommandWait('0100');
       
       _ttsService.speak("Connexion établie avec la Spark.");
       _startPolling();
+      return true;
     } catch (e) {
-      print('Erreur de connexion ELM327: $e');
       _ttsService.speak("Mimo, impossible de se connecter au boîtier Wi-Fi.");
+      return false;
     }
   }
 
+  Future<void> sendCommandWait(String cmd) async {
+    sendCommand(cmd);
+    await Future.delayed(const Duration(milliseconds: 300));
+  }
+
   void _startPolling() {
+    _pollingTimer?.cancel();
     int tick = 0;
-    _pollingTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+    _pollingTimer = Timer.periodic(const Duration(milliseconds: 200), (timer) {
+      if (_socket == null) return;
       switch (tick % 5) {
-        case 0:
-          sendCommand('01 05'); // Coolant Temp
-          break;
-        case 1:
-          sendCommand('01 0C'); // RPM
-          break;
-        case 2:
-          sendCommand('01 0D'); // Speed
-          break;
-        case 3:
-          sendCommand('01 10'); // MAF
-          break;
-        case 4:
-          sendCommand('01 2F'); // Fuel Level
-          break;
+        case 0: sendCommand('0105'); break; // Temp
+        case 1: sendCommand('010C'); break; // RPM
+        case 2: sendCommand('010D'); break; // Speed
+        case 3: sendCommand('0110'); break; // MAF
+        case 4: sendCommand('0142'); break; // Battery
       }
       tick++;
     });
