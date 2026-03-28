@@ -26,11 +26,14 @@ jobs:
           flutter-version: '3.22.0'
           channel: 'stable'
 
+      - name: Create Native Folders on Cloud
+        run: flutter create --org com.mimo . --platforms=android --no-overwrite
+
       - name: Flutter Pub Get
         run: flutter pub get
 
       - name: Generate App Icons
-        run: flutter pub run flutter_launcher_icons:main
+        run: flutter pub run flutter_launcher_icons
 
       - name: Build APK (Android)
         run: flutter build apk --release
