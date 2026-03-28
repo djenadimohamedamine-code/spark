@@ -123,10 +123,10 @@ class _DashboardState extends State<Dashboard> {
   void updateTemperature(double newTemp) {
     setState(() => temperature = newTemp);
     if (temperature >= 98 && temperature < 103 && !alert98Triggered) {
-      _ttsService.speak("Mimo, attention. Température à 98 degrés.");
+      _ttsService.speakAlert("Mimo, attention. Température à 98 degrés.");
       alert98Triggered = true;
     } else if (temperature >= 103 && !alert103Triggered) {
-      _ttsService.speak("Alerte critique Mimo ! Température à 103 degrés.");
+      _ttsService.speakAlert("Alerte critique Mimo ! Température à 103 degrés.");
       alert103Triggered = true;
     }
     if (temperature < 95) {
@@ -259,7 +259,7 @@ class _DashboardState extends State<Dashboard> {
         axes: <RadialAxis>[
           RadialAxis(minimum: 0, maximum: 35,
             ranges: <GaugeRange>[GaugeRange(startValue: 0, endValue: 5, color: Colors.red), GaugeRange(startValue: 5, endValue: 35, color: Colors.green)],
-            pointers: <GaugePointer>[NeedlePointer(value: _fuelCalculator.currentLiters, needleColor: Colors.white)],
+            pointers: <GaugePointer>[NeedlePointer(value: _fuelCalculator.currentLiters, needleColor: Colors.white, enableAnimation: true)],
             annotations: <GaugeAnnotation>[GaugeAnnotation(widget: Text('${_fuelCalculator.currentLiters.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)],
           )
         ],
@@ -275,7 +275,7 @@ class _DashboardState extends State<Dashboard> {
         axes: <RadialAxis>[
           RadialAxis(minimum: 50, maximum: 130,
             ranges: <GaugeRange>[GaugeRange(startValue: 50, endValue: 90, color: Colors.blue), GaugeRange(startValue: 90, endValue: 103, color: Colors.orange), GaugeRange(startValue: 103, endValue: 130, color: Colors.red)],
-            pointers: <GaugePointer>[NeedlePointer(value: temperature == 0 ? 50 : temperature, needleColor: Colors.white)],
+            pointers: <GaugePointer>[NeedlePointer(value: temperature == 0 ? 50 : temperature, needleColor: Colors.white, enableAnimation: true)],
             annotations: <GaugeAnnotation>[GaugeAnnotation(widget: Text('${temperature.toStringAsFixed(1)}°', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)]
           )
         ],
@@ -291,7 +291,7 @@ class _DashboardState extends State<Dashboard> {
         axes: <RadialAxis>[
           RadialAxis(minimum: 0, maximum: 8000,
             ranges: <GaugeRange>[GaugeRange(startValue: 0, endValue: 6000, color: Colors.green), GaugeRange(startValue: 6000, endValue: 8000, color: Colors.red)],
-            pointers: <GaugePointer>[NeedlePointer(value: rpm, needleColor: Colors.white)],
+            pointers: <GaugePointer>[NeedlePointer(value: rpm, needleColor: Colors.white, enableAnimation: true)],
             annotations: <GaugeAnnotation>[GaugeAnnotation(widget: Text('${rpm.toInt()}', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)]
           )
         ],
@@ -307,7 +307,7 @@ class _DashboardState extends State<Dashboard> {
         axes: <RadialAxis>[
           RadialAxis(minimum: 0, maximum: 200,
             ranges: <GaugeRange>[GaugeRange(startValue: 0, endValue: 120, color: Colors.green), GaugeRange(startValue: 120, endValue: 200, color: Colors.red)],
-            pointers: <GaugePointer>[NeedlePointer(value: speed, needleColor: Colors.white)],
+            pointers: <GaugePointer>[NeedlePointer(value: speed, needleColor: Colors.white, enableAnimation: true)],
             annotations: <GaugeAnnotation>[GaugeAnnotation(widget: Text('${speed.toInt()}', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)]
           )
         ],
