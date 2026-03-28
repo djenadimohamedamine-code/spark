@@ -44,11 +44,14 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
       if (data.contains('43')) {
         // Parsing basic DTC (ex: 43 01 13 03 42)
         List<String> codes = [];
-        List<String> parts = data.split(' ');
+        String clean = data.replaceAll('>', '').trim();
+        List<String> parts = clean.split(' ');
         for (int i = 1; i < parts.length - 1; i += 2) {
-          if (parts[i] != '00') {
-             codes.add('P${parts[i]}${parts[i+1]}');
-          }
+          try {
+            if (parts[i] != '00' && parts[i].length == 2 && parts[i+1].length == 2) {
+              codes.add('P${parts[i]}${parts[i+1]}');
+            }
+          } catch (_) {}
         }
         
         setState(() {

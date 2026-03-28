@@ -4,17 +4,28 @@ import 'vocal/tts_service.dart';
 
 import 'package:permission_handler/permission_handler.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Request mandatory permissions for OBD2 WiFi (Android 9+)
-  await [
+Future<void> requestSparkPermissions() async {
+  Map<Permission, PermissionStatus> statuses = await [
     Permission.location,
     Permission.nearbyWifiDevices,
   ].request();
+  
+  if (statuses[Permission.location]!.isGranted) {
+    print("Autorisation accordée : Le flux OBD2 peut démarrer.");
+  } else {
+    print("Autorisation refusée : Les jauges resteront à zéro.");
+  }
+}
 
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
   final ttsService = TtsService();
   await ttsService.init();
+  
+  // Appeler le forçage des permissions selon le brief de Mimo
+  await requestSparkPermissions();
+
   await ttsService.speak('Salut Mimo. Système Mimo Spark prêt.');
   
   runApp(const MimoSmartCarApp());
