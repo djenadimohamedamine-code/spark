@@ -1,0 +1,7 @@
+{
+  "P0113": "Capteur de température d'air d'admission - Signal trop haut. Mimo, vérifie le circuit du capteur IAT.",
+  "P0342": "Capteur d'arbre à cames A (Ligne 1) - Signal d'entrée trop bas.",
+  "P0122": "Capteur de position de papillon A / Pédale d'accélérateur - Valeur d'entrée trop basse.",
+  "P0400": "Système de recyclage des gaz d'échappement (EGR) - Problème de débit.",
+  "P0500": "Capteur de vitesse du véhicule - Panne du circuit."
+}

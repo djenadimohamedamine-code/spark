@@ -1,0 +1,32 @@
+name: mimo_spark
+description: MIMO_SPARK (Flutter / OBD2)
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_tts: ^3.8.3
+  syncfusion_flutter_gauges: ^24.1.41
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/IMG_0730.JPG"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/sounds/
+    - assets/data/
+    - assets/images/
