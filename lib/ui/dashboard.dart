@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_gauges/gauges.dart';
 import '../vocal/tts_service.dart';
 import '../logic/fuel_calculator.dart';
+import 'diagnostic.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -54,16 +55,57 @@ class _DashboardState extends State<Dashboard> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('MIMO_SPARK - Dashboard'),
+        title: const Text('MIMO_SPARK'),
         backgroundColor: Colors.black,
         actions: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: CircleAvatar(
-              backgroundImage: AssetImage('assets/images/IMG_0730.JPG'),
-            ),
+          Builder(
+            builder: (context) {
+              return Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: GestureDetector(
+                  onTap: () => Scaffold.of(context).openEndDrawer(),
+                  child: const CircleAvatar(
+                    backgroundImage: AssetImage('assets/images/IMG_0730.JPG'),
+                  ),
+                ),
+              );
+            }
           )
         ],
+      ),
+      endDrawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            UserAccountsDrawerHeader(
+              accountName: const Text('Mimo'),
+              accountEmail: const Text('Directeur Technique'),
+              currentAccountPicture: CircleAvatar(
+                backgroundImage: AssetImage('assets/images/IMG_0730.JPG'),
+              ),
+              decoration: const BoxDecoration(color: Colors.black),
+            ),
+            ListTile(
+              leading: const Icon(Icons.dashboard),
+              title: const Text('Dashboard'),
+              onTap: () => Navigator.pop(context),
+            ),
+            ListTile(
+              leading: const Icon(Icons.warning),
+              title: const Text('Analyse DTC'),
+              onTap: () {
+                Navigator.pop(context);
+                // Navigation vers la page diagnostic
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const DiagnosticPage()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings),
+              title: const Text('Configuration'),
+              onTap: () => Navigator.pop(context),
+            ),
+          ],
+        ),
       ),
       backgroundColor: Colors.black,
       body: SingleChildScrollView(
@@ -129,8 +171,8 @@ class _DashboardState extends State<Dashboard> {
               annotations: <GaugeAnnotation>[
                 GaugeAnnotation(
                   widget: Text(
-                    '\${_fuelCalculator.currentLiters.toStringAsFixed(1)} L',
-                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)
+                    '${_fuelCalculator.currentLiters.toStringAsFixed(1)} L',
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)
                   ),
                   angle: 90,
                   positionFactor: 0.8,
@@ -164,8 +206,8 @@ class _DashboardState extends State<Dashboard> {
             ],
             annotations: <GaugeAnnotation>[
               GaugeAnnotation(
-                widget: Text('\${temperature.toStringAsFixed(1)}°',
-                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                widget: Text('${temperature.toStringAsFixed(1)}°',
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                 angle: 90,
                 positionFactor: 0.8)
             ]
