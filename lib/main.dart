@@ -2,8 +2,17 @@ import 'package:flutter/material.dart';
 import 'ui/dashboard.dart';
 import 'vocal/tts_service.dart';
 
+import 'package:permission_handler/permission_handler.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Request mandatory permissions for OBD2 WiFi (Android 9+)
+  await [
+    Permission.location,
+    Permission.nearbyWifiDevices,
+  ].request();
+
   final ttsService = TtsService();
   await ttsService.init();
   await ttsService.speak('Salut Mimo. Système Mimo Spark prêt.');
