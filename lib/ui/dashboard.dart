@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_gauges/gauges.dart';
 import '../vocal/tts_service.dart';
 import '../logic/fuel_calculator.dart';
+import '../core/obd_service.dart';
 import 'diagnostic.dart';
 
 class Dashboard extends StatefulWidget {
@@ -12,17 +13,59 @@ class Dashboard extends StatefulWidget {
 }
 
 class _DashboardState extends State<Dashboard> {
-  // Gauges Data
-  double temperature = 90.0;
-  double rpm = 2500.0;
-  double speed = 80.0;
+  // Gauges Data (Initialized at 0)
+  double temperature = 0.0;
+  double rpm = 0.0;
+  double speed = 0.0;
   
   final TtsService _ttsService = TtsService();
   final FuelCalculator _fuelCalculator = FuelCalculator();
+  final ObdService _obdService = ObdService();
   
   // Alert flags
   bool alert98Triggered = false;
   bool alert103Triggered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _connectObd();
+  }
+
+  void _connectObd() async {
+    await _obdService.connect();
+    _obdService.dataStream.listen((data) {
+      _parseObdData(data);
+    });
+  }
+
+  void _parseObdData(String data) {
+    // Mode 01 05: Coolant Temp
+    if (data.contains('41 05')) {
+      String hex = data.split('41 05')[1].trim().split(' ')[0];
+      double val = int.parse(hex, radix: 16) - 40.0;
+      updateTemperature(val);
+    }
+    // Mode 01 0C: RPM
+    if (data.contains('41 0C')) {
+      String hex = data.split('41 0C')[1].trim();
+      List<String> parts = hex.split(' ');
+      if (parts.length >= 2) {
+        int a = int.parse(parts[0], radix: 16);
+        int b = int.parse(parts[1], radix: 16);
+        setState(() {
+          rpm = ((a * 256) + b) / 4.0;
+        });
+      }
+    }
+    // Mode 01 0D: Speed
+    if (data.contains('41 0D')) {
+      String hex = data.split('41 0D')[1].trim().split(' ')[0];
+      setState(() {
+        speed = int.parse(hex, radix: 16).toDouble();
+      });
+    }
+  }
 
   void updateTemperature(double newTemp) {
     setState(() {
@@ -95,14 +138,8 @@ class _DashboardState extends State<Dashboard> {
               title: const Text('Analyse DTC'),
               onTap: () {
                 Navigator.pop(context);
-                // Navigation vers la page diagnostic
                 Navigator.push(context, MaterialPageRoute(builder: (context) => const DiagnosticPage()));
               },
-            ),
-            ListTile(
-              leading: const Icon(Icons.settings),
-              title: const Text('Configuration'),
-              onTap: () => Navigator.pop(context),
             ),
           ],
         ),
@@ -113,27 +150,17 @@ class _DashboardState extends State<Dashboard> {
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
-              // Ligne 1: Fuel et Temp
               Row(
                 children: [
-                  Expanded(
-                    child: _buildFuelGauge(),
-                  ),
-                  Expanded(
-                    child: _buildTempGauge(),
-                  ),
+                  Expanded(child: _buildFuelGauge()),
+                  Expanded(child: _buildTempGauge()),
                 ],
               ),
               const SizedBox(height: 20),
-              // Ligne 2: RPM et Vitesse
               Row(
                 children: [
-                  Expanded(
-                    child: _buildRpmGauge(),
-                  ),
-                  Expanded(
-                    child: _buildSpeedGauge(),
-                  ),
+                  Expanded(child: _buildRpmGauge()),
+                  Expanded(child: _buildSpeedGauge()),
                 ],
               ),
             ],
@@ -145,38 +172,24 @@ class _DashboardState extends State<Dashboard> {
 
   Widget _buildFuelGauge() {
     return GestureDetector(
-      onLongPress: _resetFuel, // Bouton caché pour le plein
+      onLongPress: _resetFuel,
       child: SizedBox(
         height: 200,
         child: SfRadialGauge(
-          title: const GaugeTitle(
-            text: 'Carburant (L)',
-            textStyle: TextStyle(color: Colors.white, fontSize: 16)
-          ),
+          title: const GaugeTitle(text: 'Carburant (L)', textStyle: TextStyle(color: Colors.white, fontSize: 16)),
           axes: <RadialAxis>[
             RadialAxis(
-              minimum: 0,
-              maximum: 35,
-              showLabels: true,
+              minimum: 0, maximum: 35,
               ranges: <GaugeRange>[
                 GaugeRange(startValue: 0, endValue: 5, color: Colors.red),
                 GaugeRange(startValue: 5, endValue: 35, color: Colors.green),
               ],
-              pointers: <GaugePointer>[
-                NeedlePointer(
-                  value: _fuelCalculator.currentLiters,
-                  needleColor: Colors.white,
-                )
-              ],
+              pointers: <GaugePointer>[NeedlePointer(value: _fuelCalculator.currentLiters, needleColor: Colors.white)],
               annotations: <GaugeAnnotation>[
                 GaugeAnnotation(
-                  widget: Text(
-                    '${_fuelCalculator.currentLiters.toStringAsFixed(1)} L',
-                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)
-                  ),
-                  angle: 90,
-                  positionFactor: 0.8,
-                )
+                  widget: Text('${_fuelCalculator.currentLiters.toStringAsFixed(1)} L',
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  angle: 90, positionFactor: 0.8)
               ],
             )
           ],
@@ -189,10 +202,7 @@ class _DashboardState extends State<Dashboard> {
     return SizedBox(
       height: 200,
       child: SfRadialGauge(
-        title: const GaugeTitle(
-          text: 'Temp (°C)',
-          textStyle: TextStyle(color: Colors.white, fontSize: 16)
-        ),
+        title: const GaugeTitle(text: 'Temp (°C)', textStyle: TextStyle(color: Colors.white, fontSize: 16)),
         axes: <RadialAxis>[
           RadialAxis(
             minimum: 50, maximum: 130,
@@ -201,15 +211,12 @@ class _DashboardState extends State<Dashboard> {
               GaugeRange(startValue: 90, endValue: 103, color: Colors.orange),
               GaugeRange(startValue: 103, endValue: 130, color: Colors.red)
             ],
-            pointers: <GaugePointer>[
-              NeedlePointer(value: temperature, needleColor: Colors.white)
-            ],
+            pointers: <GaugePointer>[NeedlePointer(value: temperature == 0 ? 50 : temperature, needleColor: Colors.white)],
             annotations: <GaugeAnnotation>[
               GaugeAnnotation(
                 widget: Text('${temperature.toStringAsFixed(1)}°',
                     style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                angle: 90,
-                positionFactor: 0.8)
+                angle: 90, positionFactor: 0.8)
             ]
           )
         ],
@@ -221,10 +228,7 @@ class _DashboardState extends State<Dashboard> {
     return SizedBox(
       height: 200,
       child: SfRadialGauge(
-        title: const GaugeTitle(
-          text: 'RPM',
-          textStyle: TextStyle(color: Colors.white, fontSize: 16)
-        ),
+        title: const GaugeTitle(text: 'RPM', textStyle: TextStyle(color: Colors.white, fontSize: 16)),
         axes: <RadialAxis>[
           RadialAxis(
             minimum: 0, maximum: 8000,
@@ -232,15 +236,12 @@ class _DashboardState extends State<Dashboard> {
               GaugeRange(startValue: 0, endValue: 6000, color: Colors.green),
               GaugeRange(startValue: 6000, endValue: 8000, color: Colors.red),
             ],
-            pointers: <GaugePointer>[
-              NeedlePointer(value: rpm, needleColor: Colors.white)
-            ],
+            pointers: <GaugePointer>[NeedlePointer(value: rpm, needleColor: Colors.white)],
             annotations: <GaugeAnnotation>[
               GaugeAnnotation(
                 widget: Text('${rpm.toInt()}',
-                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                angle: 90,
-                positionFactor: 0.8)
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                angle: 90, positionFactor: 0.8)
             ]
           )
         ],
@@ -252,10 +253,7 @@ class _DashboardState extends State<Dashboard> {
     return SizedBox(
       height: 200,
       child: SfRadialGauge(
-        title: const GaugeTitle(
-          text: 'KM/H',
-          textStyle: TextStyle(color: Colors.white, fontSize: 16)
-        ),
+        title: const GaugeTitle(text: 'KM/H', textStyle: TextStyle(color: Colors.white, fontSize: 16)),
         axes: <RadialAxis>[
           RadialAxis(
             minimum: 0, maximum: 200,
@@ -263,19 +261,22 @@ class _DashboardState extends State<Dashboard> {
               GaugeRange(startValue: 0, endValue: 120, color: Colors.green),
               GaugeRange(startValue: 120, endValue: 200, color: Colors.red),
             ],
-            pointers: <GaugePointer>[
-              NeedlePointer(value: speed, needleColor: Colors.white)
-            ],
+            pointers: <GaugePointer>[NeedlePointer(value: speed, needleColor: Colors.white)],
             annotations: <GaugeAnnotation>[
               GaugeAnnotation(
                 widget: Text('${speed.toInt()}',
-                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                angle: 90,
-                positionFactor: 0.8)
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                angle: 90, positionFactor: 0.8)
             ]
           )
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _obdService.dispose();
+    super.dispose();
   }
 }

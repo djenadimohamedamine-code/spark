@@ -11,7 +11,7 @@ class DiagnosticPage extends StatefulWidget {
 
 class _DiagnosticPageState extends State<DiagnosticPage> {
   final TtsService _ttsService = TtsService();
-  List<String> _currentErrors = ['P0113', 'P0342', 'P0122']; // Simulated errors
+  List<String> _currentErrors = []; // Liste vide au départ (attente du vrai scan)
   bool _isLoading = false;
 
   @override

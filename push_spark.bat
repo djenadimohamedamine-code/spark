@@ -1,15 +1,9 @@
 @echo off
-echo --- MIMO SPARK - PUSH FINAL (ULTIME) ---
-git config --global user.email "mimo@example.com"
-git config --global user.name "Mimo"
-git init
-git branch -M main
-git remote remove origin
-git remote add origin https://github.com/djenadimohamedamine-code/spark.git
+echo --- PUSH & BUILD MIMO_SPARK ---
 git add .
-git commit -m "Mimo Spark First Commit"
-git push -u origin main --force
+git commit -m "Mimo Spark: UI Fix, Menu Lateral and Dashboard Optimization"
+git push
 echo.
-echo --- SUCCESS ! ---
-echo Verifie GitHub maintenant.
+echo Le build a demarre sur GitHub Actions ! 
+echo Appuie sur une touche pour quitter et verifier ton navigateur.
 pause
