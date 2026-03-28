@@ -55,7 +55,7 @@ class ObdService {
   void _startPolling() {
     _pollingTimer?.cancel();
     int tick = 0;
-    _pollingTimer = Timer.periodic(const Duration(milliseconds: 200), (timer) {
+    _pollingTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
       if (_socket == null) return;
       switch (tick % 5) {
         case 0: sendCommand('0105'); break; // Temp
