@@ -29,6 +29,11 @@ jobs:
       - name: Create Native Folders on Cloud
         run: flutter create --org com.mimo . --platforms=android --no-overwrite
 
+      - name: Add Android Network Permissions
+        run: |
+          # Inject permissions into AndroidManifest.xml before build
+          sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />\n    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />' android/app/src/main/AndroidManifest.xml
+          
       - name: Flutter Pub Get
         run: flutter pub get
 
