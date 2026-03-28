@@ -21,10 +21,15 @@ class ObdService {
         (List<int> event) {
           final String chunk = String.fromCharCodes(event);
           responseBuffer += chunk;
-          if (responseBuffer.contains('>')) {
-            print("Spark Data: $responseBuffer"); // Debugging Wi-Fi Flow
-            _dataStreamController.add(responseBuffer.trim());
-            responseBuffer = "";
+          
+          while (responseBuffer.contains('>')) {
+            int index = responseBuffer.indexOf('>');
+            String telegram = responseBuffer.substring(0, index).trim();
+            if (telegram.isNotEmpty) {
+              print("Spark Data: $telegram"); // Debugging Wi-Fi Flow
+              _dataStreamController.add(telegram);
+            }
+            responseBuffer = responseBuffer.substring(index + 1);
           }
         },
         onError: (error) => _handleDisconnect(),
@@ -55,7 +60,7 @@ class ObdService {
   void _startPolling() {
     _pollingTimer?.cancel();
     int tick = 0;
-    _pollingTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+    _pollingTimer = Timer.periodic(const Duration(milliseconds: 400), (timer) {
       if (_socket == null) return;
       switch (tick % 5) {
         case 0: sendCommand('0105'); break; // Temp
