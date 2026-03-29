@@ -43,15 +43,66 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
     });
     _ttsService.speak("Lancement du scan Mode 03 sur la Spark.");
     await _obdService.scanTroubleCodes();
-    Future.delayed(const Duration(seconds: 8), () {
+    
+    // Attendre max 14 secondes (3 modes x 4s + marge)
+    Future.delayed(const Duration(seconds: 14), () async {
       if (mounted && _isLoading) {
         setState(() => _isLoading = false);
         if (_currentErrors.isEmpty) {
           _ttsService.speak("Scan terminé. Aucun code détecté. Consultez le journal.");
+        } else {
+          // Afficher la boîte de dialogue de confirmation
+          _showClearConfirmDialog();
         }
       }
     });
   }
+
+  void _showClearConfirmDialog() {
+    _ttsService.speak("Mimo, j'ai trouvé des pannes. Veux-tu les effacer ?");
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber, color: Colors.orange, size: 28),
+            SizedBox(width: 8),
+            Text('Codes Panne Détectés', style: TextStyle(color: Colors.white, fontSize: 16)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Que veux-tu faire avec ces codes ?', style: TextStyle(color: Colors.grey, fontSize: 13)),
+            const SizedBox(height: 12),
+            const Text('⚠️  EFFACER = éteint le voyant moteur', style: TextStyle(color: Colors.orangeAccent, fontSize: 12)),
+            const SizedBox(height: 4),
+            const Text('📋  GARDER = les montrer au mécanicien', style: TextStyle(color: Colors.lightBlueAccent, fontSize: 12)),
+          ],
+        ),
+        actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.delete_forever, color: Colors.red),
+            label: const Text('EFFACER', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _clearDtc();
+            },
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.assignment, color: Colors.white),
+            label: const Text('GARDER', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey[700]),
+            onPressed: () => Navigator.pop(ctx),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   void _parseDiagnosticData(String data) {
     String cleanData = data.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
