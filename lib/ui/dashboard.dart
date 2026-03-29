@@ -327,7 +327,6 @@ class _DashboardState extends State<Dashboard> {
             annotations: <GaugeAnnotation>[
               GaugeAnnotation(widget: Text('${_fuelCalculator.currentLiters.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)
             ],
-            enableAnimation: true,
           )
         ],
       ),
@@ -354,7 +353,6 @@ class _DashboardState extends State<Dashboard> {
             annotations: <GaugeAnnotation>[
               GaugeAnnotation(widget: Text('${temperature.toStringAsFixed(1)}°', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)
             ],
-            enableAnimation: true,
           )
         ],
       ),
@@ -380,7 +378,6 @@ class _DashboardState extends State<Dashboard> {
             annotations: <GaugeAnnotation>[
               GaugeAnnotation(widget: Text('${rpm.toInt()}', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)
             ],
-            enableAnimation: true,
           )
         ],
       ),
@@ -406,7 +403,6 @@ class _DashboardState extends State<Dashboard> {
             annotations: <GaugeAnnotation>[
               GaugeAnnotation(widget: Text('${speed.toInt()}', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)
             ],
-            enableAnimation: true,
           )
         ],
       ),
