@@ -320,11 +320,34 @@ class _DashboardState extends State<Dashboard> {
   }
 
   Widget _buildFuelGauge() {
+    double fuelVal = _fuelCalculator.currentLiters;
     return SizedBox(height: 160, child: SfRadialGauge(
-      title: const GaugeTitle(text: 'Essence (L)', textStyle: TextStyle(color: Colors.white, fontSize: 12)),
-      axes: <RadialAxis>[RadialAxis(minimum: 0, maximum: 35, ranges: <GaugeRange>[GaugeRange(startValue: 0, endValue: 5, color: Colors.red), GaugeRange(startValue: 5, endValue: 35, color: Colors.green)], pointers: <GaugePointer>[NeedlePointer(value: _fuelCalculator.currentLiters, needleColor: Colors.white, enableAnimation: true, animationDuration: 200)], annotations: <GaugeAnnotation>[GaugeAnnotation(widget: Text('${_fuelCalculator.currentLiters.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 12)), angle: 90, positionFactor: 0.8)])],
+      title: const GaugeTitle(text: 'Conso MAF (L)', textStyle: TextStyle(color: Colors.orange, fontSize: 11)),
+      axes: <RadialAxis>[RadialAxis(
+        minimum: 0, maximum: 35,
+        ranges: <GaugeRange>[
+          GaugeRange(startValue: 0, endValue: 5, color: Colors.red),
+          GaugeRange(startValue: 5, endValue: 35, color: Colors.green)
+        ],
+        pointers: <GaugePointer>[
+          NeedlePointer(value: fuelVal, needleColor: Colors.white, enableAnimation: true, animationDuration: 200)
+        ],
+        annotations: <GaugeAnnotation>[
+          GaugeAnnotation(
+            widget: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('${fuelVal.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                const Text('virtuel', style: TextStyle(color: Colors.orange, fontSize: 9)),
+              ],
+            ),
+            angle: 90, positionFactor: 0.8
+          )
+        ],
+      )],
     ));
   }
+
 
   Widget _buildTempGauge() {
     return SizedBox(height: 160, child: SfRadialGauge(

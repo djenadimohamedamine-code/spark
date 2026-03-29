@@ -150,21 +150,25 @@ class ObdService {
     });
   }
 
-  // Met le polling en pause pour scanner les erreurs (Mode 03 + 07 + 0A)
+  // Stoppe le polling et Scanne les erreurs (Mode 03 + 07 + 0A)
   Future<void> scanTroubleCodes() async {
-    _pollingTimer?.cancel();
-    await Future.delayed(const Duration(milliseconds: 500));
+    // CRITIQUE: on arrête la boucle AVANT d'envoyer les commandes DTC
+    _isPolling = false;
+    await Future.delayed(const Duration(milliseconds: 800)); // attendre que la boucle finisse
     
-    sendCommand('03'); // Mode 03 : Codes confirmés
-    await Future.delayed(const Duration(seconds: 2));
+    _log("SCAN: Démarrage scan DTC Mode 03/07/0A...");
     
-    sendCommand('07'); // Mode 07 : Codes en attente (Crucial sur Spark)
-    await Future.delayed(const Duration(seconds: 2));
+    sendCommand('03'); // Codes confirmés
+    await Future.delayed(const Duration(seconds: 3));
+    
+    sendCommand('07'); // Codes en attente
+    await Future.delayed(const Duration(seconds: 3));
 
-    sendCommand('0A'); // Mode 0A : Codes permanents
-    await Future.delayed(const Duration(seconds: 2));
+    sendCommand('0A'); // Codes permanents
+    await Future.delayed(const Duration(seconds: 3));
     
-    _startPolling();
+    _log("SCAN: Fin du scan. Reprise du polling.");
+    _startPolling(); // on relance le polling après
   }
 
   // Effacer les codes (Mode 04) - À n'utiliser qu'après réparation !
