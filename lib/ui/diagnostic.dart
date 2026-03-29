@@ -59,14 +59,23 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
     // Nettoyage radical Mimo Style (ne garde que lettres et chiffres)
     String cleanData = data.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
     
-    // Le code 430... signifie qu'on a bien reçu le mode 03
-    if (cleanData.contains('43')) {
+    // On ignore les réponses négatives (NRC 7F)
+    if (cleanData.contains('7F')) return;
+
+    // Modes supportés : 43 (03), 47 (07), 4A (0A)
+    if (cleanData.contains('43') || cleanData.contains('47') || cleanData.contains('4A')) {
       try {
-        List<String> codes = [];
-        // On isole tout ce qui suit le '43'
-        String payload = cleanData.substring(cleanData.indexOf('43') + 2);
+        String identifier = "";
+        if (cleanData.contains('43')) identifier = '43';
+        else if (cleanData.contains('47')) identifier = '47';
+        else if (cleanData.contains('4A')) identifier = '4A';
         
-        // On découpe par blocs de 4 caractères (un code DTC fait 2 octets = 4 hex)
+        List<String> codes = [];
+        
+        // On isole tout ce qui suit l'identifiant
+        String payload = cleanData.substring(cleanData.indexOf(identifier) + 2);
+        
+        // On découpe par blocs de 4 caractères
         for (int i = 0; i + 4 <= payload.length; i += 4) {
           String codeHex = payload.substring(i, i + 4);
           if (codeHex != "0000" && codeHex.length == 4) {
@@ -76,14 +85,13 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
         
         if (mounted) {
           setState(() {
-            _currentErrors = codes.toSet().toList(); // Unique codes
+            _currentErrors.addAll(codes);
+            _currentErrors = _currentErrors.toSet().toList(); // Unique codes
             _isLoading = false;
           });
 
-          if (_currentErrors.isNotEmpty) {
-            _ttsService.speak("Scan terminé Mimo. J'ai trouvé ${_currentErrors.length} anomalies sur ta Spark.");
-          } else {
-            _ttsService.speak("Signal propre Mimo. Aucune erreur moteur détectée.");
+          if (_currentErrors.isNotEmpty && (identifier == '47' || identifier == '4A')) {
+           _ttsService.speak("Mimo, j'ai trouvé des anomalies supplémentaires.");
           }
         }
       } catch (e) {

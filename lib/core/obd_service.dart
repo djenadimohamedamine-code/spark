@@ -42,40 +42,43 @@ class ObdService {
         onDone: () => _handleDisconnect(),
       );
 
-      // Réactivation PRO de l'adaptateur
-      await sendCommandWait('ATZ');
-      await sendCommandWait('ATE0');
-      await sendCommandWait('ATL0');
-      await sendCommandWait('ATSP0');
-      await sendCommandWait('0100');
+      // Réactivation PRO de l'adaptateur - Optimisé Spark
+      await sendCommandWait('ATZ');   // Reset
+      await sendCommandWait('ATE0');  // Echo Off
+      await sendCommandWait('ATL0');  // Linefeed Off
+      await sendCommandWait('ATSP6'); // Force Protocole CAN (Mimo Spark Style)
+      await sendCommandWait('0100');  // Check Supported PIDs
       
-      _ttsService.speak("Connexion établie avec la Spark.");
+      _ttsService.speak("Scanner Mimo Spark prêt.");
       _startPolling();
       return true;
     } catch (e) {
-      _ttsService.speak("Mimo, impossible de se connecter au boîtier Wi-Fi.");
+      _ttsService.speak("Connexion Wi-Fi perdue.");
       return false;
     }
   }
 
   Future<void> sendCommandWait(String cmd) async {
     sendCommand(cmd);
-    await Future.delayed(const Duration(milliseconds: 300));
+    await Future.delayed(const Duration(milliseconds: 400));
   }
 
   void _startPolling() {
     _pollingTimer?.cancel();
     int tick = 0;
-    _pollingTimer = Timer.periodic(const Duration(milliseconds: 400), (timer) {
+    _pollingTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
       if (_socket == null) return;
-      switch (tick % 6) {
-        case 0: sendCommand('0105'); break; // Temp
-        case 1: sendCommand('010C'); break; // RPM
-        case 2: sendCommand('010D'); break; // Speed
-        case 3: sendCommand('0110'); break; // MAF
-        case 4: sendCommand('0142'); break; // Battery (ECU Voltage)
-        case 5: sendCommand('012F'); break; // Fuel Level
-      }
+      
+      // PRIORITÉ HAUTE : RPM et Vitesse à chaque fois
+      sendCommand('010C'); // RPM
+      sendCommand('010D'); // Speed
+
+      // PRIORITÉ BASSE : Les autres toutes les X itérations
+      if (tick % 5 == 0) sendCommand('0105'); // Temp (tous les 1.5s)
+      if (tick % 3 == 0) sendCommand('0110'); // MAF (tous les 0.9s)
+      if (tick % 10 == 0) sendCommand('0142'); // Battery (tous les 3s)
+      if (tick % 15 == 0) sendCommand('012F'); // Fuel (tous les 4.5s)
+      
       tick++;
     });
   }
@@ -94,13 +97,21 @@ class ObdService {
     });
   }
 
-  // Met le polling en pause pour scanner les erreurs (Mode 03)
+  // Met le polling en pause pour scanner les erreurs (Mode 03 + 07 + 0A)
   Future<void> scanTroubleCodes() async {
     _pollingTimer?.cancel();
     await Future.delayed(const Duration(milliseconds: 500));
-    sendCommand('03'); // Commande pour lire les codes DTC
-    // On laisse le temps à la réponse d'arriver avant de reprendre le dashboard
-    Future.delayed(const Duration(seconds: 3), () => _startPolling());
+    
+    sendCommand('03'); // Mode 03 : Codes confirmés
+    await Future.delayed(const Duration(seconds: 2));
+    
+    sendCommand('07'); // Mode 07 : Codes en attente (Crucial sur Spark)
+    await Future.delayed(const Duration(seconds: 2));
+
+    sendCommand('0A'); // Mode 0A : Codes permanents
+    await Future.delayed(const Duration(seconds: 2));
+    
+    _startPolling();
   }
 
   // Effacer les codes (Mode 04) - À n'utiliser qu'après réparation !
