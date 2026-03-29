@@ -1,4 +1,5 @@
 name: Mimo-Spark-Android-Build-APK
+# Run for Android only
 on:
   push:
     branches:
