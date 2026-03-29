@@ -92,30 +92,53 @@ class ObdService {
     await Future.delayed(Duration(milliseconds: delay));
   }
 
-  void _startPolling() {
-    _pollingTimer?.cancel();
-    int tick = 0;
-    _pollingTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
-      if (_socket == null) return;
-      
-      // PRIORITÉ HAUTE : RPM et Vitesse à chaque fois
-      sendCommand('010C'); // RPM
-      sendCommand('010D'); // Speed
+  bool _isPolling = false;
 
-      // PRIORITÉ BASSE : Les autres toutes les X itérations
-      if (tick % 5 == 0) sendCommand('0105'); // Temp (tous les 1.5s)
-      if (tick % 3 == 0) sendCommand('0110'); // MAF (tous les 0.9s)
-      if (tick % 10 == 0) sendCommand('0142'); // Battery (tous les 3s)
-      if (tick % 15 == 0) sendCommand('012F'); // Fuel (tous les 4.5s)
-      
-      tick++;
-    });
+  void _startPolling() async {
+    if (_isPolling) return;
+    _isPolling = true;
+    _log("Mimo Spark: Lancement du polling séquentiel...");
+    
+    int tick = 0;
+    while (_socket != null && _isPolling) {
+      try {
+        // PRIORITÉ HAUTE : RPM et Vitesse à chaque fois
+        sendCommand('010C'); // RPM
+        await Future.delayed(const Duration(milliseconds: 150));
+        
+        sendCommand('010D'); // Speed
+        await Future.delayed(const Duration(milliseconds: 150));
+
+        // PRIORITÉ BASSE : Les autres selon le tick
+        if (tick % 5 == 0) {
+          sendCommand('0105'); // Temp
+          await Future.delayed(const Duration(milliseconds: 150));
+        }
+        if (tick % 3 == 0) {
+          sendCommand('0110'); // MAF
+          await Future.delayed(const Duration(milliseconds: 150));
+        }
+        if (tick % 10 == 0) {
+          sendCommand('0142'); // Battery
+          await Future.delayed(const Duration(milliseconds: 150));
+        }
+        if (tick % 15 == 0) {
+          sendCommand('012F'); // Fuel
+          await Future.delayed(const Duration(milliseconds: 150));
+        }
+        
+        tick++;
+      } catch (e) {
+        _log("POLLING ERROR: $e");
+        break;
+      }
+    }
   }
 
   void _handleDisconnect() {
     _socket?.destroy();
     _socket = null;
-    _pollingTimer?.cancel();
+    _isPolling = false;
     
     // On attend 5 secondes et on retente la connexion pour Mimo
     Future.delayed(const Duration(seconds: 5), () {
@@ -156,6 +179,13 @@ class ObdService {
     }
   }
   
+  Future<File?> getLogFile() async {
+    final directory = await getApplicationDocumentsDirectory();
+    final file = File('${directory.path}/debug_mimo.txt');
+    if (await file.exists()) return file;
+    return null;
+  }
+
   void dispose() {
     _handleDisconnect();
     _dataStreamController.close();

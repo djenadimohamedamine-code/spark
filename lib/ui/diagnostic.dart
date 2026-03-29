@@ -3,6 +3,8 @@ import 'dart:async';
 import '../core/dtc_database.dart';
 import '../vocal/tts_service.dart';
 import '../core/obd_service.dart';
+import 'package:share_plus/share_plus.dart';
+import 'dart:io';
 
 class DiagnosticPage extends StatefulWidget {
   const DiagnosticPage({super.key});
@@ -107,10 +109,30 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
     _ttsService.speak("Effacement en cours Mimo. Regarde le voyant moteur.");
   }
 
+  void _shareLog() async {
+    File? logFile = await _obdService.getLogFile();
+    if (logFile != null) {
+      // ignore: deprecated_member_use
+      await Share.shareXFiles([XFile(logFile.path)], text: 'Journal de bord Mimo Spark OBD2');
+    } else {
+      _ttsService.speak("Aucun journal de bord disponible.");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Analyse DTC - Mimo Spark'), backgroundColor: Colors.black),
+      appBar: AppBar(
+        title: const Text('Analyse DTC - Mimo Spark'), 
+        backgroundColor: Colors.black,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share, color: Colors.blue),
+            onPressed: _shareLog,
+            tooltip: "Exporter le Log",
+          )
+        ],
+      ),
       backgroundColor: Colors.black,
       body: Column(
         children: [

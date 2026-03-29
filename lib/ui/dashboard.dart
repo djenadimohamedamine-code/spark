@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_gauges/gauges.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:share_plus/share_plus.dart';
 import '../vocal/tts_service.dart';
 import '../logic/fuel_calculator.dart';
 import '../core/obd_service.dart';
@@ -205,12 +207,25 @@ class _DashboardState extends State<Dashboard> {
     }
   }
 
+  void _shareLog() async {
+    File? logFile = await _obdService.getLogFile();
+    if (logFile != null) {
+      // ignore: deprecated_member_use
+      await Share.shareXFiles([XFile(logFile.path)], text: 'Journal de bord Mimo Spark OBD2 Dashboard');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('MIMO_SPARK'),
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.share, color: Colors.blue),
+          onPressed: _shareLog,
+        ),
         actions: [
           Builder(builder: (context) {
             return Padding(
