@@ -69,17 +69,17 @@ class ObdService {
         onDone: () => _handleDisconnect(),
       );
 
-      // Séquence de réveil MIMO SPARK - Version "Ultra Robuste"
+      // Séquence de réveil MIMO SPARK - Version Originale (Auto)
       _log("INIT: Séquence de réveil...");
       await sendCommandWait('ATZ', delay: 1200);   // Reset long
       await sendCommandWait('ATE0', delay: 500);    // Echo Off
       await sendCommandWait('ATL0', delay: 500);    // Linefeed Off
-      await sendCommandWait('ATH1', delay: 500);    // AFFICHE LES HEADERS (Crucial pour le scan)
-      await sendCommandWait('ATSP5', delay: 1000);  // KWP2000 (Spark 2009 GM/Daewoo)
-      await sendCommandWait('ATSI', delay: 1500);   // Force l'initialisation rapide (KWP Fast Init) pour réveiller le diagnostic
-      await sendCommandWait('0100', delay: 1000);   // Réveil du bus CAN
+      await sendCommandWait('ATH0', delay: 500);    // Pas de headers (Format simple, permet au parser DTC ancien de marcher
+      await sendCommandWait('ATSP0', delay: 1000);  // Protocole Automatique (Fait confience à l'ELM327 pour le Fast Init)
       
-      _ttsService.speak("Scanner Mimo Spark prêt avec journal de bord et forçage protocole KWP2000.");
+      await sendCommandWait('0100', delay: 1000);   // Test de communication et Sync
+      
+      _ttsService.speak("Scanner Mimo Spark prêt avec protocole Auto original.");
       _startPolling();
       return true;
     } catch (e) {
