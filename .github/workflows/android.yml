@@ -1,5 +1,4 @@
-name: Mimo Spark Android Build
-
+name: Mimo-Spark-Android-Build-APK
 on:
   push:
     branches:
@@ -57,5 +56,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MIMO_SPARK_APK
+          name: Mimo-Spark-Android-Build-APK
           path: build/app/outputs/flutter-apk/app-release.apk

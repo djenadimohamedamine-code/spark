@@ -1,4 +1,4 @@
-name: MIMO_SPARK_IOS
+name: Mimo-Spark-iOS-Build-IPA
 on:
   push:
     branches: [ "main", "master" ]
