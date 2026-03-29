@@ -20,6 +20,7 @@ class ObdService {
       _socket!.listen(
         (List<int> event) {
           final String chunk = String.fromCharCodes(event);
+          print("BRUT Mimo: $chunk"); // Debugging Direct du Flux Spark
           responseBuffer += chunk;
           
           // Technique Mimo : On traite les lignes dès qu'elles arrivent
@@ -42,12 +43,12 @@ class ObdService {
         onDone: () => _handleDisconnect(),
       );
 
-      // Réactivation PRO de l'adaptateur - Optimisé Spark
-      await sendCommandWait('ATZ');   // Reset
-      await sendCommandWait('ATE0');  // Echo Off
-      await sendCommandWait('ATL0');  // Linefeed Off
-      await sendCommandWait('ATSP6'); // Force Protocole CAN (Mimo Spark Style)
-      await sendCommandWait('0100');  // Check Supported PIDs
+      // Séquence de réveil MIMO SPARK - Version "Expert"
+      await sendCommandWait('ATZ', delay: 1000);   // Reset long pro
+      await sendCommandWait('ATE0', delay: 500);    // Echo Off
+      await sendCommandWait('ATL0', delay: 500);    // Linefeed Off
+      await sendCommandWait('ATSP0', delay: 1000);  // Auto-protocole (Laisse la Spark décider)
+      await sendCommandWait('010C', delay: 500);    // TEST DIRECT RPM (Wake up)
       
       _ttsService.speak("Scanner Mimo Spark prêt.");
       _startPolling();
@@ -58,9 +59,9 @@ class ObdService {
     }
   }
 
-  Future<void> sendCommandWait(String cmd) async {
+  Future<void> sendCommandWait(String cmd, {int delay = 400}) async {
     sendCommand(cmd);
-    await Future.delayed(const Duration(milliseconds: 400));
+    await Future.delayed(Duration(milliseconds: delay));
   }
 
   void _startPolling() {
