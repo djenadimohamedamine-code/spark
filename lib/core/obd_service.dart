@@ -43,12 +43,12 @@ class ObdService {
         onDone: () => _handleDisconnect(),
       );
 
-      // Séquence de réveil MIMO SPARK - Version "Expert"
-      await sendCommandWait('ATZ', delay: 1000);   // Reset long pro
+      // Séquence de réveil MIMO SPARK - Version "Ultra Robuste"
+      await sendCommandWait('ATZ', delay: 1200);   // Reset long (1.2s pour les clones)
       await sendCommandWait('ATE0', delay: 500);    // Echo Off
       await sendCommandWait('ATL0', delay: 500);    // Linefeed Off
       await sendCommandWait('ATSP0', delay: 1000);  // Auto-protocole (Laisse la Spark décider)
-      await sendCommandWait('010C', delay: 500);    // TEST DIRECT RPM (Wake up)
+      await sendCommandWait('0100', delay: 1000);   // Réveil du bus CAN (Check PIDs)
       
       _ttsService.speak("Scanner Mimo Spark prêt.");
       _startPolling();
