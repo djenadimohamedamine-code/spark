@@ -58,8 +58,12 @@ class _DashboardState extends State<Dashboard> {
       _obdService.dataStream.listen((data) {
         if (mounted) {
           setState(() {
-            rawLog = "$rawLog\n> $data"; // On garde l'historique pour Mimo
-            if (rawLog.length > 1000) rawLog = rawLog.substring(500); // Nettoyage auto
+            rawLog += "\n$data";
+            // On limite a 10 lignes pour eviter de faire ramer l'UI (Mimo Performance)
+            List<String> lines = rawLog.split('\n');
+            if (lines.length > 10) {
+              rawLog = lines.sublist(lines.length - 10).join('\n');
+            }
           });
           _parseObdData(data);
         }
@@ -308,12 +312,22 @@ class _DashboardState extends State<Dashboard> {
     return SizedBox(
       height: 180,
       child: SfRadialGauge(
-        title: const GaugeTitle(text: 'Carburant (L)', textStyle: TextStyle(color: Colors.white, fontSize: 14)),
+        title: const GaugeTitle(text: 'Essence (L)', textStyle: TextStyle(color: Colors.white, fontSize: 14)),
         axes: <RadialAxis>[
-          RadialAxis(minimum: 0, maximum: 35,
-            ranges: <GaugeRange>[GaugeRange(startValue: 0, endValue: 5, color: Colors.red), GaugeRange(startValue: 5, endValue: 35, color: Colors.green)],
-            pointers: <GaugePointer>[NeedlePointer(value: _fuelCalculator.currentLiters, needleColor: Colors.white, enableAnimation: true)], enableAnimation: true),
-            annotations: <GaugeAnnotation>[GaugeAnnotation(widget: Text('${_fuelCalculator.currentLiters.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)],
+          RadialAxis(
+            minimum: 0,
+            maximum: 35,
+            ranges: <GaugeRange>[
+              GaugeRange(startValue: 0, endValue: 5, color: Colors.red),
+              GaugeRange(startValue: 5, endValue: 35, color: Colors.green)
+            ],
+            pointers: <GaugePointer>[
+              NeedlePointer(value: _fuelCalculator.currentLiters, needleColor: Colors.white, enableAnimation: true, animationDuration: 200)
+            ],
+            annotations: <GaugeAnnotation>[
+              GaugeAnnotation(widget: Text('${_fuelCalculator.currentLiters.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)
+            ],
+            enableAnimation: true,
           )
         ],
       ),
@@ -326,10 +340,21 @@ class _DashboardState extends State<Dashboard> {
       child: SfRadialGauge(
         title: const GaugeTitle(text: 'Temp (°C)', textStyle: TextStyle(color: Colors.white, fontSize: 14)),
         axes: <RadialAxis>[
-          RadialAxis(minimum: 50, maximum: 130,
-            ranges: <GaugeRange>[GaugeRange(startValue: 50, endValue: 90, color: Colors.blue), GaugeRange(startValue: 90, endValue: 103, color: Colors.orange), GaugeRange(startValue: 103, endValue: 130, color: Colors.red)],
-            pointers: <GaugePointer>[NeedlePointer(value: temperature == 0 ? 50 : temperature, needleColor: Colors.white, enableAnimation: true)], enableAnimation: true),
-            annotations: <GaugeAnnotation>[GaugeAnnotation(widget: Text('${temperature.toStringAsFixed(1)}°', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)]
+          RadialAxis(
+            minimum: 50,
+            maximum: 130,
+            ranges: <GaugeRange>[
+              GaugeRange(startValue: 50, endValue: 90, color: Colors.blue),
+              GaugeRange(startValue: 90, endValue: 103, color: Colors.orange),
+              GaugeRange(startValue: 103, endValue: 130, color: Colors.red)
+            ],
+            pointers: <GaugePointer>[
+              NeedlePointer(value: temperature == 0 ? 50 : temperature, needleColor: Colors.white, enableAnimation: true, animationDuration: 200)
+            ],
+            annotations: <GaugeAnnotation>[
+              GaugeAnnotation(widget: Text('${temperature.toStringAsFixed(1)}°', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)
+            ],
+            enableAnimation: true,
           )
         ],
       ),
@@ -342,10 +367,20 @@ class _DashboardState extends State<Dashboard> {
       child: SfRadialGauge(
         title: const GaugeTitle(text: 'RPM', textStyle: TextStyle(color: Colors.white, fontSize: 14)),
         axes: <RadialAxis>[
-          RadialAxis(minimum: 0, maximum: 8000,
-            ranges: <GaugeRange>[GaugeRange(startValue: 0, endValue: 6000, color: Colors.green), GaugeRange(startValue: 6000, endValue: 8000, color: Colors.red)],
-            pointers: <GaugePointer>[NeedlePointer(value: rpm, needleColor: Colors.white, enableAnimation: true)], enableAnimation: true),
-            annotations: <GaugeAnnotation>[GaugeAnnotation(widget: Text('${rpm.toInt()}', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)]
+          RadialAxis(
+            minimum: 0,
+            maximum: 8000,
+            ranges: <GaugeRange>[
+              GaugeRange(startValue: 0, endValue: 6000, color: Colors.green),
+              GaugeRange(startValue: 6000, endValue: 8000, color: Colors.red)
+            ],
+            pointers: <GaugePointer>[
+              NeedlePointer(value: rpm, needleColor: Colors.white, enableAnimation: true, animationDuration: 200)
+            ],
+            annotations: <GaugeAnnotation>[
+              GaugeAnnotation(widget: Text('${rpm.toInt()}', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)
+            ],
+            enableAnimation: true,
           )
         ],
       ),
@@ -358,10 +393,20 @@ class _DashboardState extends State<Dashboard> {
       child: SfRadialGauge(
         title: const GaugeTitle(text: 'KM/H', textStyle: TextStyle(color: Colors.white, fontSize: 14)),
         axes: <RadialAxis>[
-          RadialAxis(minimum: 0, maximum: 200,
-            ranges: <GaugeRange>[GaugeRange(startValue: 0, endValue: 120, color: Colors.green), GaugeRange(startValue: 120, endValue: 200, color: Colors.red)],
-            pointers: <GaugePointer>[NeedlePointer(value: speed, needleColor: Colors.white, enableAnimation: true)], enableAnimation: true),
-            annotations: <GaugeAnnotation>[GaugeAnnotation(widget: Text('${speed.toInt()}', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)]
+          RadialAxis(
+            minimum: 0,
+            maximum: 200,
+            ranges: <GaugeRange>[
+              GaugeRange(startValue: 0, endValue: 120, color: Colors.green),
+              GaugeRange(startValue: 120, endValue: 200, color: Colors.red)
+            ],
+            pointers: <GaugePointer>[
+              NeedlePointer(value: speed, needleColor: Colors.white, enableAnimation: true, animationDuration: 200)
+            ],
+            annotations: <GaugeAnnotation>[
+              GaugeAnnotation(widget: Text('${speed.toInt()}', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)
+            ],
+            enableAnimation: true,
           )
         ],
       ),
