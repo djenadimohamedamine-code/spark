@@ -155,14 +155,25 @@ class ObdService {
     
     _log("SCAN: Démarrage scan DTC Mode 03/07/0A...");
     
-    sendCommand('03'); // Codes confirmés
-    await Future.delayed(const Duration(seconds: 3));
+    // Active les headers KWP pour le scan (comme Car Scanner)
+    // Format KWP: 82=longueur, 11=ECU, F1=outil de diagnostic
+    sendCommand('ATH1');     // Active les headers
+    await Future.delayed(const Duration(milliseconds: 500));
+    sendCommand('ATSH 82 11 F1'); // Header KWP pour la Spark
+    await Future.delayed(const Duration(milliseconds: 500));
     
-    sendCommand('07'); // Codes en attente
-    await Future.delayed(const Duration(seconds: 3));
+    sendCommand('03'); // Codes confirmés (Mode 03)
+    await Future.delayed(const Duration(seconds: 4));
+    
+    sendCommand('07'); // Codes en attente (Mode 07)
+    await Future.delayed(const Duration(seconds: 4));
 
-    sendCommand('0A'); // Codes permanents
-    await Future.delayed(const Duration(seconds: 3));
+    sendCommand('0A'); // Codes permanents (Mode 0A)
+    await Future.delayed(const Duration(seconds: 4));
+    
+    // Restore les headers originaux (désactivés)
+    sendCommand('ATH0');
+    await Future.delayed(const Duration(milliseconds: 300));
     
     _log("SCAN: Fin du scan. Reprise du polling.");
     _startPolling(); // on relance le polling après
