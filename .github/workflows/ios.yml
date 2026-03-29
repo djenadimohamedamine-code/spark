@@ -1,0 +1,58 @@
+name: MIMO_SPARK_IOS
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup_Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.0'
+          channel: 'stable'
+
+      - name: Create_Project_Structure
+        run: |
+          # Backup custom files
+          cp pubspec.yaml pubspec.yaml.bak
+          cp lib/main.dart lib/main.dart.bak
+          cp -r lib lib.bak
+          
+          # Force create iOS structure
+          flutter create --project-name=mimo_spark --platforms=ios .
+          
+          # Restore custom files
+          cp pubspec.yaml.bak pubspec.yaml
+          rm -rf lib
+          mv lib.bak lib
+          
+      - name: Get_Deps
+        run: |
+          flutter config --enable-ios
+          flutter pub get
+
+      - name: Pods
+        run: |
+          cd ios
+          pod install --repo-update
+
+      - name: Build_iOS_IPA
+        run: |
+          flutter build ios --release --no-codesign --verbose
+          # Create IPA
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -r Runner.app Payload/
+          zip -r MIMO_SPARK.ipa Payload
+
+      - name: Upload_Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mimo-spark-ipa
+          path: build/ios/iphoneos/MIMO_SPARK.ipa
