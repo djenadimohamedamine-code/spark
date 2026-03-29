@@ -105,27 +105,27 @@ class ObdService {
       try {
         // PRIORITÉ HAUTE : RPM et Vitesse à chaque fois
         sendCommand('010C'); // RPM
-        await Future.delayed(const Duration(milliseconds: 150));
+        await Future.delayed(const Duration(milliseconds: 350));
         
         sendCommand('010D'); // Speed
-        await Future.delayed(const Duration(milliseconds: 150));
+        await Future.delayed(const Duration(milliseconds: 350));
 
         // PRIORITÉ BASSE : Les autres selon le tick
         if (tick % 5 == 0) {
           sendCommand('0105'); // Temp
-          await Future.delayed(const Duration(milliseconds: 150));
+          await Future.delayed(const Duration(milliseconds: 300));
         }
         if (tick % 3 == 0) {
           sendCommand('0110'); // MAF
-          await Future.delayed(const Duration(milliseconds: 150));
+          await Future.delayed(const Duration(milliseconds: 300));
         }
         if (tick % 10 == 0) {
           sendCommand('0142'); // Battery
-          await Future.delayed(const Duration(milliseconds: 150));
+          await Future.delayed(const Duration(milliseconds: 300));
         }
         if (tick % 15 == 0) {
-          sendCommand('012F'); // Fuel
-          await Future.delayed(const Duration(milliseconds: 150));
+          sendCommand('012F'); // Fuel (if supported)
+          await Future.delayed(const Duration(milliseconds: 300));
         }
         
         tick++;
