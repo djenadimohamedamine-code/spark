@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_gauges/gauges.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../vocal/tts_service.dart';
 import '../logic/fuel_calculator.dart';
 import '../core/obd_service.dart';
@@ -23,6 +25,7 @@ class _DashboardState extends State<Dashboard> {
   double gX = 0.0;
   double gY = 0.0;
   DateTime lastMafTime = DateTime.now();
+  bool rpmAlertTriggered = false;
   
   // Console de Log pour Mimo (Directeur Technique)
   String rawLog = "En attente de données...";
@@ -33,16 +36,18 @@ class _DashboardState extends State<Dashboard> {
   
   bool alert98Triggered = false;
   bool alert103Triggered = false;
+  StreamSubscription? _accelerometerSubscription;
 
   @override
   void initState() {
     super.initState();
+    WakelockPlus.enable(); // Écran toujours allumé Mimo !
     _connectObd();
     _initSensors();
   }
 
   void _initSensors() {
-    accelerometerEvents.listen((AccelerometerEvent event) {
+    _accelerometerSubscription = accelerometerEvents.listen((AccelerometerEvent event) {
       if (mounted) {
         setState(() {
           gX = event.x / 9.81;
@@ -88,6 +93,14 @@ class _DashboardState extends State<Dashboard> {
           setState(() {
             rpm = ((a * 256) + b) / 4.0;
           });
+
+          // Alerte sonore Mimo à 3000 RPM
+          if (rpm >= 3000 && !rpmAlertTriggered) {
+             _ttsService.speakAlert("Dépassement 3000 tours !");
+             rpmAlertTriggered = true;
+          } else if (rpm < 2800) {
+             rpmAlertTriggered = false;
+          }
         }
       } catch (e) { print("Erreur RPM: $e"); }
     }
@@ -425,6 +438,8 @@ class _DashboardState extends State<Dashboard> {
 
   @override
   void dispose() {
+    WakelockPlus.disable(); // Libération de l'écran
+    _accelerometerSubscription?.cancel();
     _obdService.dispose();
     super.dispose();
   }
