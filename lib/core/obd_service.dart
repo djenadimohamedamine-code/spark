@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import '../vocal/tts_service.dart';
 
 class ObdService {
@@ -12,7 +13,31 @@ class ObdService {
   Timer? _pollingTimer;
   final TtsService _ttsService = TtsService();
 
+  // Système de Log "Boite Noire" Mimo Spark
+  File? _logFile;
+
+  Future<void> _initLogFile() async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      _logFile = File('${directory.path}/debug_mimo.txt');
+      await _logFile!.writeAsString('--- MIMO SPARK LOG START ${DateTime.now()} ---\n');
+    } catch (e) {
+      print("Erreur Init Log: $e");
+    }
+  }
+
+  Future<void> _log(String message) async {
+    if (_logFile != null) {
+      final stamp = DateTime.now().toString().substring(11, 19);
+      await _logFile!.writeAsString('[$stamp] $message\n', mode: FileMode.append);
+    }
+    print(message);
+  }
+
   Future<bool> connect() async {
+    await _initLogFile();
+    _log("Mimo Spark: Tentative de connexion Wi-Fi...");
+    
     try {
       _socket = await Socket.connect(ip, port, timeout: const Duration(seconds: 10));
       
@@ -20,40 +45,43 @@ class ObdService {
       _socket!.listen(
         (List<int> event) {
           final String chunk = String.fromCharCodes(event);
-          print("BRUT Mimo: $chunk"); // Debugging Direct du Flux Spark
+          _log("BRUT: $chunk");
           responseBuffer += chunk;
           
-          // Technique Mimo : On traite les lignes dès qu'elles arrivent
           if (responseBuffer.contains('\r') || responseBuffer.contains('>')) {
             List<String> lines = responseBuffer.split(RegExp(r'[\r\n>]'));
             for (String line in lines) {
               String telegram = line.trim();
               if (telegram.isNotEmpty && telegram != "OK" && telegram != "SEARCHING") {
-                print("Spark Data Flow: $telegram");
+                _log("CLEAN: $telegram");
                 if (!_dataStreamController.isClosed) {
                   _dataStreamController.add(telegram);
                 }
               }
             }
-            // On ne garde que le reliquat incomplet
             responseBuffer = (chunk.endsWith('\r') || chunk.endsWith('>')) ? "" : lines.last;
           }
         },
-        onError: (error) => _handleDisconnect(),
+        onError: (error) {
+           _log("SOCKET ERROR: $error");
+           _handleDisconnect();
+        },
         onDone: () => _handleDisconnect(),
       );
 
       // Séquence de réveil MIMO SPARK - Version "Ultra Robuste"
+      _log("INIT: Séquence de réveil...");
       await sendCommandWait('ATZ', delay: 1200);   // Reset long (1.2s pour les clones)
       await sendCommandWait('ATE0', delay: 500);    // Echo Off
       await sendCommandWait('ATL0', delay: 500);    // Linefeed Off
       await sendCommandWait('ATSP0', delay: 1000);  // Auto-protocole (Laisse la Spark décider)
       await sendCommandWait('0100', delay: 1000);   // Réveil du bus CAN (Check PIDs)
       
-      _ttsService.speak("Scanner Mimo Spark prêt.");
+      _ttsService.speak("Scanner Mimo Spark prêt avec journal de bord.");
       _startPolling();
       return true;
     } catch (e) {
+      _log("CONNECTION FAILED: $e");
       _ttsService.speak("Connexion Wi-Fi perdue.");
       return false;
     }
@@ -123,6 +151,7 @@ class ObdService {
 
   void sendCommand(String command) {
     if (_socket != null) {
+      _log("SENT: $command");
       _socket!.write('$command\r');
     }
   }
