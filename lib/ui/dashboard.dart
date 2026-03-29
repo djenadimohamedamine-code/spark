@@ -306,8 +306,8 @@ class _DashboardState extends State<Dashboard> {
 
   Widget _buildFuelGauge() {
     double fuelVal = _fuelCalculator.currentLiters;
-    // Consommation moyenne : 6.5L/100km (Spark 2009 en ville)
-    int kmRestants = (fuelVal / 6.5 * 100).toInt();
+    // Consommation agressive : 9.5L/100km (conduite sportive)
+    int kmRestants = (fuelVal / 9.5 * 100).toInt();
     return SizedBox(height: 180, child: SfRadialGauge(
       title: const GaugeTitle(text: 'Carburant Virtuel', textStyle: TextStyle(color: Colors.orange, fontSize: 11)),
       axes: <RadialAxis>[RadialAxis(
