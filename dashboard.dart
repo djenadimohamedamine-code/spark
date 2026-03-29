@@ -306,16 +306,13 @@ class _DashboardState extends State<Dashboard> {
 
   Widget _buildFuelGauge() {
     double fuelVal = _fuelCalculator.currentLiters;
-    // Consommation moyenne : 6.5L/100km (Spark 2009 en ville)
-    int kmRestants = (fuelVal / 6.5 * 100).toInt();
-    return SizedBox(height: 180, child: SfRadialGauge(
-      title: const GaugeTitle(text: 'Carburant Virtuel', textStyle: TextStyle(color: Colors.orange, fontSize: 11)),
+    return SizedBox(height: 160, child: SfRadialGauge(
+      title: const GaugeTitle(text: 'Conso MAF (L)', textStyle: TextStyle(color: Colors.orange, fontSize: 11)),
       axes: <RadialAxis>[RadialAxis(
         minimum: 0, maximum: 35,
         ranges: <GaugeRange>[
           GaugeRange(startValue: 0, endValue: 5, color: Colors.red),
-          GaugeRange(startValue: 5, endValue: 15, color: Colors.orange),
-          GaugeRange(startValue: 15, endValue: 35, color: Colors.green)
+          GaugeRange(startValue: 5, endValue: 35, color: Colors.green)
         ],
         pointers: <GaugePointer>[
           NeedlePointer(value: fuelVal, needleColor: Colors.white, enableAnimation: true, animationDuration: 200)
@@ -325,18 +322,16 @@ class _DashboardState extends State<Dashboard> {
             widget: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('${fuelVal.toStringAsFixed(1)} L', style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                Text('≈ $kmRestants km', style: const TextStyle(color: Colors.lightGreenAccent, fontSize: 11)),
+                Text('${fuelVal.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 12)),
                 const Text('virtuel', style: TextStyle(color: Colors.orange, fontSize: 9)),
               ],
             ),
-            angle: 90, positionFactor: 0.75
+            angle: 90, positionFactor: 0.8
           )
         ],
       )],
     ));
   }
-
 
 
   Widget _buildTempGauge() {
