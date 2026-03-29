@@ -8,6 +8,8 @@ import 'package:sensors_plus/sensors_plus.dart';
 import '../vocal/tts_service.dart';
 import '../logic/fuel_calculator.dart';
 import '../core/obd_service.dart';
+import '../core/obd_service.dart';
+import '../core/gear_calculator.dart';
 import 'diagnostic.dart';
 
 class Dashboard extends StatefulWidget {
@@ -23,6 +25,7 @@ class _DashboardState extends State<Dashboard> {
   double rpm = 0.0;
   double speed = 0.0;
   double tension = 0.0;
+  String currentGear = 'N';
   bool isHudMode = false;
   double gX = 0.0;
   double gY = 0.0;
@@ -87,6 +90,7 @@ class _DashboardState extends State<Dashboard> {
           int b = int.parse(cleanData.substring(idx + 2, idx + 4), radix: 16);
           setState(() {
             rpm = ((a * 256) + b) / 4.0;
+            currentGear = GearCalculator.calculateGear(rpm.toInt(), speed.toInt());
           });
           if (rpm >= 3000 && !rpmAlertTriggered) {
              _ttsService.speakAlert("Dépassement 3000 tours !");
@@ -116,6 +120,7 @@ class _DashboardState extends State<Dashboard> {
         if (cleanData.length >= idx + 2) {
           setState(() {
             speed = int.parse(cleanData.substring(idx, idx + 2), radix: 16).toDouble();
+            currentGear = GearCalculator.calculateGear(rpm.toInt(), speed.toInt());
           });
         }
       } catch (_) {}
@@ -331,7 +336,33 @@ class _DashboardState extends State<Dashboard> {
   Widget _buildRpmGauge() {
     return SizedBox(height: 160, child: SfRadialGauge(
       title: const GaugeTitle(text: 'RPM', textStyle: TextStyle(color: Colors.white, fontSize: 12)),
-      axes: <RadialAxis>[RadialAxis(minimum: 0, maximum: 8000, ranges: <GaugeRange>[GaugeRange(startValue: 0, endValue: 6000, color: Colors.green), GaugeRange(startValue: 6000, endValue: 8000, color: Colors.red)], pointers: <GaugePointer>[NeedlePointer(value: rpm, needleColor: Colors.white, enableAnimation: true, animationDuration: 200)], annotations: <GaugeAnnotation>[GaugeAnnotation(widget: Text('${rpm.toInt()}', style: const TextStyle(color: Colors.white, fontSize: 12)), angle: 90, positionFactor: 0.8)])],
+      axes: <RadialAxis>[
+        RadialAxis(
+          alignment: GaugeAlignment.center,
+          minimum: 0, 
+          maximum: 8000, 
+          ranges: <GaugeRange>[
+            GaugeRange(startValue: 0, endValue: 6000, color: Colors.green), 
+            GaugeRange(startValue: 6000, endValue: 8000, color: Colors.red)
+          ], 
+          pointers: <GaugePointer>[
+            NeedlePointer(value: rpm, needleColor: Colors.white, enableAnimation: true, animationDuration: 200)
+          ], 
+          annotations: <GaugeAnnotation>[
+            GaugeAnnotation(
+              widget: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('${rpm.toInt()}', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                  Text(currentGear, style: const TextStyle(color: Colors.orange, fontSize: 28, fontWeight: FontWeight.bold)),
+                ],
+              ), 
+              angle: 90, 
+              positionFactor: 0.8
+            )
+          ]
+        )
+      ],
     ));
   }
 
