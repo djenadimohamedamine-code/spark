@@ -22,6 +22,7 @@ class _DashboardState extends State<Dashboard> {
   bool isHudMode = false;
   double gX = 0.0;
   double gY = 0.0;
+  DateTime lastMafTime = DateTime.now();
   
   // Console de Log pour Mimo (Directeur Technique)
   String rawLog = "En attente de données...";
@@ -67,54 +68,106 @@ class _DashboardState extends State<Dashboard> {
   }
 
   void _parseObdData(String data) {
-    // Nettoyage de la trame (ex: 410C1AF8 >)
-    String cleanData = data.replaceAll(' ', '').replaceAll('>', '');
+    // 1. NETTOYAGE RADICAL : on ne garde que les lettres et chiffres
+    String cleanData = data.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
 
-    // RPM (410C) - Formule: ((A*256)+B)/4
+    // 2. RPM (410C) - VERSION BLINDÉE
     if (cleanData.contains('410C')) {
       try {
         int idx = cleanData.indexOf('410C') + 4;
-        String hexA = cleanData.substring(idx, idx + 2);
-        String hexB = cleanData.substring(idx + 2, idx + 4);
-        int a = int.parse(hexA, radix: 16);
-        int b = int.parse(hexB, radix: 16);
-        setState(() {
-          rpm = ((a * 256) + b) / 4.0;
-        });
-      } catch (_) {}
+        if (cleanData.length >= idx + 4) {
+          // On prend les 4 caractères (A et B)
+          String hexA = cleanData.substring(idx, idx + 2);
+          String hexB = cleanData.substring(idx + 2, idx + 4);
+          int a = int.parse(hexA, radix: 16);
+          int b = int.parse(hexB, radix: 16);
+          setState(() {
+            rpm = ((a * 256) + b) / 4.0;
+          });
+        }
+      } catch (e) { print("Erreur RPM: $e"); }
     }
 
-    // Temp (4105) - Formule: A-40
+    // 3. TEMP (4105)
     if (cleanData.contains('4105')) {
       try {
         int idx = cleanData.indexOf('4105') + 4;
-        String hex = cleanData.substring(idx, idx + 2);
-        double val = int.parse(hex, radix: 16) - 40.0;
-        updateTemperature(val);
-      } catch (_) {}
+        if (cleanData.length >= idx + 2) {
+          String hex = cleanData.substring(idx, idx + 2);
+          double val = int.parse(hex, radix: 16) - 40.0;
+          updateTemperature(val);
+        }
+      } catch (e) { print("Erreur Temp: $e"); }
     }
 
-    // Speed (410D) - Formule: A
+    // 4. SPEED (410D)
     if (cleanData.contains('410D')) {
       try {
         int idx = cleanData.indexOf('410D') + 4;
-        String hex = cleanData.substring(idx, idx + 2);
-        setState(() {
-          speed = int.parse(hex, radix: 16).toDouble();
-        });
+        if (cleanData.length >= idx + 2) {
+          String hex = cleanData.substring(idx, idx + 2);
+          setState(() {
+            speed = int.parse(hex, radix: 16).toDouble();
+          });
+        }
+      } catch (e) { print("Erreur Speed: $e"); }
+    }
+
+    // 5. MAF (4110) - Pour la jauge de carburant virtuelle
+    if (cleanData.contains('4110')) {
+      try {
+        int idx = cleanData.indexOf('4110') + 4;
+        if (cleanData.length >= idx + 4) {
+          int a = int.parse(cleanData.substring(idx, idx + 2), radix: 16);
+          int b = int.parse(cleanData.substring(idx + 2, idx + 4), radix: 16);
+          double mafGs = ((a * 256) + b) / 100.0;
+          double lph = _fuelCalculator.calculateConsumptionLph(mafGs);
+          
+          DateTime now = DateTime.now();
+          double delta = now.difference(lastMafTime).inMilliseconds / 1000.0;
+          lastMafTime = now;
+          
+          setState(() {
+            _fuelCalculator.updateVirtualFuel(lph, delta);
+          });
+        }
       } catch (_) {}
     }
 
-    // Battery (4142) - Formule: ((A*256)+B)/1000
+    // 6. FUEL LEVEL (412F) - Niveau réel en %
+    if (cleanData.contains('412F')) {
+      try {
+        int idx = cleanData.indexOf('412F') + 4;
+        if (cleanData.length >= idx + 2) {
+          int a = int.parse(cleanData.substring(idx, idx + 2), radix: 16);
+          double percent = (a * 100.0) / 255.0;
+          setState(() {
+            _fuelCalculator.updateRealFuelLevel(percent, 35.0); // 35L pour la Spark
+          });
+        }
+      } catch (_) {}
+    }
+    
+    // 7. BATTERY (4142) - Plus précis car direct calculateur
     if (cleanData.contains('4142')) {
       try {
         int idx = cleanData.indexOf('4142') + 4;
-        String hexA = cleanData.substring(idx, idx + 2);
-        String hexB = cleanData.substring(idx + 2, idx + 4);
-        int a = int.parse(hexA, radix: 16);
-        int b = int.parse(hexB, radix: 16);
+        if (cleanData.length >= idx + 4) {
+          int a = int.parse(cleanData.substring(idx, idx + 2), radix: 16);
+          int b = int.parse(cleanData.substring(idx + 2, idx + 4), radix: 16);
+          setState(() {
+            tension = ((a * 256) + b) / 1000.0;
+          });
+        }
+      } catch (_) {}
+    }
+    
+    // 8. BATTERY ALT (ATRV) -> Reponse ex: "13.4V"
+    if (data.contains('V')) {
+      try {
+        String val = data.replaceAll('V', '').trim();
         setState(() {
-          tension = ((a * 256) + b) / 1000.0;
+          tension = double.parse(val);
         });
       } catch (_) {}
     }
@@ -259,7 +312,7 @@ class _DashboardState extends State<Dashboard> {
         axes: <RadialAxis>[
           RadialAxis(minimum: 0, maximum: 35,
             ranges: <GaugeRange>[GaugeRange(startValue: 0, endValue: 5, color: Colors.red), GaugeRange(startValue: 5, endValue: 35, color: Colors.green)],
-            pointers: <GaugePointer>[NeedlePointer(value: _fuelCalculator.currentLiters, needleColor: Colors.white, enableAnimation: true)],
+            pointers: <GaugePointer>[NeedlePointer(value: _fuelCalculator.currentLiters, needleColor: Colors.white, enableAnimation: true)], enableAnimation: true),
             annotations: <GaugeAnnotation>[GaugeAnnotation(widget: Text('${_fuelCalculator.currentLiters.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)],
           )
         ],
@@ -275,7 +328,7 @@ class _DashboardState extends State<Dashboard> {
         axes: <RadialAxis>[
           RadialAxis(minimum: 50, maximum: 130,
             ranges: <GaugeRange>[GaugeRange(startValue: 50, endValue: 90, color: Colors.blue), GaugeRange(startValue: 90, endValue: 103, color: Colors.orange), GaugeRange(startValue: 103, endValue: 130, color: Colors.red)],
-            pointers: <GaugePointer>[NeedlePointer(value: temperature == 0 ? 50 : temperature, needleColor: Colors.white, enableAnimation: true)],
+            pointers: <GaugePointer>[NeedlePointer(value: temperature == 0 ? 50 : temperature, needleColor: Colors.white, enableAnimation: true)], enableAnimation: true),
             annotations: <GaugeAnnotation>[GaugeAnnotation(widget: Text('${temperature.toStringAsFixed(1)}°', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)]
           )
         ],
@@ -291,7 +344,7 @@ class _DashboardState extends State<Dashboard> {
         axes: <RadialAxis>[
           RadialAxis(minimum: 0, maximum: 8000,
             ranges: <GaugeRange>[GaugeRange(startValue: 0, endValue: 6000, color: Colors.green), GaugeRange(startValue: 6000, endValue: 8000, color: Colors.red)],
-            pointers: <GaugePointer>[NeedlePointer(value: rpm, needleColor: Colors.white, enableAnimation: true)],
+            pointers: <GaugePointer>[NeedlePointer(value: rpm, needleColor: Colors.white, enableAnimation: true)], enableAnimation: true),
             annotations: <GaugeAnnotation>[GaugeAnnotation(widget: Text('${rpm.toInt()}', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)]
           )
         ],
@@ -307,7 +360,7 @@ class _DashboardState extends State<Dashboard> {
         axes: <RadialAxis>[
           RadialAxis(minimum: 0, maximum: 200,
             ranges: <GaugeRange>[GaugeRange(startValue: 0, endValue: 120, color: Colors.green), GaugeRange(startValue: 120, endValue: 200, color: Colors.red)],
-            pointers: <GaugePointer>[NeedlePointer(value: speed, needleColor: Colors.white, enableAnimation: true)],
+            pointers: <GaugePointer>[NeedlePointer(value: speed, needleColor: Colors.white, enableAnimation: true)], enableAnimation: true),
             annotations: <GaugeAnnotation>[GaugeAnnotation(widget: Text('${speed.toInt()}', style: const TextStyle(color: Colors.white, fontSize: 14)), angle: 90, positionFactor: 0.8)]
           )
         ],

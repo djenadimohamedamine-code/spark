@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../core/dtc_database.dart';
 import '../vocal/tts_service.dart';
 import '../core/obd_service.dart';
@@ -16,73 +17,86 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
   List<String> _currentErrors = [];
   bool _isLoading = false;
 
+  StreamSubscription? _obdSubscription;
+
   @override
   void initState() {
     super.initState();
     DtcDatabase.loadCodes();
+    // Écoute permanente mais filtrée pour Mimo
+    _obdSubscription = _obdService.dataStream.listen((data) {
+       if (_isLoading) _parseDiagnosticData(data);
+    });
+  }
+
+  @override
+  void dispose() {
+    _obdSubscription?.cancel();
+    super.dispose();
   }
 
   void _scanDtc() async {
     setState(() {
       _isLoading = true;
+      _currentErrors.clear();
     });
     
     _ttsService.speak("Lancement du scan Mode 03 sur la Spark.");
     
-    // Connect and send 03
-    bool connected = await _obdService.connect();
-    if (!connected) {
-      _ttsService.speak("Échec du scan. Boîtier Wi-Fi inaccessible.");
-      setState(() => _isLoading = false);
-      return;
-    }
-
-    _obdService.sendCommand('03');
+    // On utilise la méthode blindée du service
+    await _obdService.scanTroubleCodes();
     
-    // Wait for response
-    _obdService.dataStream.listen((data) {
-      if (data.contains('43')) {
-        // Parsing basic DTC (ex: 43 01 13 03 42)
-        List<String> codes = [];
-        String clean = data.replaceAll('>', '').trim();
-        List<String> parts = clean.split(' ');
-        for (int i = 1; i < parts.length - 1; i += 2) {
-          try {
-            if (parts[i] != '00' && parts[i].length == 2 && parts[i+1].length == 2) {
-              codes.add('P${parts[i]}${parts[i+1]}');
-            }
-          } catch (_) {}
-        }
-        
-        setState(() {
-          _currentErrors = codes.toSet().toList(); // Unique codes
-          _isLoading = false;
-        });
-
-        if (_currentErrors.isNotEmpty) {
-          _ttsService.speak("Scan terminé Mimo. J'ai trouvé ${_currentErrors.length} anomalies.");
-        } else {
-          _ttsService.speak("Signal propre Mimo. Aucune erreur moteur.");
-        }
-      }
-    });
-
     // Timeout safety
     Future.delayed(const Duration(seconds: 4), () {
-      if (_isLoading) {
+      if (mounted && _isLoading) {
         setState(() => _isLoading = false);
         _ttsService.speak("Scan terminé. Tout semble normal, aucun code reçu.");
       }
     });
   }
 
-  void _clearDtc() async {
-    bool connected = await _obdService.connect();
-    if (connected) {
-      _obdService.sendCommand('04');
-      _ttsService.speak("Commande Clear DTC envoyée Mimo. Le voyant devrait s'éteindre.");
-      setState(() => _currentErrors.clear());
+  void _parseDiagnosticData(String data) {
+    // Nettoyage radical Mimo Style (ne garde que lettres et chiffres)
+    String cleanData = data.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
+    
+    // Le code 430... signifie qu'on a bien reçu le mode 03
+    if (cleanData.contains('43')) {
+      try {
+        List<String> codes = [];
+        // On isole tout ce qui suit le '43'
+        String payload = cleanData.substring(cleanData.indexOf('43') + 2);
+        
+        // On découpe par blocs de 4 caractères (un code DTC fait 2 octets = 4 hex)
+        for (int i = 0; i + 4 <= payload.length; i += 4) {
+          String codeHex = payload.substring(i, i + 4);
+          if (codeHex != "0000" && codeHex.length == 4) {
+            codes.add("P$codeHex");
+          }
+        }
+        
+        if (mounted) {
+          setState(() {
+            _currentErrors = codes.toSet().toList(); // Unique codes
+            _isLoading = false;
+          });
+
+          if (_currentErrors.isNotEmpty) {
+            _ttsService.speak("Scan terminé Mimo. J'ai trouvé ${_currentErrors.length} anomalies sur ta Spark.");
+          } else {
+            _ttsService.speak("Signal propre Mimo. Aucune erreur moteur détectée.");
+          }
+        }
+      } catch (e) {
+        print("Erreur Parsing DTC: $e");
+        if (mounted) setState(() => _isLoading = false);
+      }
     }
+  }
+
+  void _clearDtc() async {
+    _obdService.clearCodes();
+    setState(() => _currentErrors.clear());
+    _ttsService.speak("Effacement en cours Mimo. Regarde le voyant moteur.");
   }
 
   @override
