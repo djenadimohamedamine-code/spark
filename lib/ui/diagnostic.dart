@@ -103,10 +103,46 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
     }
   }
 
-  void _clearDtc() async {
     _obdService.clearCodes();
     setState(() => _currentErrors.clear());
     _ttsService.speak("Effacement en cours Mimo. Regarde le voyant moteur.");
+  }
+
+  void _lireBoiteNoire() async {
+    try {
+      File? file = await _obdService.getLogFile();
+      if (file != null && await file.exists()) {
+        String contenu = await file.readAsString();
+        List<String> lignes = contenu.split('\n');
+        // On affiche les 30 dernières lignes pour le diagnostic précis (Mimo Style)
+        String finDuLog = lignes.length > 30 
+            ? lignes.sublist(lignes.length - 30).join('\n') 
+            : contenu;
+
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              backgroundColor: const Color(0xFF1A1A1A),
+              title: const Text("Boîte Noire Mimo Spark", style: TextStyle(color: Colors.blueAccent, fontSize: 16)),
+              content: SingleChildScrollView(
+                child: Text(finDuLog, style: const TextStyle(fontSize: 10, color: Colors.greenAccent, fontFamily: 'monospace')),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context), 
+                  child: const Text("FERMER", style: TextStyle(color: Colors.white))
+                )
+              ],
+            ),
+          );
+        }
+      } else {
+        _ttsService.speak("Mimo, le journal est vide.");
+      }
+    } catch (e) {
+      print("Erreur lecture log: $e");
+    }
   }
 
   void _shareLog() async {
@@ -117,6 +153,12 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
     } else {
       _ttsService.speak("Aucun journal de bord disponible.");
     }
+  }
+
+  void _clearDtc() async {
+    _obdService.clearCodes();
+    setState(() => _currentErrors.clear());
+    _ttsService.speak("Effacement en cours Mimo. Regarde le voyant moteur.");
   }
 
   @override
@@ -138,21 +180,32 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.search),
-                  label: const Text('SCAN'),
-                  onPressed: _isLoading ? null : _scanDtc,
-                ),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.delete),
-                  label: const Text('EFFACER'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                  onPressed: _clearDtc,
-                ),
-              ],
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.search),
+                    label: const Text('SCAN'),
+                    onPressed: _isLoading ? null : _scanDtc,
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.history),
+                    label: const Text('LOG'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey[800]),
+                    onPressed: _lireBoiteNoire,
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.delete),
+                    label: const Text('EFFACER'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red[900]),
+                    onPressed: _clearDtc,
+                  ),
+                ],
+              ),
             ),
           ),
           if (_isLoading) const CircularProgressIndicator(color: Colors.white),

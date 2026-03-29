@@ -338,7 +338,6 @@ class _DashboardState extends State<Dashboard> {
       title: const GaugeTitle(text: 'RPM', textStyle: TextStyle(color: Colors.white, fontSize: 12)),
       axes: <RadialAxis>[
         RadialAxis(
-          alignment: GaugeAlignment.center,
           minimum: 0, 
           maximum: 8000, 
           ranges: <GaugeRange>[

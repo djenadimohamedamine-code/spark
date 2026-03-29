@@ -71,13 +71,14 @@ class ObdService {
 
       // Séquence de réveil MIMO SPARK - Version "Ultra Robuste"
       _log("INIT: Séquence de réveil...");
-      await sendCommandWait('ATZ', delay: 1200);   // Reset long (1.2s pour les clones)
+      await sendCommandWait('ATZ', delay: 1200);   // Reset long
       await sendCommandWait('ATE0', delay: 500);    // Echo Off
       await sendCommandWait('ATL0', delay: 500);    // Linefeed Off
-      await sendCommandWait('ATSP0', delay: 1000);  // Auto-protocole (Laisse la Spark décider)
-      await sendCommandWait('0100', delay: 1000);   // Réveil du bus CAN (Check PIDs)
+      await sendCommandWait('ATH1', delay: 500);    // AFFICHE LES HEADERS (Crucial pour le scan)
+      await sendCommandWait('ATSP5', delay: 1000);  // FORCE LE PROTOCOLE 5 (KWP Fast pour Spark 2009)
+      await sendCommandWait('0100', delay: 1000);   // Réveil du bus CAN
       
-      _ttsService.speak("Scanner Mimo Spark prêt avec journal de bord.");
+      _ttsService.speak("Scanner Mimo Spark prêt avec journal de bord et forçage protocole.");
       _startPolling();
       return true;
     } catch (e) {
