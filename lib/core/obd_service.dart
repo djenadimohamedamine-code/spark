@@ -75,7 +75,7 @@ class ObdService {
       await sendCommandWait('ATE0', delay: 500);    // Echo Off
       await sendCommandWait('ATL0', delay: 500);    // Linefeed Off
       await sendCommandWait('ATH1', delay: 500);    // AFFICHE LES HEADERS (Crucial pour le scan)
-      await sendCommandWait('ATSP5', delay: 1000);  // FORCE LE PROTOCOLE 5 (KWP Fast pour Spark 2009)
+      await sendCommandWait('ATSP3', delay: 1000);  // ISO 9141-2 (Spark 2009 GM/Daewoo)
       await sendCommandWait('0100', delay: 1000);   // Réveil du bus CAN
       
       _ttsService.speak("Scanner Mimo Spark prêt avec journal de bord et forçage protocole.");
