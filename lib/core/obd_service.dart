@@ -117,15 +117,11 @@ class ObdService {
           await Future.delayed(const Duration(milliseconds: 300));
         }
         if (tick % 3 == 0) {
-          sendCommand('0110'); // MAF
+          sendCommand('010B'); // MAP (Intake Manifold Pressure) - REMPLACE MAF
           await Future.delayed(const Duration(milliseconds: 300));
         }
         if (tick % 10 == 0) {
-          sendCommand('0142'); // Battery
-          await Future.delayed(const Duration(milliseconds: 300));
-        }
-        if (tick % 15 == 0) {
-          sendCommand('012F'); // Fuel (if supported)
+          sendCommand('ATRV'); // Voltage Batterie directement depuis l'ELM327 (100% fiable)
           await Future.delayed(const Duration(milliseconds: 300));
         }
         
