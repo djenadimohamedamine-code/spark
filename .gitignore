@@ -34,5 +34,14 @@ build/
 **/ios/ServiceDefinitions.json
 **/ios/Runner/GeneratedPluginRegistrant.*
 
+# Multimedia/Archives (JAMAIS sur Git pour eviter les timeouts MIMO)
+*.zip
+*.png
+*.jpg
+*.jpeg
+*.mov
+*.mp4
+*.torrent
+
 # macOS
 .DS_Store
