@@ -96,6 +96,7 @@ class ObdService {
   }
 
   bool _isPolling = false;
+  bool _isDiagnosticMode = false; // "Droit de passage" pour le scan DTC
 
   void _startPolling() async {
     if (_isPolling) return;
@@ -104,6 +105,11 @@ class ObdService {
     
     int tick = 0;
     while (_socket != null && _isPolling) {
+      if (_isDiagnosticMode) {
+        // Si le scan est en cours, on met le polling en pause immédiate
+        await Future.delayed(const Duration(milliseconds: 500));
+        continue;
+      }
       try {
         // PRIORITÉ HAUTE : RPM et Vitesse à chaque fois
         sendCommand('010C'); // RPM
@@ -148,45 +154,36 @@ class ObdService {
     });
   }
 
-  // Stoppe le polling et Scanne les erreurs (Mode 03 + 07 + 0A)
+  // Stoppe le polling et Scanne les erreurs (Mode 03 + 07)
   Future<void> scanTroubleCodes() async {
+    _isDiagnosticMode = true; // On verrouille le canal (Priorité scan)
+    
     try {
-      _isPolling = false; // Stopper les aiguilles pour éviter les collisions
-      await Future.delayed(const Duration(milliseconds: 1000));
+      _log("SCAN: Prise de contrôle du canal OBD (V4.28 Force)");
+
+      // Étape 1 : Reset du boîtier pour vider le tampon
+      await sendCommandWait('ATZ', delay: 1200);   
       
-      _log("SCAN: Réveil forcé du calculateur Chevrolet (V4.26)");
-
-      // 1. Initialisation Protocole KWP Fast
-      sendCommand('ATSP 5');
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // 2. Paramétrage Daewoo / Chevrolet
-      sendCommand('ATAL'); // TRÈS IMPORTANT : Autorise les réponses de plus de 1 ligne (DTC multiples)
-      await Future.delayed(const Duration(milliseconds: 300));
+      // Étape 2 : Configuration Spark
+      await sendCommandWait('ATSP5', delay: 500); 
+      await sendCommandWait('ATSH8111F1', delay: 500);
       
-      sendCommand("ATSH 81 11 F1"); // Header Daewoo Spark
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      sendCommand("ATFI"); // Electrochoc "Fast Init" (Réveil du bus K)
-      await Future.delayed(const Duration(milliseconds: 1500));
-
-      // 3. Demande des Codes Erreurs
-      _log("SCAN: Envoi des requêtes 03 et 07...");
+      // Étape 3 : Demande des codes (Mode 03)
+      _log("SCAN: Envoi demande codes (03)...");
       sendCommand("03"); 
-      await Future.delayed(const Duration(seconds: 4)); 
+      await Future.delayed(const Duration(seconds: 5)); 
       
+      // Optionnel : Mode 07
       sendCommand("07");
       await Future.delayed(const Duration(seconds: 4));
 
-      // 4. Remise à zéro pour le Dashboard
-      sendCommand("ATSP 0");
-      sendCommand("ATH0");
-      
-      _log("SCAN: Scan terminé. Mimo, regarde l'écran.");
-      _startPolling(); 
+      _log("SCAN: Libération du canal. Reprise du polling.");
     } catch (e) {
-      _log("Erreur Scan: $e");
-      _startPolling();
+      _log("Erreur Scan Force: $e");
+    } finally {
+      // Étape 4 : Restauration du protocole pour les jauges
+      await sendCommandWait('ATSP0', delay: 500);
+      _isDiagnosticMode = false; // On redonne la main aux jauges
     }
   }
 

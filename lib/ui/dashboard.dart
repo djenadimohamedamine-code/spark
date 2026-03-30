@@ -326,12 +326,21 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                       onPressed: _shareLog,
                       tooltip: "Partager les logs",
                     ),
-                    const Row(
-                      children: [
-                        Icon(Icons.speed, color: Colors.redAccent, size: 28),
-                        SizedBox(width: 8),
-                        Text('MIMO SPARK V4.26', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2.0, fontStyle: FontStyle.italic)),
-                      ],
+                    Expanded(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.speed, color: Colors.redAccent, size: 24),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              'MIMO SPARK V4.28',
+                              style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: 1.0, fontStyle: FontStyle.italic),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     Builder(builder: (context) {
                       return IconButton(
