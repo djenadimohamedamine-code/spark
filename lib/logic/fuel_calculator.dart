@@ -18,16 +18,9 @@ class FuelCalculator {
 
     if (savedFuel != null) {
       currentLiters = savedFuel;
-
-      // Rattrapage basé sur le temps écoulé si > 5 minutes
-      int now = DateTime.now().millisecondsSinceEpoch;
-      double minutesElapsed = (now - lastTimestamp) / 60000.0;
-      if (minutesElapsed > 5 && lastTimestamp > 0) {
-        // Estimation : 9.5L/100km, vitesse moyenne 40km/h en ville
-        double estimatedKm = (minutesElapsed / 60.0) * 40.0;
-        double estimatedLiters = (estimatedKm * _consumptionL100) / 100.0;
-        currentLiters = (currentLiters - estimatedLiters).clamp(0.0, _tankCapacity);
-      }
+      // Le rattrapage temporel a été supprimé car il vidait l'essence quand la voiture était garée.
+      // Si l'utilisateur conduit sans l'application, il devra recaler l'aiguille manuellement
+      // via le menu "Calibrage Essence" (qui met à jour cette sauvegarde).
     }
     await _save();
   }
