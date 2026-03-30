@@ -212,17 +212,12 @@ class ObdService {
       await Future.delayed(const Duration(milliseconds: 1000));
       _tcpBuffer = ''; // Vider le tampon avant le scan
 
-      _log("SCAN: Prise de contrôle du canal OBD (V4.29)");
-
-      // Reset + configuration KWP2000 pour Daewoo/Chevrolet Spark
-      await sendCommandWait('ATZ', delay: 1500);
-      await sendCommandWait('ATSP5', delay: 800);
-      await sendCommandWait('ATSH8111F1', delay: 500);
+      _log("SCAN: Prise de contrôle du canal OBD (V4.30 - Sans Reset)");
 
       // Mode 03 — Codes confirmés (stockés, voyant allumé)
       _log("SCAN: Envoi codes confirmés (03)...");
       sendCommand("03");
-      await Future.delayed(const Duration(seconds: 5));
+      await Future.delayed(const Duration(seconds: 4));
 
       // Mode 07 — Codes en attente (voyant éteint mais panne détectée)
       _log("SCAN: Envoi codes en attente (07)...");
@@ -233,9 +228,8 @@ class ObdService {
     } catch (e) {
       _log("Erreur Scan Force: $e");
     } finally {
-      _log("SCAN: Fin du diagnostic. Réinitialisation protocole Auto...");
-      await sendCommandWait('ATH0', delay: 500);
-      await sendCommandWait('ATSP0', delay: 1000);
+      // Pas besoin de forcer ATSP0 ou ATZ car nous n'avons pas changé de protocole !
+      _log("SCAN: Fin du diagnostic. Reprise Auto.");
       _tcpBuffer = '';
       _isDiagnosticMode = false;
     }
