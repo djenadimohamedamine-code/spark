@@ -105,47 +105,51 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
 
 
   void _parseDiagnosticData(String data) {
-    String cleanData = data.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
+    // 1. On garde les espaces pour séparer les octets (Critique pour Daewoo)
+    String raw = data.trim().toUpperCase();
 
-    // Log mais ne pas ignorer les 7F — on les affiche pour analyse
-    if (cleanData.contains('7F')) {
+    // 2. Gestion du refus (NRC 7F)
+    if (raw.contains('7F')) {
       if (mounted) {
         setState(() {
-          _currentErrors.add('NRC: ${data.trim()} (Refus ECU)');
-          _currentErrors = _currentErrors.toSet().toList();
+          _currentErrors.add('Refus ECU (7F) : Le scan nécessite que le moteur soit éteint avec le contact sur ON !');
           _isLoading = false;
         });
       }
       return;
     }
 
-    // Modes supportés : 43 (03), 47 (07), 4A (0A)
-    if (cleanData.contains('43') || cleanData.contains('47') || cleanData.contains('4A')) {
+    // 3. Détection du mode (43, 47 ou 4A)
+    if (raw.contains('43') || raw.contains('47') || raw.contains('4A')) {
       try {
-        String identifier = '';
-        if (cleanData.contains('43')) identifier = '43';
-        else if (cleanData.contains('47')) identifier = '47';
-        else if (cleanData.contains('4A')) identifier = '4A';
-
-        List<String> codes = [];
-        String payload = cleanData.substring(cleanData.indexOf(identifier) + 2);
-
-        for (int i = 0; i + 4 <= payload.length; i += 4) {
-          String codeHex = payload.substring(i, i + 4);
-          if (codeHex != '0000' && codeHex.length == 4) {
-            codes.add('P$codeHex');
+        List<String> codesTrouves = [];
+        // On split par espace pour avoir chaque octet [43, 01, 07, 01, 13...]
+        List<String> parts = raw.split(RegExp(r'\s+'));
+        
+        int startIndex = parts.indexWhere((p) => p == '43' || p == '47' || p == '4A');
+        
+        if (startIndex != -1) {
+          // On parcourt les octets deux par deux après le mode
+          for (int i = startIndex + 1; i + 1 < parts.length; i += 2) {
+            String highByte = parts[i];
+            String lowByte = parts[i+1];
+            
+            // On ignore 00 00 et on vérifie qu'on n'est pas sur un ">" ou autre
+            if (highByte.length == 2 && lowByte.length == 2) {
+              if (highByte != '00' || lowByte != '00') {
+                codesTrouves.add('P$highByte$lowByte');
+              }
+            }
           }
         }
 
-        if (mounted) {
+        if (mounted && codesTrouves.isNotEmpty) {
           setState(() {
-            _currentErrors.addAll(codes);
-            _currentErrors = _currentErrors.toSet().toList();
+            _currentErrors.addAll(codesTrouves);
+            _currentErrors = _currentErrors.toSet().toList(); // Supprime les doublons
             _isLoading = false;
           });
-          if (_currentErrors.isNotEmpty) {
-            _ttsService.speak("Mimo, j'ai trouvé des codes de panne.");
-          }
+          _ttsService.speak("Mimo, j'ai trouvé ${codesTrouves.length} pannes.");
         }
       } catch (e) {
         print('Erreur Parsing DTC: $e');

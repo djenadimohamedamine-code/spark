@@ -156,31 +156,21 @@ class ObdService {
     
     _log("SCAN: Démarrage scan DTC Mode 03/07/0A...");
     
-    // Séquence d'Initialisation Rapide (Fast Init) KWP2000
-    // Indispensable pour réveiller l'ECU de la Spark (Protocole 5)
-    sendCommand('ATSP 5'); // Force Protocol 5 (KWP2000 Fast)
+    // Séquence Daewoo/Chevrolet Spark (Gemini Recommendation)
+    sendCommand('ATSP 5'); // Protocol 5 KWP
     await Future.delayed(const Duration(milliseconds: 500));
     
-    sendCommand('ATAL'); // Autoriser les longs messages
+    sendCommand('ATAL'); 
     await Future.delayed(const Duration(milliseconds: 300));
     
-    sendCommand('ATIIA 11'); // Adresse interne de l'ECU
+    sendCommand('ATSH 81 11 F1'); // Header spécifique Daewoo (81 au lieu de 82)
     await Future.delayed(const Duration(milliseconds: 300));
     
-    sendCommand('ATIB 10'); 
-    await Future.delayed(const Duration(milliseconds: 300));
+    sendCommand('ATFI'); // Wake up
+    await Future.delayed(const Duration(milliseconds: 1500)); 
     
-    sendCommand('ATSH 82 11 F1'); // Header KWP pour la Spark
-    await Future.delayed(const Duration(milliseconds: 300));
-    
-    sendCommand('ATSW 00'); 
-    await Future.delayed(const Duration(milliseconds: 300));
-    
-    sendCommand('ATFI'); // CRITIQUE : Perform Fast Init (Réveil matériel)
-    await Future.delayed(const Duration(milliseconds: 1500)); // Attendre le réveil
-    
-    // Lancement du Vrai Scan DTC
-    sendCommand('03'); // Codes confirmés (Mode 03)
+    // Lancement du Scan
+    sendCommand('03'); // Codes confirmés
     await Future.delayed(const Duration(seconds: 4));
     
     sendCommand('07'); // Codes en attente (Mode 07)
