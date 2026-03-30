@@ -19,7 +19,7 @@ class Dashboard extends StatefulWidget {
   State<Dashboard> createState() => _DashboardState();
 }
 
-class _DashboardState extends State<Dashboard> {
+class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   // Gauges Data
   double temperature = 0.0;
   double rpm = 0.0;
@@ -46,9 +46,19 @@ class _DashboardState extends State<Dashboard> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WakelockPlus.enable();
     _connectObd();
     _initSensors();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (_obdService.socket == null) {
+        _connectObd();
+      }
+    }
   }
 
   void _initSensors() {
@@ -248,19 +258,24 @@ class _DashboardState extends State<Dashboard> {
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     children: [
+                      if (isHudMode)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 20.0),
+                          child: Text('MIMO SPARK', style: TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)),
+                        ),
                       _buildBatteryStatus(),
                       const SizedBox(height: 10),
                       Row(
                         children: [
-                          Expanded(child: _buildFuelGauge()),
-                          Expanded(child: _buildTempGauge()),
+                          Expanded(child: _buildRpmGauge()),
+                          Expanded(child: _buildSpeedGauge()),
                         ],
                       ),
                       const SizedBox(height: 20),
                       Row(
                         children: [
-                          Expanded(child: _buildRpmGauge()),
-                          Expanded(child: _buildSpeedGauge()),
+                          Expanded(child: _buildFuelGauge()),
+                          Expanded(child: _buildTempGauge()),
                         ],
                       ),
                       const SizedBox(height: 20),
@@ -306,8 +321,12 @@ class _DashboardState extends State<Dashboard> {
 
   Widget _buildFuelGauge() {
     double fuelVal = _fuelCalculator.currentLiters;
-    return SizedBox(height: 160, child: SfRadialGauge(
-      title: const GaugeTitle(text: 'Conso MAF (L)', textStyle: TextStyle(color: Colors.orange, fontSize: 11)),
+    int km = _fuelCalculator.kmRestants;
+    Color kmColor = km <= 70 ? Colors.red : (km <= 120 ? Colors.orange : Colors.greenAccent);
+    double h = isHudMode ? 220.0 : 160.0;
+    
+    return SizedBox(height: h, child: SfRadialGauge(
+      title: const GaugeTitle(text: 'AUTONOMIE', textStyle: TextStyle(color: Colors.orange, fontSize: 11)),
       axes: <RadialAxis>[RadialAxis(
         minimum: 0, maximum: 35,
         ranges: <GaugeRange>[
@@ -322,11 +341,11 @@ class _DashboardState extends State<Dashboard> {
             widget: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('${fuelVal.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 12)),
-                const Text('virtuel', style: TextStyle(color: Colors.orange, fontSize: 9)),
+                Text('$km KM', style: TextStyle(color: kmColor, fontSize: isHudMode ? 28 : 20, fontWeight: FontWeight.bold)),
+                Text('${fuelVal.toStringAsFixed(1)} L', style: TextStyle(color: Colors.white70, fontSize: isHudMode ? 14 : 10)),
               ],
             ),
-            angle: 90, positionFactor: 0.8
+            angle: 90, positionFactor: 0.7
           )
         ],
       )],
@@ -335,14 +354,16 @@ class _DashboardState extends State<Dashboard> {
 
 
   Widget _buildTempGauge() {
-    return SizedBox(height: 160, child: SfRadialGauge(
+    double h = isHudMode ? 220.0 : 160.0;
+    return SizedBox(height: h, child: SfRadialGauge(
       title: const GaugeTitle(text: 'Temp (°C)', textStyle: TextStyle(color: Colors.white, fontSize: 12)),
       axes: <RadialAxis>[RadialAxis(minimum: 50, maximum: 130, ranges: <GaugeRange>[GaugeRange(startValue: 50, endValue: 90, color: Colors.blue), GaugeRange(startValue: 90, endValue: 103, color: Colors.orange), GaugeRange(startValue: 103, endValue: 130, color: Colors.red)], pointers: <GaugePointer>[NeedlePointer(value: temperature == 0 ? 50 : temperature, needleColor: Colors.white, enableAnimation: true, animationDuration: 200)], annotations: <GaugeAnnotation>[GaugeAnnotation(widget: Text('${temperature.toStringAsFixed(1)}°', style: const TextStyle(color: Colors.white, fontSize: 12)), angle: 90, positionFactor: 0.8)])],
     ));
   }
 
   Widget _buildRpmGauge() {
-    return SizedBox(height: 160, child: SfRadialGauge(
+    double h = isHudMode ? 220.0 : 160.0;
+    return SizedBox(height: h, child: SfRadialGauge(
       title: const GaugeTitle(text: 'RPM', textStyle: TextStyle(color: Colors.white, fontSize: 12)),
       axes: <RadialAxis>[
         RadialAxis(
@@ -374,7 +395,8 @@ class _DashboardState extends State<Dashboard> {
   }
 
   Widget _buildSpeedGauge() {
-    return SizedBox(height: 160, child: SfRadialGauge(
+    double h = isHudMode ? 220.0 : 160.0;
+    return SizedBox(height: h, child: SfRadialGauge(
       title: const GaugeTitle(text: 'KM/H', textStyle: TextStyle(color: Colors.white, fontSize: 12)),
       axes: <RadialAxis>[RadialAxis(minimum: 0, maximum: 200, ranges: <GaugeRange>[GaugeRange(startValue: 0, endValue: 120, color: Colors.green), GaugeRange(startValue: 120, endValue: 200, color: Colors.red)], pointers: <GaugePointer>[NeedlePointer(value: speed, needleColor: Colors.white, enableAnimation: true, animationDuration: 200)], annotations: <GaugeAnnotation>[GaugeAnnotation(widget: Text('${speed.toInt()}', style: const TextStyle(color: Colors.white, fontSize: 12)), angle: 90, positionFactor: 0.8)])],
     ));
@@ -394,6 +416,7 @@ class _DashboardState extends State<Dashboard> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     WakelockPlus.disable();
     _accelerometerSubscription?.cancel();
     _obdService.dispose();

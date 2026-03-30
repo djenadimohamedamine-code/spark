@@ -5,6 +5,7 @@ class FuelCalculator {
   double currentLiters = 35.0;
   final TtsService _ttsService = TtsService();
   bool lowFuelAlerted = false;
+  int _lastAlertedKm = -1;
 
   static const double _consumptionL100 = 9.5; // Conduite agressive (km/L)
   static const double _tankCapacity = 35.0;
@@ -39,11 +40,24 @@ class FuelCalculator {
     currentLiters = (currentLiters - consumedLiters).clamp(0.0, _tankCapacity);
     _saveAsync();
 
+    // Alerte originale si 0 L
     if (currentLiters <= 5.0 && !lowFuelAlerted) {
-      _ttsService.speak('Mimo, carburant bas !');
+      _ttsService.speakAlert('Critique, carburant très bas !');
       lowFuelAlerted = true;
     } else if (currentLiters > 5.0) {
       lowFuelAlerted = false;
+    }
+
+    // Nouvelles Alertes KMs (Sous 100 km, tous les 10 km)
+    int km = kmRestants;
+    if (km <= 100 && km > 0) {
+      int alertDecade = (km / 10).floor() * 10;
+      if (_lastAlertedKm == -1 || alertDecade < _lastAlertedKm) {
+        _ttsService.speakAlert('Mimo, autonomie basse à $alertDecade kilomètres.');
+        _lastAlertedKm = alertDecade;
+      }
+    } else if (km > 100) {
+      _lastAlertedKm = -1;
     }
   }
 
