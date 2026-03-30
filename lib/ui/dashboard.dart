@@ -239,49 +239,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF050505),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment.center,
-            radius: 1.2,
-            colors: [Color(0xFF151828), Color(0xFF000000)],
-          ),
-        ),
-        child: Column(
-          children: [
-            // App Bar Personnalisée
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.share, color: Colors.cyanAccent),
-                      onPressed: _shareLog,
-                      tooltip: "Partager les logs",
-                    ),
-                    const Row(
-                      children: [
-                        Icon(Icons.speed, color: Colors.redAccent, size: 28),
-                        SizedBox(width: 8),
-                        Text('MIMO SPARK', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 2.0, fontStyle: FontStyle.italic)),
-                      ],
-                    ),
-                    Builder(builder: (context) {
-                      return IconButton(
-                        icon: const Icon(Icons.menu, color: Colors.cyanAccent),
-                        onPressed: () => Scaffold.of(context).openEndDrawer(),
-                      );
-                    }),
-                  ],
-                ),
-              ),
-            ),
-            // Le bouton de menu est déjà dans la SafeArea au-dessus.
-          ],
-        ),
-      ),
       endDrawer: Drawer(
         child: Container(
           color: const Color(0xFF0F0F0F),
@@ -338,54 +295,98 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
           ),
         ),
       ),
-      // GESTION DU CORPS DE L'APPLICATION
-      body: Transform(
-        alignment: Alignment.center,
-        transform: isHudMode ? (Matrix4.identity()..rotateY(3.14159)) : Matrix4.identity(),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.center,
+            radius: 1.2,
+            colors: [Color(0xFF151828), Color(0xFF000000)],
+          ),
+        ),
         child: Column(
           children: [
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
-                  child: Column(
-                    children: [
-                      _buildBatteryStatus(),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(child: _buildRpmGauge()),
-                          Expanded(child: _buildSpeedGauge()),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(child: _buildFuelGauge()),
-                          Expanded(child: _buildTempGauge()),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      _buildGlassCard(
-                        height: 130,
-                        child: Center(child: _buildGForceMeter()),
-                      )
-                    ],
-                  ),
+            // App Bar Personnalisée
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.share, color: Colors.cyanAccent),
+                      onPressed: _shareLog,
+                      tooltip: "Partager les logs",
+                    ),
+                    const Row(
+                      children: [
+                        Icon(Icons.speed, color: Colors.redAccent, size: 28),
+                        SizedBox(width: 8),
+                        Text('MIMO SPARK', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 2.0, fontStyle: FontStyle.italic)),
+                      ],
+                    ),
+                    Builder(builder: (context) {
+                      return IconButton(
+                        icon: const Icon(Icons.menu, color: Colors.cyanAccent),
+                        onPressed: () => Scaffold.of(context).openEndDrawer(),
+                      );
+                    }),
+                  ],
                 ),
               ),
             ),
-            // CONSOLE DE LOG
-            Container(
-              height: 60,
-              width: double.infinity,
-              color: Colors.black.withOpacity(0.8),
-              child: SingleChildScrollView(
-                reverse: true,
-                child: Padding(
-                  padding: const EdgeInsets.all(4.0),
-                  child: Text(rawLog, style: const TextStyle(color: Colors.greenAccent, fontSize: 9, fontFamily: 'monospace')),
+            // GESTION DU CORPS DE L'APPLICATION
+            Expanded(
+              child: Transform(
+                alignment: Alignment.center,
+                transform: isHudMode ? (Matrix4.identity()..rotateY(3.14159)) : Matrix4.identity(),
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+                          child: Column(
+                            children: [
+                              _buildBatteryStatus(),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(child: _buildRpmGauge()),
+                                  Expanded(child: _buildSpeedGauge()),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(child: _buildFuelGauge()),
+                                  Expanded(child: _buildTempGauge()),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              _buildGlassCard(
+                                height: 130,
+                                child: Center(child: _buildGForceMeter()),
+                              )
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    // CONSOLE DE LOG
+                    Container(
+                      height: 60,
+                      width: double.infinity,
+                      color: Colors.black.withOpacity(0.8),
+                      child: SingleChildScrollView(
+                        reverse: true,
+                        child: Padding(
+                          padding: const EdgeInsets.all(4.0),
+                          child: Text(rawLog, style: const TextStyle(color: Colors.greenAccent, fontSize: 9, fontFamily: 'monospace')),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -536,7 +537,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
               NeedlePointer(
                 value: rpm, needleColor: Colors.cyanAccent, tailStyle: const TailStyle(width: 8, color: Colors.cyanAccent),
                 needleStartWidth: 1, needleEndWidth: 5, knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.08),
-                enableAnimation: true, animationDuration: 300, animationType: AnimationType.fastOutSlowIn
+                enableAnimation: true, animationDuration: 300, animationType: AnimationType.ease
               )
             ], 
             annotations: <GaugeAnnotation>[
@@ -580,7 +581,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
               NeedlePointer(
                 value: speed, needleColor: Colors.purpleAccent, tailStyle: const TailStyle(width: 8, color: Colors.purpleAccent),
                 needleStartWidth: 1, needleEndWidth: 5, knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.08),
-                enableAnimation: true, animationDuration: 300, animationType: AnimationType.fastOutSlowIn
+                enableAnimation: true, animationDuration: 300, animationType: AnimationType.ease
               )
             ], 
             annotations: <GaugeAnnotation>[
