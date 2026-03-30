@@ -255,7 +255,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
             padding: EdgeInsets.zero,
             children: [
               UserAccountsDrawerHeader(
-                accountName: const Text('Mimo Spark V4.26', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.blueAccent, letterSpacing: 1.2)),
+                accountName: const Text('Mimo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                 accountEmail: const Text('Directeur Technique', style: TextStyle(color: Colors.cyanAccent)),
                 currentAccountPicture: Container(
                   decoration: BoxDecoration(
