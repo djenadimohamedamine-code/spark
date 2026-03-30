@@ -244,7 +244,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Analyse DTC — Mimo Spark V4.29'),
+        title: const Text('Analyse DTC — Mimo Spark V4.31'),
         backgroundColor: Colors.black,
         actions: [
           IconButton(
