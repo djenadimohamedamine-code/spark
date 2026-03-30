@@ -255,7 +255,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
             padding: EdgeInsets.zero,
             children: [
               UserAccountsDrawerHeader(
-                accountName: const Text('Mimo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                accountName: const Text('Mimo Spark V4.26', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.blueAccent, letterSpacing: 1.2)),
                 accountEmail: const Text('Directeur Technique', style: TextStyle(color: Colors.cyanAccent)),
                 currentAccountPicture: Container(
                   decoration: BoxDecoration(
@@ -330,7 +330,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                       children: [
                         Icon(Icons.speed, color: Colors.redAccent, size: 28),
                         SizedBox(width: 8),
-                        Text('MIMO SPARK', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 2.0, fontStyle: FontStyle.italic)),
+                        Text('MIMO SPARK V4.26', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2.0, fontStyle: FontStyle.italic)),
                       ],
                     ),
                     Builder(builder: (context) {
