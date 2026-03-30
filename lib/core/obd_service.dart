@@ -8,6 +8,7 @@ class ObdService {
   final int port = 35000;
   
   Socket? _socket;
+  Socket? get socket => _socket; // Exposé pour vérification depuis le Dashboard
   final StreamController<String> _dataStreamController = StreamController<String>.broadcast();
   Stream<String> get dataStream => _dataStreamController.stream;
   Timer? _pollingTimer;

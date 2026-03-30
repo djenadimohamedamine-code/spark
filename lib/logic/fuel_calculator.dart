@@ -1,37 +1,81 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import '../vocal/tts_service.dart';
 
 class FuelCalculator {
-  double currentLiters = 35.0; // Jauge virtuelle par défaut
+  double currentLiters = 35.0;
   final TtsService _ttsService = TtsService();
   bool lowFuelAlerted = false;
 
-  // Calculer la consommation en L/h à partir du MAF en g/s (01 10)
+  static const double _consumptionL100 = 9.5; // Conduite agressive (km/L)
+  static const double _tankCapacity = 35.0;
+
+  // Initialise en chargeant la dernière valeur sauvegardée
+  Future<void> init() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedFuel = prefs.getDouble('last_fuel_level');
+    final lastOdoKm = prefs.getDouble('last_odometer_km') ?? 0.0;
+    final lastTimestamp = prefs.getInt('last_session_timestamp') ?? 0;
+
+    if (savedFuel != null) {
+      currentLiters = savedFuel;
+
+      // Rattrapage basé sur le temps écoulé si > 5 minutes
+      int now = DateTime.now().millisecondsSinceEpoch;
+      double minutesElapsed = (now - lastTimestamp) / 60000.0;
+      if (minutesElapsed > 5 && lastTimestamp > 0) {
+        // Estimation : 9.5L/100km, vitesse moyenne 40km/h en ville
+        double estimatedKm = (minutesElapsed / 60.0) * 40.0;
+        double estimatedLiters = (estimatedKm * _consumptionL100) / 100.0;
+        currentLiters = (currentLiters - estimatedLiters).clamp(0.0, _tankCapacity);
+      }
+    }
+    await _save();
+  }
+
+  // Calibrage manuel par l'utilisateur (bouton dans le menu)
+  Future<void> calibrate(double liters) async {
+    currentLiters = liters.clamp(0.0, _tankCapacity);
+    await _save();
+    _ttsService.speak("Niveau essence calé à ${liters.toStringAsFixed(1)} litres.");
+  }
+
+  // Mise à jour par la consommation calculée (MAF ou MAP)
+  void updateVirtualFuel(double lph, double secondsPassed) {
+    if (lph <= 0 || secondsPassed <= 0) return;
+    double consumedLiters = (lph / 3600.0) * secondsPassed;
+    currentLiters = (currentLiters - consumedLiters).clamp(0.0, _tankCapacity);
+    _saveAsync();
+
+    if (currentLiters <= 5.0 && !lowFuelAlerted) {
+      _ttsService.speak('Mimo, carburant bas !');
+      lowFuelAlerted = true;
+    } else if (currentLiters > 5.0) {
+      lowFuelAlerted = false;
+    }
+  }
+
+  // Calcule L/h depuis le débit MAF (g/s)
   double calculateConsumptionLph(double mafGs) {
     if (mafGs <= 0) return 0.0;
-    return (mafGs * 3600) / (14.7 * 737);
+    return (mafGs * 3600.0) / (14.7 * 737.0);
   }
 
-  // Met à jour la jauge virtuelle
-  void updateVirtualFuel(double lph, double secondsPassed) {
-    double consumedLiters = (lph / 3600) * secondsPassed;
-    currentLiters -= consumedLiters;
-    
-    if (currentLiters <= 5.0 && !lowFuelAlerted) {
-      _ttsService.speak('Mimo, carburant bas');
-      lowFuelAlerted = true;
-    } else if (currentLiters > 5.0) {
-      lowFuelAlerted = false;
-    }
-  }
-
-  // Si OBD donne le niveau direct (PID 01 2F)
+  // Mise à jour directe si le PID 012F répond (rare sur Spark)
   void updateRealFuelLevel(double levelPercent, double capacity) {
-    currentLiters = (levelPercent / 100) * capacity;
-    if (currentLiters <= 5.0 && !lowFuelAlerted) {
-      _ttsService.speak('Mimo, reserve de carburant');
-      lowFuelAlerted = true;
-    } else if (currentLiters > 5.0) {
-      lowFuelAlerted = false;
-    }
+    currentLiters = (levelPercent / 100.0) * capacity;
+    _saveAsync();
+  }
+
+  // Km restants estimés selon la consommation configurée
+  int get kmRestants => (currentLiters / _consumptionL100 * 100).toInt();
+
+  Future<void> _save() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('last_fuel_level', currentLiters);
+    await prefs.setInt('last_session_timestamp', DateTime.now().millisecondsSinceEpoch);
+  }
+
+  void _saveAsync() {
+    _save(); // fire and forget
   }
 }

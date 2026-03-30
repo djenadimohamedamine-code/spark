@@ -8,7 +8,6 @@ import 'package:sensors_plus/sensors_plus.dart';
 import '../vocal/tts_service.dart';
 import '../logic/fuel_calculator.dart';
 import '../core/obd_service.dart';
-import '../core/obd_service.dart';
 import '../core/gear_calculator.dart';
 import 'diagnostic.dart';
 
@@ -19,7 +18,7 @@ class Dashboard extends StatefulWidget {
   State<Dashboard> createState() => _DashboardState();
 }
 
-class _DashboardState extends State<Dashboard> {
+class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   // Gauges Data
   double temperature = 0.0;
   double rpm = 0.0;
@@ -46,9 +45,69 @@ class _DashboardState extends State<Dashboard> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WakelockPlus.enable();
+    _fuelCalculator.init();
     _connectObd();
     _initSensors();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // App revenue au premier plan : reconnexion automatique si déconnecté
+      if (_obdService.socket == null) {
+        _connectObd();
+      }
+    }
+  }
+
+  void _showFuelCalibrationDialog() {
+    double tempFuel = _fuelCalculator.currentLiters;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          backgroundColor: const Color(0xFF1A1A1A),
+          title: const Row(
+            children: [
+              Icon(Icons.local_gas_station, color: Colors.orange),
+              SizedBox(width: 8),
+              Text('Calibrage Essence', style: TextStyle(color: Colors.white, fontSize: 16)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Ajuste selon ton vrai compteur :', style: TextStyle(color: Colors.grey, fontSize: 13)),
+              const SizedBox(height: 12),
+              Text('${tempFuel.toStringAsFixed(1)} Litres', style: const TextStyle(color: Colors.orange, fontSize: 22, fontWeight: FontWeight.bold)),
+              Slider(
+                value: tempFuel,
+                min: 0,
+                max: 35,
+                divisions: 70,
+                activeColor: Colors.orange,
+                onChanged: (val) => setLocal(() => tempFuel = val),
+              ),
+              Text('≈ ${(tempFuel / 9.5 * 100).toInt()} km restants', style: const TextStyle(color: Colors.lightGreenAccent, fontSize: 12)),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ANNULER', style: TextStyle(color: Colors.grey))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+              onPressed: () {
+                Navigator.pop(ctx);
+                _fuelCalculator.calibrate(tempFuel);
+                setState(() {});
+              },
+              child: const Text('CALER', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _initSensors() {
@@ -231,6 +290,15 @@ class _DashboardState extends State<Dashboard> {
                   setState(() => isHudMode = !isHudMode);
                   Navigator.pop(context);
                   _ttsService.speak(isHudMode ? "Mode miroir activé" : "Mode normal");
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.local_gas_station, color: Colors.orange),
+                title: const Text('Calibrage Essence', style: TextStyle(color: Colors.orange)),
+                subtitle: const Text('Caler l\'aiguille sur ton vrai compteur', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showFuelCalibrationDialog();
                 },
               ),
             ],
