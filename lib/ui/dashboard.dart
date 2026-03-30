@@ -63,7 +63,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
       // Reconnexion propre
       print("Mimo Spark : App de retour. Reconnexion OBD.");
       Future.delayed(const Duration(milliseconds: 500), () {
-        if (!_obdService.isConnected) {
+        if (_obdService.socket == null) {
           _connectObd();
         }
       });
