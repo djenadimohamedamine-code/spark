@@ -278,14 +278,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 ),
               ),
             ),
-            return Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: GestureDetector(
-                onTap: () => Scaffold.of(context).openEndDrawer(),
-                child: const CircleAvatar(backgroundImage: AssetImage('assets/images/IMG_0730.JPG')),
-              ),
-            );
-            // Menu Lateral Restant
+            // Le bouton de menu est déjà dans la SafeArea au-dessus.
           ],
         ),
       ),
