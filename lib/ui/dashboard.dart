@@ -348,8 +348,8 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                           const SizedBox(width: 6),
                           Flexible(
                             child: Text(
-                              'MIMO SPARK V4.29',
-                              style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: 1.0, fontStyle: FontStyle.italic),
+                              'MIMO SPARK V4.31',
+                              style: const TextStyle(color: Colors.greenAccent, fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: 1.0, fontStyle: FontStyle.italic),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -382,17 +382,22 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                             children: [
                               _buildBatteryStatus(),
                               const SizedBox(height: 16),
+                              if (isHudMode)
+                                const Padding(
+                                  padding: EdgeInsets.only(bottom: 20.0),
+                                  child: Text('MIMO SPARK', style: TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                                ),
                               Row(
                                 children: [
-                                  Expanded(child: _buildRpmGauge()),
-                                  Expanded(child: _buildSpeedGauge()),
+                                  Expanded(child: _buildFuelGauge()),
+                                  Expanded(child: _buildTempGauge()),
                                 ],
                               ),
                               const SizedBox(height: 12),
                               Row(
                                 children: [
-                                  Expanded(child: _buildFuelGauge()),
-                                  Expanded(child: _buildTempGauge()),
+                                  Expanded(child: _buildRpmGauge()),
+                                  Expanded(child: _buildSpeedGauge()),
                                 ],
                               ),
                               const SizedBox(height: 16),
@@ -478,7 +483,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     int kmRestants = (fuelVal / 9.5 * 100).toInt();
     
     return _buildGlassCard(
-      height: 180, 
+      height: isHudMode ? 240 : 180, 
       child: SfRadialGauge(
         axes: <RadialAxis>[
           RadialAxis(
@@ -500,8 +505,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                   children: [
                     const Icon(Icons.local_gas_station, color: Colors.white70, size: 20),
                     const SizedBox(height: 4),
-                    Text('${fuelVal.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                    Text('≈ $kmRestants km', style: const TextStyle(color: Colors.orangeAccent, fontSize: 13, fontWeight: FontWeight.w600)),
+                    Text('$kmRestants KM', style: TextStyle(color: kmRestants <= 70 ? Colors.redAccent : (kmRestants <= 120 ? Colors.orangeAccent : Colors.greenAccent), fontSize: 26, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 4),
+                    Text('${fuelVal.toStringAsFixed(1)} L', style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
                   ],
                 ),
                 angle: 90, positionFactor: 0.1
@@ -515,7 +521,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   Widget _buildTempGauge() {
     return _buildGlassCard(
-      height: 180, 
+      height: isHudMode ? 240 : 180, 
       child: SfRadialGauge(
         axes: <RadialAxis>[
           RadialAxis(
@@ -551,7 +557,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   Widget _buildRpmGauge() {
     return _buildGlassCard(
-      height: 220, 
+      height: isHudMode ? 280 : 220, 
       child: SfRadialGauge(
         axes: <RadialAxis>[
           RadialAxis(
@@ -595,7 +601,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   Widget _buildSpeedGauge() {
     return _buildGlassCard(
-      height: 220, 
+      height: isHudMode ? 280 : 220, 
       child: SfRadialGauge(
         axes: <RadialAxis>[
           RadialAxis(
