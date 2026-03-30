@@ -21,7 +21,7 @@ class ObdService {
     try {
       final directory = await getApplicationDocumentsDirectory();
       _logFile = File('${directory.path}/debug_mimo.txt');
-      await _logFile!.writeAsString('--- MIMO SPARK LOG START ${DateTime.now()} ---\n');
+        await _logFile!.writeAsString('\n--- MIMO SPARK LOG START ${DateTime.now()} ---\n', mode: FileMode.append);
     } catch (e) {
       print("Erreur Init Log: $e");
     }
