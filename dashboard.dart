@@ -267,15 +267,15 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                       const SizedBox(height: 10),
                       Row(
                         children: [
-                          Expanded(child: _buildRpmGauge()),
-                          Expanded(child: _buildSpeedGauge()),
+                          Expanded(child: _buildFuelGauge()),
+                          Expanded(child: _buildTempGauge()),
                         ],
                       ),
                       const SizedBox(height: 20),
                       Row(
                         children: [
-                          Expanded(child: _buildFuelGauge()),
-                          Expanded(child: _buildTempGauge()),
+                          Expanded(child: _buildRpmGauge()),
+                          Expanded(child: _buildSpeedGauge()),
                         ],
                       ),
                       const SizedBox(height: 20),
