@@ -105,30 +105,31 @@ class ObdService {
     
     int tick = 0;
     while (_socket != null && _isPolling) {
+      // VERROU ABSOLU : Si le scan est en cours, on met le polling en pause immédiate
       if (_isDiagnosticMode) {
-        // Si le scan est en cours, on met le polling en pause immédiate
         await Future.delayed(const Duration(milliseconds: 500));
         continue;
       }
+
       try {
-        // PRIORITÉ HAUTE : RPM et Vitesse à chaque fois
-        sendCommand('010C'); // RPM
+        // On vérifie le mode diag AVANT CHAQUE commande sensible pour éviter les collisions (Erreur 103)
+        if (!_isDiagnosticMode) sendCommand('010C'); // RPM
         await Future.delayed(const Duration(milliseconds: 350));
         
-        sendCommand('010D'); // Speed
+        if (!_isDiagnosticMode) sendCommand('010D'); // Speed
         await Future.delayed(const Duration(milliseconds: 350));
 
         // PRIORITÉ BASSE : Les autres selon le tick
-        if (tick % 5 == 0) {
+        if (tick % 5 == 0 && !_isDiagnosticMode) {
           sendCommand('0105'); // Temp
           await Future.delayed(const Duration(milliseconds: 300));
         }
-        if (tick % 3 == 0) {
-          sendCommand('010B'); // MAP (Intake Manifold Pressure) - REMPLACE MAF
+        if (tick % 3 == 0 && !_isDiagnosticMode) {
+          sendCommand('010B'); // MAP
           await Future.delayed(const Duration(milliseconds: 300));
         }
-        if (tick % 10 == 0) {
-          sendCommand('ATRV'); // Voltage Batterie directement depuis l'ELM327 (100% fiable)
+        if (tick % 10 == 0 && !_isDiagnosticMode) {
+          sendCommand('ATRV'); // Voltage
           await Future.delayed(const Duration(milliseconds: 300));
         }
         
@@ -157,18 +158,22 @@ class ObdService {
   // Stoppe le polling et Scanne les erreurs (Mode 03 + 07)
   Future<void> scanTroubleCodes() async {
     _isDiagnosticMode = true; // On verrouille le canal (Priorité scan)
+    _log("SCAN: Arrêt du polling et bascule en mode Diagnostic...");
     
     try {
+      // 1. On laisse le temps à la dernière commande de polling de finir (Pour éviter l'Erreur 103)
+      await Future.delayed(const Duration(milliseconds: 1000));
+
       _log("SCAN: Prise de contrôle du canal OBD (V4.28 Force)");
 
-      // Étape 1 : Reset du boîtier pour vider le tampon
-      await sendCommandWait('ATZ', delay: 1200);   
+      // Étape 2 : Reset du boîtier pour vider le tampon
+      await sendCommandWait('ATZ', delay: 1500);   
       
-      // Étape 2 : Configuration Spark
-      await sendCommandWait('ATSP5', delay: 500); 
+      // Étape 3 : Configuration Spark
+      await sendCommandWait('ATSP5', delay: 800); 
       await sendCommandWait('ATSH8111F1', delay: 500);
       
-      // Étape 3 : Demande des codes (Mode 03)
+      // Étape 4 : Demande des codes (Mode 03)
       _log("SCAN: Envoi demande codes (03)...");
       sendCommand("03"); 
       await Future.delayed(const Duration(seconds: 5)); 
@@ -181,8 +186,9 @@ class ObdService {
     } catch (e) {
       _log("Erreur Scan Force: $e");
     } finally {
-      // Étape 4 : Restauration du protocole pour les jauges
-      await sendCommandWait('ATSP0', delay: 500);
+      _log("SCAN: Fin du diagnostic. Réinitialisation...");
+      // Étape 5 : Restauration du protocole pour les jauges
+      await sendCommandWait('ATSP0', delay: 1000);
       _isDiagnosticMode = false; // On redonne la main aux jauges
     }
   }
