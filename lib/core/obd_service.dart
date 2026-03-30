@@ -151,35 +151,41 @@ class ObdService {
   // Stoppe le polling et Scanne les erreurs (Mode 03 + 07 + 0A)
   Future<void> scanTroubleCodes() async {
     try {
-      _isPolling = false; // Arrêter les aiguilles
+      _isPolling = false; // Stopper les aiguilles pour éviter les collisions
       await Future.delayed(const Duration(milliseconds: 1000));
       
-      _log("SCAN: Début du scan spécifique Chevrolet Spark");
+      _log("SCAN: Réveil forcé du calculateur Chevrolet (V4.26)");
 
-      // 1. Configuration du Protocole (OBLIGATOIRE pour KWP2000)
+      // 1. Initialisation Protocole KWP Fast
       sendCommand('ATSP 5');
       await Future.delayed(const Duration(milliseconds: 500));
 
-      // 2. OBLIGATOIRE POUR LA SPARK DAEWOO : Envoyer le bon Header
-      sendCommand("ATSH 81 11 F1");
-      await Future.delayed(const Duration(milliseconds: 500)); // Pause pour l'ECU
-
-      // 3. Demander les codes erreurs (Mode 03)
-      sendCommand("03");
-      await Future.delayed(const Duration(seconds: 4)); // Attendre que la réponse arrive
+      // 2. Paramétrage Daewoo / Chevrolet
+      sendCommand('ATAL'); // TRÈS IMPORTANT : Autorise les réponses de plus de 1 ligne (DTC multiples)
+      await Future.delayed(const Duration(milliseconds: 300));
       
-      // Optionnel : Mode 07 (Codes en attente)
+      sendCommand("ATSH 81 11 F1"); // Header Daewoo Spark
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      sendCommand("ATFI"); // Electrochoc "Fast Init" (Réveil du bus K)
+      await Future.delayed(const Duration(milliseconds: 1500));
+
+      // 3. Demande des Codes Erreurs
+      _log("SCAN: Envoi des requêtes 03 et 07...");
+      sendCommand("03"); 
+      await Future.delayed(const Duration(seconds: 4)); 
+      
       sendCommand("07");
       await Future.delayed(const Duration(seconds: 4));
 
-      // 4. Remettre en mode normal
+      // 4. Remise à zéro pour le Dashboard
       sendCommand("ATSP 0");
       sendCommand("ATH0");
       
-      _log("SCAN: Scan terminé. Reprise du polling.");
+      _log("SCAN: Scan terminé. Mimo, regarde l'écran.");
       _startPolling(); 
     } catch (e) {
-      _log("Erreur lors du scan DTC: $e");
+      _log("Erreur Scan: $e");
       _startPolling();
     }
   }
