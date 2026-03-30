@@ -191,6 +191,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
+        title: const Text('Mimo Spark V4.31', style: TextStyle(color: Colors.greenAccent, fontSize: 14)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
