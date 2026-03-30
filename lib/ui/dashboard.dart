@@ -194,16 +194,30 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
       } catch (_) {}
     }
 
+    // IAT - Température d'admission (410F) → mise à jour dans ObdService
+    if (cleanData.contains('410F')) {
+      try {
+        int idx = cleanData.indexOf('410F') + 4;
+        if (cleanData.length >= idx + 2) {
+          int iatRaw = int.parse(cleanData.substring(idx, idx + 2), radix: 16);
+          // Formule OBD2 : IAT(°C) = valeur - 40 ; Kelvin = IAT + 273.15
+          _obdService.lastIatKelvin = (iatRaw - 40) + 273.15;
+        }
+      } catch (_) {}
+    }
+
     // MAP -> MAF Virtuel (010B)
     if (cleanData.contains('410B')) {
       try {
         int idx = cleanData.indexOf('410B') + 4;
         if (cleanData.length >= idx + 2) {
           int mapKpa = int.parse(cleanData.substring(idx, idx + 2), radix: 16);
-          
+
           // SPEED DENSITY FORMULA: MAF(g/s) = (RPM * MAP / 120) * VE * ED * (MM / R) / TempK
-          // Hypothèse Mimo Spark : Moteur 1.0L (ED=1.0), Efficacité 80% (VE=0.8), Temp=40°C (313K)
-          double mafGs = (rpm * mapKpa / 120.0) * 0.8 * 1.0 * (28.97 / 8.314) / 313.0;
+          // Mimo Spark 1.0L : VE=0.8, ED=1.0, MM_air=28.97, R=8.314
+          // IAT dynamique via PID 010F (sinon 313 K par défaut = 40°C)
+          final double tempK = _obdService.lastIatKelvin;
+          double mafGs = (rpm * mapKpa / 120.0) * 0.8 * 1.0 * (28.97 / 8.314) / tempK;
           
           double lph = _fuelCalculator.calculateConsumptionLph(mafGs);
           DateTime now = DateTime.now();
@@ -279,7 +293,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 title: const Text('Analyse DTC', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                 onTap: () {
                   Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const DiagnosticPage()));
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => DiagnosticPage(obdService: _obdService)));
                 },
               ),
               ListTile(
@@ -334,7 +348,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                           const SizedBox(width: 6),
                           Flexible(
                             child: Text(
-                              'MIMO SPARK V4.28',
+                              'MIMO SPARK V4.29',
                               style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: 1.0, fontStyle: FontStyle.italic),
                               overflow: TextOverflow.ellipsis,
                             ),

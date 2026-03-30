@@ -6,22 +6,40 @@ import '../vocal/tts_service.dart';
 class ObdService {
   final String ip = '192.168.0.10';
   final int port = 35000;
-  
+
   Socket? _socket;
-  Socket? get socket => _socket; // Exposé pour vérification depuis le Dashboard
-  final StreamController<String> _dataStreamController = StreamController<String>.broadcast();
+  Socket? get socket => _socket;
+
+  // ─── Flux de données pour les jauges du dashboard ───────────────────────
+  final StreamController<String> _dataStreamController =
+      StreamController<String>.broadcast();
   Stream<String> get dataStream => _dataStreamController.stream;
-  Timer? _pollingTimer;
+
+  // ─── Flux séparé pour les réponses DTC (diagnostic) ─────────────────────
+  final StreamController<String> _dtcStreamController =
+      StreamController<String>.broadcast();
+  Stream<String> get dtcStream => _dtcStreamController.stream;
+
   final TtsService _ttsService = TtsService();
 
-  // Système de Log "Boite Noire" Mimo Spark
+  // Tampon TCP — on accumule jusqu'à voir '>' (fin de trame ELM327)
+  // CRITIQUE : Sans tampon, plusieurs réponses se collent (bug vu dans les logs)
+  String _tcpBuffer = '';
+
+  // Dernière température d'admission (IAT PID 010F) en Kelvin
+  // Valeur par défaut 313 K = 40°C (hypothèse constructeur Mimo Spark)
+  double lastIatKelvin = 313.0;
+
+  // ─── Système de log "Boîte Noire" Mimo Spark ────────────────────────────
   File? _logFile;
 
   Future<void> _initLogFile() async {
     try {
       final directory = await getApplicationDocumentsDirectory();
       _logFile = File('${directory.path}/debug_mimo.txt');
-        await _logFile!.writeAsString('\n--- MIMO SPARK LOG START ${DateTime.now()} ---\n', mode: FileMode.append);
+      await _logFile!.writeAsString(
+          '\n--- MIMO SPARK LOG START ${DateTime.now()} ---\n',
+          mode: FileMode.append);
     } catch (e) {
       print("Erreur Init Log: $e");
     }
@@ -30,7 +48,8 @@ class ObdService {
   Future<void> _log(String message) async {
     if (_logFile != null) {
       final stamp = DateTime.now().toString().substring(11, 19);
-      await _logFile!.writeAsString('[$stamp] $message\n', mode: FileMode.append);
+      await _logFile!
+          .writeAsString('[$stamp] $message\n', mode: FileMode.append);
     }
     print(message);
   }
@@ -38,49 +57,60 @@ class ObdService {
   Future<bool> connect() async {
     await _initLogFile();
     _log("Mimo Spark: Tentative de connexion Wi-Fi...");
-    
+
     try {
-      _socket = await Socket.connect(ip, port, timeout: const Duration(seconds: 10));
-      
-      String responseBuffer = "";
+      _socket =
+          await Socket.connect(ip, port, timeout: const Duration(seconds: 10));
+
+      // ── Écoute TCP avec tampon "attend le '>'" ────────────────────────
+      _tcpBuffer = '';
       _socket!.listen(
         (List<int> event) {
           final String chunk = String.fromCharCodes(event);
           _log("BRUT: $chunk");
-          responseBuffer += chunk;
-          
-          if (responseBuffer.contains('\r') || responseBuffer.contains('>')) {
-            List<String> lines = responseBuffer.split(RegExp(r'[\r\n>]'));
+          _tcpBuffer += chunk;
+
+          // On traite SEULEMENT quand on voit le marqueur de fin '>'
+          while (_tcpBuffer.contains('>')) {
+            int promptIdx = _tcpBuffer.indexOf('>');
+            String frame = _tcpBuffer.substring(0, promptIdx);
+            _tcpBuffer = _tcpBuffer.substring(promptIdx + 1);
+
+            // Découpage ligne par ligne dans la trame
+            List<String> lines = frame.split(RegExp(r'[\r\n]+'));
             for (String line in lines) {
               String telegram = line.trim();
-              if (telegram.isNotEmpty && telegram != "OK" && telegram != "SEARCHING") {
-                _log("CLEAN: $telegram");
-                if (!_dataStreamController.isClosed) {
-                  _dataStreamController.add(telegram);
-                }
+              if (telegram.isEmpty) continue;
+              // Filtrer les éléments de configuration non utiles
+              if (_isConfigResponse(telegram)) continue;
+
+              _log("CLEAN: $telegram");
+              if (!_dataStreamController.isClosed) {
+                _dataStreamController.add(telegram);
+              }
+              if (!_dtcStreamController.isClosed) {
+                _dtcStreamController.add(telegram);
               }
             }
-            responseBuffer = (chunk.endsWith('\r') || chunk.endsWith('>')) ? "" : lines.last;
           }
         },
         onError: (error) {
-           _log("SOCKET ERROR: $error");
-           _handleDisconnect();
+          _log("SOCKET ERROR: $error");
+          _handleDisconnect();
         },
         onDone: () => _handleDisconnect(),
       );
 
-      // Séquence de réveil MIMO SPARK - Version Originale (Auto)
+      // ── Séquence d'initialisation ELM327 ──────────────────────────────
       _log("INIT: Séquence de réveil...");
-      await sendCommandWait('ATZ', delay: 1200);   // Reset long
-      await sendCommandWait('ATE0', delay: 500);    // Echo Off
-      await sendCommandWait('ATL0', delay: 500);    // Linefeed Off
-      await sendCommandWait('ATH0', delay: 500);    // Pas de headers (Format simple, permet au parser DTC ancien de marcher
-      await sendCommandWait('ATSP0', delay: 1000);  // Protocole Automatique (Fait confience à l'ELM327 pour le Fast Init)
-      
-      await sendCommandWait('0100', delay: 1000);   // Test de communication et Sync
-      
-      _ttsService.speak("Scanner Mimo Spark prêt avec protocole Auto original.");
+      await sendCommandWait('ATZ', delay: 1200);
+      await sendCommandWait('ATE0', delay: 500);
+      await sendCommandWait('ATL0', delay: 500);
+      await sendCommandWait('ATH0', delay: 500);
+      await sendCommandWait('ATSP0', delay: 1000);
+      await sendCommandWait('0100', delay: 1000); // Test de com + sync protocole
+
+      _ttsService.speak("Scanner Mimo Spark prêt.");
       _startPolling();
       return true;
     } catch (e) {
@@ -90,49 +120,66 @@ class ObdService {
     }
   }
 
+  bool _isConfigResponse(String s) {
+    final upper = s.toUpperCase();
+    return upper == 'OK' ||
+        upper.startsWith('ELM327') ||
+        upper.startsWith('ATZ') ||
+        upper.startsWith('ATE') ||
+        upper.startsWith('ATL') ||
+        upper.startsWith('ATH') ||
+        upper.startsWith('ATSP') ||
+        upper.startsWith('ATSH') ||
+        upper.startsWith('SEARCHING');
+  }
+
   Future<void> sendCommandWait(String cmd, {int delay = 400}) async {
     sendCommand(cmd);
     await Future.delayed(Duration(milliseconds: delay));
   }
 
   bool _isPolling = false;
-  bool _isDiagnosticMode = false; // "Droit de passage" pour le scan DTC
+  bool _isDiagnosticMode = false;
 
   void _startPolling() async {
     if (_isPolling) return;
     _isPolling = true;
     _log("Mimo Spark: Lancement du polling séquentiel...");
-    
+
     int tick = 0;
     while (_socket != null && _isPolling) {
-      // VERROU ABSOLU : Si le scan est en cours, on met le polling en pause immédiate
+      // Verrou absolu : scan DTC en cours → pause immédiate
       if (_isDiagnosticMode) {
         await Future.delayed(const Duration(milliseconds: 500));
         continue;
       }
 
       try {
-        // On vérifie le mode diag AVANT CHAQUE commande sensible pour éviter les collisions (Erreur 103)
         if (!_isDiagnosticMode) sendCommand('010C'); // RPM
         await Future.delayed(const Duration(milliseconds: 350));
-        
-        if (!_isDiagnosticMode) sendCommand('010D'); // Speed
+
+        if (!_isDiagnosticMode) sendCommand('010D'); // Vitesse
         await Future.delayed(const Duration(milliseconds: 350));
 
-        // PRIORITÉ BASSE : Les autres selon le tick
+        // Priorité basse selon cycle de tick
         if (tick % 5 == 0 && !_isDiagnosticMode) {
-          sendCommand('0105'); // Temp
+          sendCommand('0105'); // Temp liquide refroidissement
           await Future.delayed(const Duration(milliseconds: 300));
         }
         if (tick % 3 == 0 && !_isDiagnosticMode) {
-          sendCommand('010B'); // MAP
+          sendCommand('010B'); // MAP (pression d'admission en kPa)
+          await Future.delayed(const Duration(milliseconds: 300));
+        }
+        // IAT toutes les ~15 itérations (≈7 s) pour la formule MAF dynamique
+        if (tick % 15 == 0 && !_isDiagnosticMode) {
+          sendCommand('010F'); // IAT — Température d'admission
           await Future.delayed(const Duration(milliseconds: 300));
         }
         if (tick % 10 == 0 && !_isDiagnosticMode) {
-          sendCommand('ATRV'); // Voltage
+          sendCommand('ATRV'); // Tension batterie
           await Future.delayed(const Duration(milliseconds: 300));
         }
-        
+
         tick++;
       } catch (e) {
         _log("POLLING ERROR: $e");
@@ -145,8 +192,8 @@ class ObdService {
     _socket?.destroy();
     _socket = null;
     _isPolling = false;
-    
-    // On attend 5 secondes et on retente la connexion pour Mimo
+    _tcpBuffer = '';
+
     Future.delayed(const Duration(seconds: 5), () {
       if (_socket == null) {
         print("Mimo Spark : Tentative de reconnexion...");
@@ -155,30 +202,30 @@ class ObdService {
     });
   }
 
-  // Stoppe le polling et Scanne les erreurs (Mode 03 + 07)
+  // ── Scan des codes DTC (Mode 03 + 07) ───────────────────────────────────
   Future<void> scanTroubleCodes() async {
-    _isDiagnosticMode = true; // On verrouille le canal (Priorité scan)
+    _isDiagnosticMode = true;
     _log("SCAN: Arrêt du polling et bascule en mode Diagnostic...");
-    
+
     try {
-      // 1. On laisse le temps à la dernière commande de polling de finir (Pour éviter l'Erreur 103)
+      // Attendre fin de la dernière commande polling (évite Erreur 103)
       await Future.delayed(const Duration(milliseconds: 1000));
+      _tcpBuffer = ''; // Vider le tampon avant le scan
 
-      _log("SCAN: Prise de contrôle du canal OBD (V4.28 Force)");
+      _log("SCAN: Prise de contrôle du canal OBD (V4.29)");
 
-      // Étape 2 : Reset du boîtier pour vider le tampon
-      await sendCommandWait('ATZ', delay: 1500);   
-      
-      // Étape 3 : Configuration Spark
-      await sendCommandWait('ATSP5', delay: 800); 
+      // Reset + configuration KWP2000 pour Daewoo/Chevrolet Spark
+      await sendCommandWait('ATZ', delay: 1500);
+      await sendCommandWait('ATSP5', delay: 800);
       await sendCommandWait('ATSH8111F1', delay: 500);
-      
-      // Étape 4 : Demande des codes (Mode 03)
-      _log("SCAN: Envoi demande codes (03)...");
-      sendCommand("03"); 
-      await Future.delayed(const Duration(seconds: 5)); 
-      
-      // Optionnel : Mode 07
+
+      // Mode 03 — Codes confirmés (stockés, voyant allumé)
+      _log("SCAN: Envoi codes confirmés (03)...");
+      sendCommand("03");
+      await Future.delayed(const Duration(seconds: 5));
+
+      // Mode 07 — Codes en attente (voyant éteint mais panne détectée)
+      _log("SCAN: Envoi codes en attente (07)...");
       sendCommand("07");
       await Future.delayed(const Duration(seconds: 4));
 
@@ -186,14 +233,15 @@ class ObdService {
     } catch (e) {
       _log("Erreur Scan Force: $e");
     } finally {
-      _log("SCAN: Fin du diagnostic. Réinitialisation...");
-      // Étape 5 : Restauration du protocole pour les jauges
+      _log("SCAN: Fin du diagnostic. Réinitialisation protocole Auto...");
+      await sendCommandWait('ATH0', delay: 500);
       await sendCommandWait('ATSP0', delay: 1000);
-      _isDiagnosticMode = false; // On redonne la main aux jauges
+      _tcpBuffer = '';
+      _isDiagnosticMode = false;
     }
   }
 
-  // Effacer les codes (Mode 04) - À n'utiliser qu'après réparation !
+  // ── Effacement (Mode 04) ─────────────────────────────────────────────────
   void clearCodes() {
     sendCommand('04');
     _ttsService.speak("Codes erreurs effacés.");
@@ -205,7 +253,7 @@ class ObdService {
       _socket!.write('$command\r');
     }
   }
-  
+
   Future<File?> getLogFile() async {
     final directory = await getApplicationDocumentsDirectory();
     final file = File('${directory.path}/debug_mimo.txt');
@@ -215,10 +263,10 @@ class ObdService {
 
   void dispose() {
     _handleDisconnect();
-    _dataStreamController.close();
+    if (!_dataStreamController.isClosed) _dataStreamController.close();
+    if (!_dtcStreamController.isClosed) _dtcStreamController.close();
   }
 
-  // Permet au Dashboard de forcer la déconnexion en arrière-plan
   void disconnect() {
     _handleDisconnect();
   }

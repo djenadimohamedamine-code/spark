@@ -221,7 +221,7 @@ class _DashboardState extends State<Dashboard> {
                 title: const Text('Analyse DTC', style: TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const DiagnosticPage()));
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => DiagnosticPage(obdService: _obdService)));
                 },
               ),
               ListTile(

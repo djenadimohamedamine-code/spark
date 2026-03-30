@@ -7,7 +7,9 @@ import '../core/obd_service.dart';
 import 'package:share_plus/share_plus.dart';
 
 class DiagnosticPage extends StatefulWidget {
-  const DiagnosticPage({super.key});
+  /// L'instance ObdService partagée avec le Dashboard (déjà connectée)
+  final ObdService obdService;
+  const DiagnosticPage({super.key, required this.obdService});
 
   @override
   State<DiagnosticPage> createState() => _DiagnosticPageState();
@@ -15,24 +17,27 @@ class DiagnosticPage extends StatefulWidget {
 
 class _DiagnosticPageState extends State<DiagnosticPage> {
   final TtsService _ttsService = TtsService();
-  final ObdService _obdService = ObdService();
+  // Utilise l'obdService partagé via widget.obdService (déjà connecté)
+  ObdService get _obdService => widget.obdService;
   List<String> _currentErrors = [];
   bool _isLoading = false;
 
-  StreamSubscription? _obdSubscription;
+  StreamSubscription? _dtcSubscription;
 
   @override
   void initState() {
     super.initState();
     DtcDatabase.loadCodes();
-    _obdSubscription = _obdService.dataStream.listen((data) {
+    // On écoute le flux DTC dédié, pas le flux jauges général
+    _dtcSubscription = _obdService.dtcStream.listen((data) {
       if (_isLoading) _parseDiagnosticData(data);
     });
   }
 
   @override
   void dispose() {
-    _obdSubscription?.cancel();
+    _dtcSubscription?.cancel();
+    // NE PAS appeler _obdService.dispose() — il appartient au Dashboard
     super.dispose();
   }
 
@@ -43,15 +48,14 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
     });
     _ttsService.speak("Lancement du scan Mode 03 sur la Spark.");
     await _obdService.scanTroubleCodes();
-    
-    // Attendre max 14 secondes (3 modes x 4s + marge)
+
+    // Attendre max 14 secondes (3 modes × 5 s + marge)
     Future.delayed(const Duration(seconds: 14), () async {
       if (mounted && _isLoading) {
         setState(() => _isLoading = false);
         if (_currentErrors.isEmpty) {
           _ttsService.speak("Scan terminé. Aucun code détecté. Consultez le journal.");
         } else {
-          // Afficher la boîte de dialogue de confirmation
           _showClearConfirmDialog();
         }
       }
@@ -103,58 +107,85 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
     );
   }
 
-
+  // ── Parsing DTC ──────────────────────────────────────────────────────────
   void _parseDiagnosticData(String data) {
-    // 1. On garde les espaces pour séparer les octets (Critique pour Daewoo)
+    // CRITIQUE : on garde les espaces — ils séparent les octets pour Daewoo KWP2000
+    // NE JAMAIS faire replaceAll(' ', '') ← ce serait fatal pour le parsing
     String raw = data.trim().toUpperCase();
 
-    // 2. Gestion du refus (NRC 7F)
-    if (raw.contains('7F')) {
+    // Séparer par espaces pour avoir les octets isolés
+    List<String> parts = raw.split(RegExp(r'\s+'));
+
+    // Gestion du refus ECU (NRC 7F) : le 7F doit être un octet isolé
+    if (parts.contains('7F')) {
       if (mounted) {
         setState(() {
-          _currentErrors.add('Refus ECU (7F) : Le scan nécessite que le moteur soit éteint avec le contact sur ON !');
+          _currentErrors.add('Refus ECU (7F) : Contact ON, moteur éteint requis !');
           _isLoading = false;
         });
       }
       return;
     }
 
-    // 3. Détection du mode (43, 47 ou 4A)
-    if (raw.contains('43') || raw.contains('47') || raw.contains('4A')) {
-      try {
-        List<String> codesTrouves = [];
-        // On split par espace pour avoir chaque octet [43, 01, 07, 01, 13...]
-        List<String> parts = raw.split(RegExp(r'\s+'));
-        
-        int startIndex = parts.indexWhere((p) => p == '43' || p == '47' || p == '4A');
-        
-        if (startIndex != -1) {
-          // On parcourt les octets deux par deux après le mode
-          for (int i = startIndex + 1; i + 1 < parts.length; i += 2) {
-            String highByte = parts[i];
-            String lowByte = parts[i+1];
-            
-            // On ignore 00 00 et on vérifie qu'on n'est pas sur un ">" ou autre
-            if (highByte.length == 2 && lowByte.length == 2) {
-              if (highByte != '00' || lowByte != '00') {
-                codesTrouves.add('P$highByte$lowByte');
-              }
-            }
-          }
-        }
+    // Détection réponse DTC : le marqueur de mode DOIT être un token exact isolé
+    // '43' = réponse Mode 03, '47' = Mode 07, '4A' = Mode 0A
+    // IMPORTANT : on NE fait PAS raw.contains('43') car cela fausse des réponses
+    // PID normales comme "41 0C 10 43 BA" (RPM qui contient '43' en valeur de données)
+    int startIndex = parts.indexWhere((p) => p == '43' || p == '47' || p == '4A');
+    if (startIndex == -1) return; // Pas de marqueur DTC → ignorer
 
-        if (mounted && codesTrouves.isNotEmpty) {
-          setState(() {
-            _currentErrors.addAll(codesTrouves);
-            _currentErrors = _currentErrors.toSet().toList(); // Supprime les doublons
-            _isLoading = false;
-          });
-          _ttsService.speak("Mimo, j'ai trouvé ${codesTrouves.length} pannes.");
-        }
-      } catch (e) {
-        print('Erreur Parsing DTC: $e');
-        if (mounted) setState(() => _isLoading = false);
+    try {
+      List<String> codesTrouves = [];
+
+      // Parcourir les octets deux par deux après le marqueur de mode
+      for (int i = startIndex + 1; i + 1 < parts.length; i += 2) {
+        String highByte = parts[i];
+        String lowByte = parts[i + 1];
+
+        // Valider : exactement 2 caractères hex chacun
+        if (highByte.length != 2 || lowByte.length != 2) continue;
+        // 00 00 = terminateur de liste OBD2
+        if (highByte == '00' && lowByte == '00') break;
+
+        // Conversion octet → code DTC standard (P/C/B/U + 4 chiffres)
+        String obdCode = _convertBytesToDtc(highByte, lowByte);
+        if (obdCode.isNotEmpty) codesTrouves.add(obdCode);
       }
+
+      if (mounted && codesTrouves.isNotEmpty) {
+        setState(() {
+          _currentErrors.addAll(codesTrouves);
+          _currentErrors = _currentErrors.toSet().toList();
+          _isLoading = false;
+        });
+        _ttsService.speak("Mimo, j'ai trouvé ${codesTrouves.length} panne${codesTrouves.length > 1 ? 's' : ''}.");
+      }
+    } catch (e) {
+      print('Erreur Parsing DTC: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// Convertit deux octets hex en code DTC standard OBD2
+  /// Ex: "01" "13" → "P0113"
+  String _convertBytesToDtc(String highHex, String lowHex) {
+    try {
+      int firstByte = int.parse(highHex, radix: 16);
+      int prefixBits = (firstByte & 0xC0) >> 6;
+      String letter;
+      switch (prefixBits) {
+        case 0: letter = 'P'; break;
+        case 1: letter = 'C'; break;
+        case 2: letter = 'B'; break;
+        case 3: letter = 'U'; break;
+        default: letter = 'P';
+      }
+      // Les 4 chiffres après la lettre
+      String nibble1 = ((firstByte & 0x30) >> 4).toRadixString(16).toUpperCase();
+      String nibble2 = (firstByte & 0x0F).toRadixString(16).toUpperCase();
+      return '$letter$nibble1$nibble2${lowHex.toUpperCase()}';
+    } catch (_) {
+      return '';
     }
   }
 
@@ -203,7 +234,6 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
   void _shareLog() async {
     File? logFile = await _obdService.getLogFile();
     if (logFile != null) {
-      // ignore: deprecated_member_use
       await Share.shareXFiles([XFile(logFile.path)], text: 'Journal de bord Mimo Spark OBD2');
     } else {
       _ttsService.speak('Aucun journal de bord disponible.');
@@ -214,7 +244,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Analyse DTC - Mimo Spark'),
+        title: const Text('Analyse DTC — Mimo Spark V4.29'),
         backgroundColor: Colors.black,
         actions: [
           IconButton(
@@ -227,6 +257,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
       backgroundColor: Colors.black,
       body: Column(
         children: [
+          // Barre de boutons
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: SingleChildScrollView(
@@ -234,15 +265,18 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
               child: Row(
                 children: [
                   ElevatedButton.icon(
-                    icon: const Icon(Icons.search),
-                    label: const Text('SCAN'),
+                    icon: _isLoading
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Icon(Icons.search),
+                    label: Text(_isLoading ? 'SCAN EN COURS...' : 'SCAN DTC'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey[800]),
                     onPressed: _isLoading ? null : _scanDtc,
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.history),
                     label: const Text('LOG'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey[800]),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey[900]),
                     onPressed: _lireBoiteNoire,
                   ),
                   const SizedBox(width: 8),
@@ -250,30 +284,41 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
                     icon: const Icon(Icons.delete),
                     label: const Text('EFFACER'),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.red[900]),
-                    onPressed: _clearDtc,
+                    onPressed: _currentErrors.isEmpty ? null : _clearDtc,
                   ),
                 ],
               ),
             ),
           ),
-          if (_isLoading) const Padding(
-            padding: EdgeInsets.all(8.0),
-            child: CircularProgressIndicator(color: Colors.white),
-          ),
+
+          // Zone de résultats
           Expanded(
             child: _currentErrors.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Aucun code — Appuyez sur SCAN\nou consultez le LOG pour diagnostiquer.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey),
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_isLoading) ...[
+                          const CircularProgressIndicator(color: Colors.cyanAccent),
+                          const SizedBox(height: 16),
+                          const Text('Scan en cours…\nAttente de réponse ECU', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+                        ] else ...[
+                          const Icon(Icons.check_circle_outline, color: Colors.greenAccent, size: 48),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Aucun code détecté\nAppuyez sur SCAN DTC ou consultez le LOG',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ]
+                      ],
                     ),
                   )
                 : ListView.builder(
                     itemCount: _currentErrors.length,
                     itemBuilder: (context, index) {
                       String code = _currentErrors[index];
-                      bool isNrc = code.startsWith('NRC:');
+                      bool isNrc = code.startsWith('Refus ECU');
                       return Card(
                         color: isNrc ? Colors.red[900] : Colors.grey[900],
                         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -284,7 +329,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
                           ),
                           title: Text(code, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13)),
                           subtitle: isNrc
-                              ? const Text('ECU a refusé la commande. Voir LOG pour détails.', style: TextStyle(color: Colors.red))
+                              ? const Text('ECU a refusé la commande. Voir LOG.', style: TextStyle(color: Colors.redAccent))
                               : Text(DtcDatabase.getDescription(code), style: const TextStyle(color: Colors.grey)),
                         ),
                       );
