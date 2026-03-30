@@ -223,4 +223,9 @@ class ObdService {
     _handleDisconnect();
     _dataStreamController.close();
   }
+
+  // Permet au Dashboard de forcer la déconnexion en arrière-plan
+  void disconnect() {
+    _handleDisconnect();
+  }
 }
