@@ -150,43 +150,38 @@ class ObdService {
 
   // Stoppe le polling et Scanne les erreurs (Mode 03 + 07 + 0A)
   Future<void> scanTroubleCodes() async {
-    // CRITIQUE: on arrête la boucle AVANT d'envoyer les commandes DTC
-    _isPolling = false;
-    await Future.delayed(const Duration(milliseconds: 1000)); // attendre que la boucle finisse
-    
-    _log("SCAN: Démarrage scan DTC Mode 03/07/0A...");
-    
-    // Séquence Daewoo/Chevrolet Spark (Gemini Recommendation)
-    sendCommand('ATSP 5'); // Protocol 5 KWP
-    await Future.delayed(const Duration(milliseconds: 500));
-    
-    sendCommand('ATAL'); 
-    await Future.delayed(const Duration(milliseconds: 300));
-    
-    sendCommand('ATSH 81 11 F1'); // Header spécifique Daewoo (81 au lieu de 82)
-    await Future.delayed(const Duration(milliseconds: 300));
-    
-    sendCommand('ATFI'); // Wake up
-    await Future.delayed(const Duration(milliseconds: 1500)); 
-    
-    // Lancement du Scan
-    sendCommand('03'); // Codes confirmés
-    await Future.delayed(const Duration(seconds: 4));
-    
-    sendCommand('07'); // Codes en attente (Mode 07)
-    await Future.delayed(const Duration(seconds: 4));
+    try {
+      _isPolling = false; // Arrêter les aiguilles
+      await Future.delayed(const Duration(milliseconds: 1000));
+      
+      _log("SCAN: Début du scan spécifique Chevrolet Spark");
 
-    sendCommand('0A'); // Codes permanents (Mode 0A)
-    await Future.delayed(const Duration(seconds: 4));
-    
-    // Restore le protocole par défaut (Auto) et enlève les headers
-    sendCommand('ATSP 0');
-    await Future.delayed(const Duration(milliseconds: 300));
-    sendCommand('ATH0');
-    await Future.delayed(const Duration(milliseconds: 300));
-    
-    _log("SCAN: Fin du scan. Reprise du polling.");
-    _startPolling(); // on relance le polling après
+      // 1. Configuration du Protocole (OBLIGATOIRE pour KWP2000)
+      sendCommand('ATSP 5');
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // 2. OBLIGATOIRE POUR LA SPARK DAEWOO : Envoyer le bon Header
+      sendCommand("ATSH 81 11 F1");
+      await Future.delayed(const Duration(milliseconds: 500)); // Pause pour l'ECU
+
+      // 3. Demander les codes erreurs (Mode 03)
+      sendCommand("03");
+      await Future.delayed(const Duration(seconds: 4)); // Attendre que la réponse arrive
+      
+      // Optionnel : Mode 07 (Codes en attente)
+      sendCommand("07");
+      await Future.delayed(const Duration(seconds: 4));
+
+      // 4. Remettre en mode normal
+      sendCommand("ATSP 0");
+      sendCommand("ATH0");
+      
+      _log("SCAN: Scan terminé. Reprise du polling.");
+      _startPolling(); 
+    } catch (e) {
+      _log("Erreur lors du scan DTC: $e");
+      _startPolling();
+    }
   }
 
   // Effacer les codes (Mode 04) - À n'utiliser qu'après réparation !
