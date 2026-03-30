@@ -40,7 +40,8 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   
   bool alert98Triggered = false;
   bool alert103Triggered = false;
-  StreamSubscription? _accelerometerSubscription;
+  StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
+  StreamSubscription<String>? _obdSubscription;
 
   @override
   void initState() {
@@ -54,11 +55,18 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      // App revenue au premier plan : reconnexion automatique si déconnecté
-      if (_obdService.socket == null) {
-        _connectObd();
-      }
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden || state == AppLifecycleState.inactive) {
+      // Forcer la fermeture du socket TCP pour éviter le "Broken Pipe" fantôme iOS/Android
+      print("Mimo Spark : App en arrière-plan. Déconnexion agressive OBD.");
+      _obdService.disconnect();
+    } else if (state == AppLifecycleState.resumed) {
+      // Reconnexion propre
+      print("Mimo Spark : App de retour. Reconnexion OBD.");
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (!_obdService.isConnected) {
+          _connectObd();
+        }
+      });
     }
   }
 
@@ -124,7 +132,8 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   void _connectObd() async {
     bool connected = await _obdService.connect();
     if (connected) {
-      _obdService.dataStream.listen((data) {
+      _obdSubscription?.cancel(); // Nettoyer l'ancienne écoute
+      _obdSubscription = _obdService.dataStream.listen((data) {
         if (mounted) {
           setState(() {
             rawLog += "\n$data";
@@ -619,6 +628,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   void dispose() {
     WakelockPlus.disable();
     _accelerometerSubscription?.cancel();
+    _obdSubscription?.cancel();
     _obdService.dispose();
     super.dispose();
   }

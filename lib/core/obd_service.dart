@@ -152,17 +152,34 @@ class ObdService {
   Future<void> scanTroubleCodes() async {
     // CRITIQUE: on arrête la boucle AVANT d'envoyer les commandes DTC
     _isPolling = false;
-    await Future.delayed(const Duration(milliseconds: 800)); // attendre que la boucle finisse
+    await Future.delayed(const Duration(milliseconds: 1000)); // attendre que la boucle finisse
     
     _log("SCAN: Démarrage scan DTC Mode 03/07/0A...");
     
-    // Active les headers KWP pour le scan (comme Car Scanner)
-    // Format KWP: 82=longueur, 11=ECU, F1=outil de diagnostic
-    sendCommand('ATH1');     // Active les headers
-    await Future.delayed(const Duration(milliseconds: 500));
-    sendCommand('ATSH 82 11 F1'); // Header KWP pour la Spark
+    // Séquence d'Initialisation Rapide (Fast Init) KWP2000
+    // Indispensable pour réveiller l'ECU de la Spark (Protocole 5)
+    sendCommand('ATSP 5'); // Force Protocol 5 (KWP2000 Fast)
     await Future.delayed(const Duration(milliseconds: 500));
     
+    sendCommand('ATAL'); // Autoriser les longs messages
+    await Future.delayed(const Duration(milliseconds: 300));
+    
+    sendCommand('ATIIA 11'); // Adresse interne de l'ECU
+    await Future.delayed(const Duration(milliseconds: 300));
+    
+    sendCommand('ATIB 10'); 
+    await Future.delayed(const Duration(milliseconds: 300));
+    
+    sendCommand('ATSH 82 11 F1'); // Header KWP pour la Spark
+    await Future.delayed(const Duration(milliseconds: 300));
+    
+    sendCommand('ATSW 00'); 
+    await Future.delayed(const Duration(milliseconds: 300));
+    
+    sendCommand('ATFI'); // CRITIQUE : Perform Fast Init (Réveil matériel)
+    await Future.delayed(const Duration(milliseconds: 1500)); // Attendre le réveil
+    
+    // Lancement du Vrai Scan DTC
     sendCommand('03'); // Codes confirmés (Mode 03)
     await Future.delayed(const Duration(seconds: 4));
     
@@ -172,7 +189,9 @@ class ObdService {
     sendCommand('0A'); // Codes permanents (Mode 0A)
     await Future.delayed(const Duration(seconds: 4));
     
-    // Restore les headers originaux (désactivés)
+    // Restore le protocole par défaut (Auto) et enlève les headers
+    sendCommand('ATSP 0');
+    await Future.delayed(const Duration(milliseconds: 300));
     sendCommand('ATH0');
     await Future.delayed(const Duration(milliseconds: 300));
     
