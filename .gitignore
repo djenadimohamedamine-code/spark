@@ -34,11 +34,7 @@ build/
 **/ios/ServiceDefinitions.json
 **/ios/Runner/GeneratedPluginRegistrant.*
 
-# Multimedia/Archives (JAMAIS sur Git pour eviter les timeouts MIMO)
-*.zip
-*.png
-*.jpg
-*.jpeg
+# Multimedia (Allowing Spark Assets)
 *.mov
 *.mp4
 *.torrent
