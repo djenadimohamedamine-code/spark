@@ -67,82 +67,87 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   void _showFuelCalibrationDialog() {
     double tempFuel = _fuelCalculator.currentLiters;
-    // 10 segments pour caler selon les reperes (slashes) du tableau Spark
-    // Chaque segment = 35 / 10 = 3.5 Litres
+    // 12 segments verticaux pour coller au tableau LCD de la Spark M300 (ta.jpeg)
+    // Chaque segment = 35 / 12 = ~2.9 Litres
     
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
-          backgroundColor: const Color(0xFF101010),
+          backgroundColor: const Color(0xFF0A0A0A),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
           title: const Column(
             children: [
-              Icon(Icons.local_gas_station, color: Colors.orange, size: 30),
-              SizedBox(height: 6),
-              Text('Calibrage Réel', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-              Text('Touche tes segments (slashes) Spark', style: TextStyle(color: Colors.grey, fontSize: 11)),
+              Text('CALIBRAGE RÉEL SPARK', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+              SizedBox(height: 4),
+              Text('Touche le segment correspondant à ton aiguille', style: TextStyle(color: Colors.grey, fontSize: 10)),
             ],
           ),
           content: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              // Visualisation des slashes de jauge
+              // Affichage du modèle Spark (Image ta.jpeg pour aide visuelle)
+              Container(
+                width: 100, height: 180,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white12),
+                  image: const DecorationImage(
+                    image: AssetImage('assets/images/ta.jpeg'),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              // Ta nouvelle jauge interactive (Interactive Slashes)
               Column(
                 mainAxisSize: MainAxisSize.min,
-                children: List.generate(10, (index) {
-                  int segId = 10 - index; // De 10 (Haut) à 1 (Bas)
-                  bool isActive = tempFuel >= (segId * 3.5) - 1.75; // Seuil median pour le clic
+                children: List.generate(12, (index) {
+                  int segId = 12 - index; // De 12 (F) à 1 (E)
+                  bool isActive = tempFuel >= (segId * 2.91) - 1.45;
                   
                   Color segColor;
                   if (segId <= 2) segColor = Colors.redAccent;
-                  else if (segId <= 5) segColor = Colors.orangeAccent;
+                  else if (segId <= 6) segColor = Colors.orangeAccent;
                   else segColor = Colors.greenAccent;
                   
                   return GestureDetector(
-                    onTap: () => setLocal(() => tempFuel = segId * 3.5),
+                    onTap: () => setLocal(() => tempFuel = segId * 2.91),
                     child: Container(
-                      width: 80, height: 18,
-                      margin: const EdgeInsets.symmetric(vertical: 2),
+                      width: 45, height: 12,
+                      margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 10),
                       decoration: BoxDecoration(
-                        color: isActive ? segColor : Colors.white10,
-                        borderRadius: BorderRadius.circular(4),
-                        boxShadow: isActive ? [BoxShadow(color: segColor.withOpacity(0.5), blurRadius: 4)] : null,
+                        color: isActive ? segColor : Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(2),
+                        boxShadow: isActive ? [BoxShadow(color: segColor.withOpacity(0.4), blurRadius: 6)] : null,
                       ),
-                      child: Center(
-                        child: Text(segId == 10 ? 'FULL' : (segId == 1 ? 'E' : ''), 
-                             style: const TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.bold)),
-                      ),
+                      child: segId == 12 || segId == 1 ? Center(child: Text(segId == 12 ? 'F' : 'E', style: const TextStyle(color: Colors.black, fontSize: 8, fontWeight: FontWeight.bold))) : null,
                     ),
                   );
                 }),
               ),
-              const SizedBox(width: 25),
-              // Affichage du volume calcule
+              // Données calculées
               Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('${tempFuel.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900)),
-                  const Text('LITRES', style: TextStyle(color: Colors.grey, fontSize: 10)),
-                  const SizedBox(height: 20),
-                  Text('${(tempFuel / 9.5 * 100).toInt()} km', style: const TextStyle(color: Colors.cyanAccent, fontSize: 18, fontWeight: FontWeight.bold)),
-                  const Text('AUTONOMIE', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                  Text('${tempFuel.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
+                  const Text('RÉEL', style: TextStyle(color: Colors.grey, fontSize: 9)),
+                  const SizedBox(height: 25),
+                  Text('${(tempFuel / 9.5 * 100).toInt()}', style: const TextStyle(color: Colors.cyanAccent, fontSize: 20, fontWeight: FontWeight.bold)),
+                  const Text('KM EST.', style: TextStyle(color: Colors.grey, fontSize: 9)),
                 ],
               )
             ],
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('ANNULER', style: TextStyle(color: Colors.grey)),
-            ),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ANNULER', style: TextStyle(color: Colors.grey))),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
               onPressed: () {
                 Navigator.pop(ctx);
                 _fuelCalculator.calibrate(tempFuel);
                 setState(() {});
               },
-              child: const Text('CALER LE NIVEAU', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              child: const Text('CALER', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
