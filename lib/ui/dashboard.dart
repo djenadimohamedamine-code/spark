@@ -67,97 +67,93 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   void _showFuelCalibrationDialog() {
     double tempFuel = _fuelCalculator.currentLiters;
-    // 5 slashes en DEMI-CERCLE pour coller au tableau Daewoo Spark 2009 (Matiz)
-    // Chaque segment = 35 / 5 = 7 Litres
     
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
-          backgroundColor: const Color(0xFF000000),
+          backgroundColor: const Color(0xFF101010),
           contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
           title: const Center(
-             child: Text('CALIBRAGE CERCLE SPARK', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+             child: Text('CALIBRAGE ANALOGIQUE (AIGUILLE)', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Touche ton segment (slash) sur le cercle', style: TextStyle(color: Colors.grey, fontSize: 10)),
+              const Text('Aligne l\'aiguille digitale exactement sur ton vrai cadran', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 11)),
               const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // L'Arc de segments interactif (5 slashes)
-                  SizedBox(
-                    width: 160, height: 160,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: List.generate(5, (index) {
-                        int segId = index + 1; // De 1 (E) à 5 (F)
-                        // Angle : On commence à gauche (-80°) vers la droite (+80°), espace 40°
-                        double angle = (index * 40.0) - 80.0; 
-                        bool isActive = tempFuel >= (segId * 7.0) - 3.5;
-                        
-                        Color segColor;
-                        if (segId == 1) segColor = Colors.redAccent;
-                        else if (segId <= 4) segColor = Colors.orangeAccent;
-                        else segColor = Colors.greenAccent;
-                        
-                        return Transform.rotate(
-                          angle: angle * 3.14159 / 180,
-                          child: Transform.translate(
-                            offset: const Offset(0, -65),
-                            child: GestureDetector(
-                              onTap: () => setLocal(() => tempFuel = segId * 7.0),
-                              child: Container(
-                                width: 28, height: 12,
-                                decoration: BoxDecoration(
-                                  color: isActive ? segColor : Colors.white.withOpacity(0.05),
-                                  borderRadius: BorderRadius.circular(2),
-                                  boxShadow: isActive ? [BoxShadow(color: segColor.withOpacity(0.6), blurRadius: 8)] : null,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
+              // Gauge superposée sur la photo ta.jpeg
+              Container(
+                width: 220, height: 220,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white24, width: 2),
+                  boxShadow: [BoxShadow(color: Colors.cyanAccent.withOpacity(0.1), blurRadius: 20)],
+                  image: const DecorationImage(
+                    image: AssetImage('assets/images/ta.jpeg'),
+                    fit: BoxFit.cover,
                   ),
-                  const SizedBox(width: 10),
-                  // Ta photo Spark M200 en petit repere
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 90, height: 90,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white10),
-                          image: const DecorationImage(
-                            image: AssetImage('assets/images/ta.jpeg'),
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 15),
-                      Text('${tempFuel.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                      Text('${(tempFuel / 9.5 * 100).toInt()} KM', style: const TextStyle(color: Colors.cyanAccent, fontSize: 13, fontWeight: FontWeight.bold)),
-                    ],
-                  )
-                ],
+                ),
+                child: SfRadialGauge(
+                  axes: <RadialAxis>[
+                    RadialAxis(
+                      minimum: 0, maximum: 35,
+                      startAngle: 145, endAngle: 35, // Angles standard Daewoo Matiz (E -> F)
+                      showLabels: false, showTicks: false,
+                      axisLineStyle: const AxisLineStyle(thickness: 0, color: Colors.transparent),
+                      pointers: <GaugePointer>[
+                        NeedlePointer(
+                          value: tempFuel, 
+                          needleColor: Colors.orangeAccent,
+                          tailStyle: const TailStyle(width: 8, color: Colors.orangeAccent),
+                          needleStartWidth: 1, needleEndWidth: 6, 
+                          needleLength: 0.7, // Pas trop longue pour ne pas toucher le bord
+                          knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.08),
+                          enableAnimation: true,
+                        )
+                      ]
+                    )
+                  ]
+                )
+              ),
+              const SizedBox(height: 20),
+              Text('${tempFuel.toStringAsFixed(1)} Litres', style: const TextStyle(color: Colors.orangeAccent, fontSize: 26, fontWeight: FontWeight.bold)),
+              Text('Autonomie estimée : ${(tempFuel / 9.5 * 100).toInt()} km', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+              const SizedBox(height: 15),
+              // Curseur (Slider) de précision
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  activeTrackColor: Colors.orangeAccent,
+                  inactiveTrackColor: Colors.white10,
+                  thumbColor: Colors.white,
+                  overlayColor: Colors.orangeAccent.withOpacity(0.2),
+                ),
+                child: Slider(
+                  value: tempFuel,
+                  min: 0,
+                  max: 35,
+                  divisions: 70, // Précision par 0.5 Litre (35 * 2)
+                  onChanged: (val) {
+                    setLocal(() => tempFuel = val);
+                  },
+                ),
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ANNULER', style: TextStyle(color: Colors.grey))),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx), 
+              child: const Text('ANNULER', style: TextStyle(color: Colors.grey))
+            ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
               onPressed: () {
                 Navigator.pop(ctx);
                 _fuelCalculator.calibrate(tempFuel);
-                setState(() {});
+                setState(() {}); // Rafraîchir l'écran principal
+                _ttsService.speak("Calibrage du carburant enregistré à ${tempFuel.toStringAsFixed(1)} litres.");
               },
-              child: const Text('CALER', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              child: const Text('CALER AIGUILLE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
