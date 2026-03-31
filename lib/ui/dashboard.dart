@@ -84,11 +84,11 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
               const SizedBox(height: 20),
               // Gauge superposée sur la photo ta.jpeg
               Container(
-                width: 220, height: 220,
+                width: 240, height: 240,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white24, width: 2),
-                  boxShadow: [BoxShadow(color: Colors.cyanAccent.withOpacity(0.1), blurRadius: 20)],
+                  boxShadow: [BoxShadow(color: Colors.orangeAccent.withOpacity(0.15), blurRadius: 20)],
                   image: const DecorationImage(
                     image: AssetImage('assets/images/ta.jpeg'),
                     fit: BoxFit.cover,
@@ -98,7 +98,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                   axes: <RadialAxis>[
                     RadialAxis(
                       minimum: 0, maximum: 35,
-                      startAngle: 145, endAngle: 35, // Angles standard Daewoo Matiz (E -> F)
+                      startAngle: 155, endAngle: 25, // Ajustement léger de l'arc Spark M200
                       showLabels: false, showTicks: false,
                       axisLineStyle: const AxisLineStyle(thickness: 0, color: Colors.transparent),
                       pointers: <GaugePointer>[
@@ -106,9 +106,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                           value: tempFuel, 
                           needleColor: Colors.orangeAccent,
                           tailStyle: const TailStyle(width: 8, color: Colors.orangeAccent),
-                          needleStartWidth: 1, needleEndWidth: 6, 
-                          needleLength: 0.7, // Pas trop longue pour ne pas toucher le bord
-                          knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.08),
+                          needleStartWidth: 1, needleEndWidth: 7, 
+                          needleLength: 0.88, // Allongée pour atteindre le bord "F"
+                          knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.1),
                           enableAnimation: true,
                         )
                       ]
@@ -117,8 +117,12 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 )
               ),
               const SizedBox(height: 20),
-              Text('${tempFuel.toStringAsFixed(1)} Litres', style: const TextStyle(color: Colors.orangeAccent, fontSize: 26, fontWeight: FontWeight.bold)),
-              Text('Autonomie estimée : ${(tempFuel / 9.5 * 100).toInt()} km', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+              Text('${tempFuel.toStringAsFixed(1)} Litres', style: const TextStyle(color: Colors.orangeAccent, fontSize: 32, fontWeight: FontWeight.bold)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(10)),
+                child: Text('AUTONOMIE : ${(tempFuel / 6.5 * 100).toInt()} KM', style: const TextStyle(color: Colors.cyanAccent, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+              ),
               const SizedBox(height: 15),
               // Curseur (Slider) de précision
               SliderTheme(
