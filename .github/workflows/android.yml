@@ -33,14 +33,18 @@ jobs:
         run: |
           # Upgrade Kotlin to 2.0.21 (audioplayers requires >= 1.9.0)
           sed -i "s/ext.kotlin_version = .*/ext.kotlin_version = '2.0.21'/" android/build.gradle
+          # Also try kotlin_version without quotes (alternate format)
+          sed -i 's/kotlin_version = ".*"/kotlin_version = "2.0.21"/' android/build.gradle
           
-          # Upgrade compileSdkVersion and targetSdkVersion to 35
-          sed -i 's/compileSdkVersion .*/compileSdkVersion 35/' android/app/build.gradle
-          sed -i 's/targetSdkVersion .*/targetSdkVersion 35/' android/app/build.gradle
+          # Force compileSdk and targetSdk to 34 (android-35.jar is broken on ubuntu-latest)
+          sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/' android/app/build.gradle
+          sed -i 's/compileSdk [0-9]*/compileSdk 34/' android/app/build.gradle
+          sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 34/' android/app/build.gradle
+          sed -i 's/targetSdk [0-9]*/targetSdk 34/' android/app/build.gradle
           
-          echo "--- android/build.gradle (Kotlin version) ---"
+          echo "--- android/build.gradle ---"
           cat android/build.gradle
-          echo "--- android/app/build.gradle (SDK versions) ---"
+          echo "--- android/app/build.gradle ---"
           cat android/app/build.gradle
 
       - name: Add Android Network Permissions & Cleartext
