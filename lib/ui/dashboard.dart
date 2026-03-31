@@ -71,45 +71,82 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   void _showFuelCalibrationDialog() {
     double tempFuel = _fuelCalculator.currentLiters;
+    // 10 segments pour caler selon les reperes (slashes) du tableau Spark
+    // Chaque segment = 35 / 10 = 3.5 Litres
+    
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
-          backgroundColor: const Color(0xFF1A1A1A),
-          title: const Row(
+          backgroundColor: const Color(0xFF101010),
+          title: const Column(
             children: [
-              Icon(Icons.local_gas_station, color: Colors.orange),
-              SizedBox(width: 8),
-              Text('Calibrage Essence', style: TextStyle(color: Colors.white, fontSize: 16)),
+              Icon(Icons.local_gas_station, color: Colors.orange, size: 30),
+              SizedBox(height: 6),
+              Text('Calibrage Réel', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              Text('Touche tes segments (slashes) Spark', style: TextStyle(color: Colors.grey, fontSize: 11)),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
+          content: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('Ajuste selon ton vrai compteur :', style: TextStyle(color: Colors.grey, fontSize: 13)),
-              const SizedBox(height: 12),
-              Text('${tempFuel.toStringAsFixed(1)} Litres', style: const TextStyle(color: Colors.orange, fontSize: 22, fontWeight: FontWeight.bold)),
-              Slider(
-                value: tempFuel,
-                min: 0,
-                max: 35,
-                divisions: 70,
-                activeColor: Colors.orange,
-                onChanged: (val) => setLocal(() => tempFuel = val),
+              // Visualisation des slashes de jauge
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(10, (index) {
+                  int segId = 10 - index; // De 10 (Haut) à 1 (Bas)
+                  bool isActive = tempFuel >= (segId * 3.5) - 1.75; // Seuil median pour le clic
+                  
+                  Color segColor;
+                  if (segId <= 2) segColor = Colors.redAccent;
+                  else if (segId <= 5) segColor = Colors.orangeAccent;
+                  else segColor = Colors.greenAccent;
+                  
+                  return GestureDetector(
+                    onTap: () => setLocal(() => tempFuel = segId * 3.5),
+                    child: Container(
+                      width: 80, height: 18,
+                      margin: const EdgeInsets.symmetric(vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isActive ? segColor : Colors.white10,
+                        borderRadius: BorderRadius.circular(4),
+                        boxShadow: isActive ? [BoxShadow(color: segColor.withOpacity(0.5), blurRadius: 4)] : null,
+                      ),
+                      child: Center(
+                        child: Text(segId == 10 ? 'FULL' : (segId == 1 ? 'E' : ''), 
+                             style: const TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  );
+                }),
               ),
-              Text('≈ ${(tempFuel / 9.5 * 100).toInt()} km restants', style: const TextStyle(color: Colors.lightGreenAccent, fontSize: 12)),
+              const SizedBox(width: 25),
+              // Affichage du volume calcule
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('${tempFuel.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900)),
+                  const Text('LITRES', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                  const SizedBox(height: 20),
+                  Text('${(tempFuel / 9.5 * 100).toInt()} km', style: const TextStyle(color: Colors.cyanAccent, fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Text('AUTONOMIE', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                ],
+              )
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ANNULER', style: TextStyle(color: Colors.grey))),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('ANNULER', style: TextStyle(color: Colors.grey)),
+            ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
               onPressed: () {
                 Navigator.pop(ctx);
                 _fuelCalculator.calibrate(tempFuel);
                 setState(() {});
               },
-              child: const Text('CALER', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              child: const Text('CALER LE NIVEAU', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
