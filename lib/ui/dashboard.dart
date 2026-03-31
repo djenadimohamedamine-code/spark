@@ -98,7 +98,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                   axes: <RadialAxis>[
                     RadialAxis(
                       minimum: 0, maximum: 35,
-                      startAngle: 155, endAngle: -54, // Calibration exacte sur tableau.png
+                      startAngle: 175, endAngle: 325, // Calibration finale : 0L sur E (gauche), 35L sur F (droite)
                       showLabels: false, showTicks: false,
                       axisLineStyle: const AxisLineStyle(thickness: 0, color: Colors.transparent),
                       pointers: <GaugePointer>[
@@ -107,8 +107,8 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                           needleColor: Colors.orangeAccent,
                           tailStyle: const TailStyle(width: 8, color: Colors.orangeAccent),
                           needleStartWidth: 1, needleEndWidth: 7, 
-                          needleLength: 0.82, // Ajusté pour ne pas déborder du cadran de la photo
-                          knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.1),
+                          needleLength: 0.85, 
+                          knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.12),
                           enableAnimation: true,
                         )
                       ]
