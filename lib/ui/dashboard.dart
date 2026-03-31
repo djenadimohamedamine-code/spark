@@ -375,8 +375,18 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                             Flexible(
                               child: Text(
                                 'MIMO SPARK V4.31',
-                                style: const TextStyle(color: Colors.greenAccent, fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: 1.0, fontStyle: FontStyle.italic),
+                                style: const TextStyle(color: Colors.greenAccent, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.0, fontStyle: FontStyle.italic),
                                 overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Indicateur de statut
+                            Container(
+                              width: 8, height: 8,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _obdService.socket != null ? Colors.greenAccent : Colors.redAccent,
+                                boxShadow: [BoxShadow(color: (_obdService.socket != null ? Colors.greenAccent : Colors.redAccent).withOpacity(0.5), blurRadius: 4, spreadRadius: 1)],
                               ),
                             ),
                           ],
