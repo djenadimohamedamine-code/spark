@@ -28,8 +28,6 @@ void main() async {
   // Appeler le forçage des permissions selon le brief de Mimo
   await requestSparkPermissions();
 
-  await ttsService.speak('Salut Mimo. Système Mimo Spark prêt.');
-  
   runApp(const MimoSmartCarApp());
 }
 
@@ -61,7 +59,8 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(seconds: 3), () {
+    TtsService().speak('Salut Mimo. Système Mimo Spark prêt.');
+    Timer(const Duration(seconds: 4), () {
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const Dashboard()),
