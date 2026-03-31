@@ -341,19 +341,23 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                       tooltip: "Partager les logs",
                     ),
                     Expanded(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.speed, color: Colors.redAccent, size: 24),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              'MIMO SPARK V4.31',
-                              style: const TextStyle(color: Colors.greenAccent, fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: 1.0, fontStyle: FontStyle.italic),
-                              overflow: TextOverflow.ellipsis,
+                      child: Transform(
+                        alignment: Alignment.center,
+                        transform: isHudMode ? (Matrix4.identity()..rotateY(3.14159)) : Matrix4.identity(),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.speed, color: Colors.redAccent, size: 24),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                'MIMO SPARK V4.31',
+                                style: const TextStyle(color: Colors.greenAccent, fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: 1.0, fontStyle: FontStyle.italic),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                     Builder(builder: (context) {
@@ -382,11 +386,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                             children: [
                               _buildBatteryStatus(),
                               const SizedBox(height: 16),
-                              if (isHudMode)
-                                const Padding(
-                                  padding: EdgeInsets.only(bottom: 20.0),
-                                  child: Text('MIMO SPARK', style: TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold, letterSpacing: 2)),
-                                ),
                               Row(
                                 children: [
                                   Expanded(child: _buildFuelGauge()),
