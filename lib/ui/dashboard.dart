@@ -432,21 +432,28 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                           padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
                           child: Column(
                             children: [
-                              _buildBatteryStatus(),
-                              const SizedBox(height: 16),
-                              Row(
-                                children: [
-                                  Expanded(child: _buildFuelGauge()),
-                                  Expanded(child: _buildTempGauge()),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(child: _buildRpmGauge()),
-                                  Expanded(child: _buildSpeedGauge()),
-                                ],
-                              ),
+                              if (!isHudMode) ...[
+                                _buildBatteryStatus(),
+                                const SizedBox(height: 16),
+                                Row(
+                                  children: [
+                                    Expanded(child: _buildFuelGauge()),
+                                    Expanded(child: _buildTempGauge()),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(child: _buildRpmGauge()),
+                                    Expanded(child: _buildSpeedGauge()),
+                                  ],
+                                ),
+                              ] else ...[
+                                // Mode HUD : Uniquement Vitesse (En haut) et RPM (En bas)
+                                _buildSpeedGauge(),
+                                const SizedBox(height: 20),
+                                _buildRpmGauge(),
+                              ]
                             ],
                           ),
                         ),
@@ -599,7 +606,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   Widget _buildRpmGauge() {
     return _buildGlassCard(
-      height: isHudMode ? 280 : 220, 
+      height: isHudMode ? 320 : 220, 
       child: SfRadialGauge(
         axes: <RadialAxis>[
           RadialAxis(
@@ -643,7 +650,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   Widget _buildSpeedGauge() {
     return _buildGlassCard(
-      height: isHudMode ? 280 : 220, 
+      height: isHudMode ? 320 : 220, 
       child: SfRadialGauge(
         axes: <RadialAxis>[
           RadialAxis(
