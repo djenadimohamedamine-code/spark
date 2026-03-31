@@ -69,7 +69,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     double tempFuel = _fuelCalculator.currentLiters;
   void _showFuelCalibrationDialog() {
     double tempFuel = _fuelCalculator.currentLiters;
-    // 5 slashes (segments) pour coller exactement au tableau Daewoo Spark 2009
+    // 5 slashes en DEMI-CERCLE pour coller au tableau Daewoo Spark 2009 (Matiz)
     // Chaque segment = 35 / 5 = 7 Litres
     
     showDialog(
@@ -79,75 +79,75 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
           backgroundColor: const Color(0xFF000000),
           contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
           title: const Center(
-             child: Text('CALIBRAGE EXACT SPARK', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+             child: Text('CALIBRAGE CERCLE SPARK', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Photo de reference du tableau de la Daewoo Spark
-              Container(
-                width: 150, height: 100,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white10),
-                  image: const DecorationImage(
-                    image: AssetImage('assets/images/ta.jpeg'),
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
+              const Text('Touche ton segment (slash) sur le cercle', style: TextStyle(color: Colors.grey, fontSize: 10)),
               const SizedBox(height: 20),
-              const Text('Touche ton segment (slash) rouge/orange/vert', style: TextStyle(color: Colors.grey, fontSize: 10)),
-              const SizedBox(height: 15),
-              // Ligne horizontale des 5 slashes (E à F)
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(5, (index) {
-                  int segId = index + 1; // 1 (Gauche, E) à 5 (Droite, F)
-                  bool isActive = tempFuel >= (segId * 7.0) - 3.5;
-                  
-                  Color segColor;
-                  if (segId == 1) segColor = Colors.redAccent;
-                  else if (segId <= 4) segColor = Colors.orangeAccent;
-                  else segColor = Colors.greenAccent;
-                  
-                  return GestureDetector(
-                    onTap: () => setLocal(() => tempFuel = segId * 7.0),
-                    child: Container(
-                      width: 32, height: 16,
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                        color: isActive ? segColor : Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(4),
-                        boxShadow: isActive ? [BoxShadow(color: segColor.withOpacity(0.6), blurRadius: 8)] : null,
-                      ),
-                      child: (segId == 1 || segId == 5) ? Center(child: Text(segId == 1 ? 'E' : 'F', style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold))) : null,
-                    ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 25),
-              // Affichage du volume et autonomie precise
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
+                  // L'Arc de segments interactif (5 slashes)
+                  SizedBox(
+                    width: 160, height: 160,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: List.generate(5, (index) {
+                        int segId = index + 1; // De 1 (E) à 5 (F)
+                        // Angle : On commence à gauche (-80°) vers la droite (+80°), espace 40°
+                        double angle = (index * 40.0) - 80.0; 
+                        bool isActive = tempFuel >= (segId * 7.0) - 3.5;
+                        
+                        Color segColor;
+                        if (segId == 1) segColor = Colors.redAccent;
+                        else if (segId <= 4) segColor = Colors.orangeAccent;
+                        else segColor = Colors.greenAccent;
+                        
+                        return Transform.rotate(
+                          angle: angle * 3.14159 / 180,
+                          child: Transform.translate(
+                            offset: const Offset(0, -65),
+                            child: GestureDetector(
+                              onTap: () => setLocal(() => tempFuel = segId * 7.0),
+                              child: Container(
+                                width: 28, height: 12,
+                                decoration: BoxDecoration(
+                                  color: isActive ? segColor : Colors.white.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(2),
+                                  boxShadow: isActive ? [BoxShadow(color: segColor.withOpacity(0.6), blurRadius: 8)] : null,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  // Ta photo Spark M200 en petit repere
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('${tempFuel.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                      const Text('RÉEL', style: TextStyle(color: Colors.grey, fontSize: 10)),
-                    ]
-                  ),
-                  Container(width: 1, height: 30, color: Colors.white24),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('${(tempFuel / 9.5 * 100).toInt()}', style: const TextStyle(color: Colors.cyanAccent, fontSize: 24, fontWeight: FontWeight.bold)),
-                      const Text('KM EST.', style: TextStyle(color: Colors.grey, fontSize: 10)),
-                    ]
-                  ),
+                      Container(
+                        width: 90, height: 90,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white10),
+                          image: const DecorationImage(
+                            image: AssetImage('assets/images/ta.jpeg'),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+                      Text('${tempFuel.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                      Text('${(tempFuel / 9.5 * 100).toInt()} KM', style: const TextStyle(color: Colors.cyanAccent, fontSize: 13, fontWeight: FontWeight.bold)),
+                    ],
+                  )
                 ],
-              )
+              ),
             ],
           ),
           actions: [

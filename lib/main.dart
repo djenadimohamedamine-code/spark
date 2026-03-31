@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
 // MIMO SPARK V3.4 - RESTART DUAL BUILD APK & IPA
 import 'ui/dashboard.dart';
 import 'vocal/tts_service.dart';
@@ -55,12 +56,23 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _opacityAnimation;
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
   @override
   void initState() {
     super.initState();
-    TtsService().speak('Salut Mimo. Système Mimo Spark prêt.');
-    Timer(const Duration(seconds: 4), () {
+    _controller = AnimationController(duration: const Duration(seconds: 3), vsync: this);
+    _scaleAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutQuart));
+    _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
+    
+    _controller.forward();
+    _playStartupSequence();
+    
+    Timer(const Duration(seconds: 5), () {
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const Dashboard()),
@@ -69,14 +81,37 @@ class _SplashScreenState extends State<SplashScreen> {
     });
   }
 
+  void _playStartupSequence() async {
+    try {
+      await _audioPlayer.play(AssetSource('sounds/dragon-studio-car-engine-372477.mp3'));
+      await Future.delayed(const Duration(milliseconds: 1500));
+      TtsService().speak('Salut Mimo. Système Mimo Spark prêt.');
+    } catch (e) {
+      print('Erreur Audio: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       body: SizedBox.expand(
-        child: Image.asset(
-          'assets/images/spark2.png',
-          fit: BoxFit.cover,
+        child: FadeTransition(
+          opacity: _opacityAnimation,
+          child: ScaleTransition(
+            scale: _scaleAnimation,
+            child: Image.asset(
+              'assets/images/spark2.png',
+              fit: BoxFit.cover,
+            ),
+          ),
         ),
       ),
     );
