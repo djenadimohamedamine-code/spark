@@ -67,8 +67,10 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   void _showFuelCalibrationDialog() {
     double tempFuel = _fuelCalculator.currentLiters;
-    // 12 segments en ARC DE CERCLE pour coller au tableau LCD de la Matiz M200 (ta.jpeg)
-    // Chaque segment = 35 / 12 = ~2.9 Litres
+  void _showFuelCalibrationDialog() {
+    double tempFuel = _fuelCalculator.currentLiters;
+    // 5 slashes (segments) pour coller exactement au tableau Daewoo Spark 2009
+    // Chaque segment = 35 / 5 = 7 Litres
     
     showDialog(
       context: context,
@@ -77,75 +79,75 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
           backgroundColor: const Color(0xFF000000),
           contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
           title: const Center(
-             child: Text('CALIBRAGE CERCLE SPARK', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+             child: Text('CALIBRAGE EXACT SPARK', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Touche ton segment (slash) sur le cercle', style: TextStyle(color: Colors.grey, fontSize: 10)),
+              // Photo de reference du tableau de la Daewoo Spark
+              Container(
+                width: 150, height: 100,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white10),
+                  image: const DecorationImage(
+                    image: AssetImage('assets/images/ta.jpeg'),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
               const SizedBox(height: 20),
+              const Text('Touche ton segment (slash) rouge/orange/vert', style: TextStyle(color: Colors.grey, fontSize: 10)),
+              const SizedBox(height: 15),
+              // Ligne horizontale des 5 slashes (E à F)
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // L'Arc de segments interactif
-                  SizedBox(
-                    width: 180, height: 180,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: List.generate(12, (index) {
-                        int segId = index + 1; // De 1 (E) à 12 (F)
-                        // Angle : On commence à gauche (-150°) vers la droite (+30°)
-                        double angle = (index * 16.0) - 160.0; 
-                        bool isActive = tempFuel >= (segId * 2.91) - 1.45;
-                        
-                        Color segColor;
-                        if (segId <= 2) segColor = Colors.redAccent;
-                        else if (segId <= 6) segColor = Colors.orangeAccent;
-                        else segColor = Colors.greenAccent;
-                        
-                        return Transform.rotate(
-                          angle: angle * 3.14159 / 180,
-                          child: Transform.translate(
-                            offset: const Offset(0, -65),
-                            child: GestureDetector(
-                              onTap: () => setLocal(() => tempFuel = segId * 2.91),
-                              child: Container(
-                                width: 25, height: 10,
-                                decoration: BoxDecoration(
-                                  color: isActive ? segColor : Colors.white.withOpacity(0.05),
-                                  borderRadius: BorderRadius.circular(2),
-                                  boxShadow: isActive ? [BoxShadow(color: segColor.withOpacity(0.6), blurRadius: 8)] : null,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
+                children: List.generate(5, (index) {
+                  int segId = index + 1; // 1 (Gauche, E) à 5 (Droite, F)
+                  bool isActive = tempFuel >= (segId * 7.0) - 3.5;
+                  
+                  Color segColor;
+                  if (segId == 1) segColor = Colors.redAccent;
+                  else if (segId <= 4) segColor = Colors.orangeAccent;
+                  else segColor = Colors.greenAccent;
+                  
+                  return GestureDetector(
+                    onTap: () => setLocal(() => tempFuel = segId * 7.0),
+                    child: Container(
+                      width: 32, height: 16,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: isActive ? segColor : Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(4),
+                        boxShadow: isActive ? [BoxShadow(color: segColor.withOpacity(0.6), blurRadius: 8)] : null,
+                      ),
+                      child: (segId == 1 || segId == 5) ? Center(child: Text(segId == 1 ? 'E' : 'F', style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold))) : null,
                     ),
-                  ),
-                  const SizedBox(width: 20),
-                  // Ta photo Spark M200 en petit repere
+                  );
+                }),
+              ),
+              const SizedBox(height: 25),
+              // Affichage du volume et autonomie precise
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: 80, height: 80,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white10),
-                          image: const DecorationImage(
-                            image: AssetImage('assets/images/ta.jpeg'),
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 15),
-                      Text('${tempFuel.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                      Text('${(tempFuel / 9.5 * 100).toInt()} KM', style: const TextStyle(color: Colors.cyanAccent, fontSize: 13)),
-                    ],
-                  )
+                      Text('${tempFuel.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                      const Text('RÉEL', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                    ]
+                  ),
+                  Container(width: 1, height: 30, color: Colors.white24),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('${(tempFuel / 9.5 * 100).toInt()}', style: const TextStyle(color: Colors.cyanAccent, fontSize: 24, fontWeight: FontWeight.bold)),
+                      const Text('KM EST.', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                    ]
+                  ),
                 ],
-              ),
+              )
             ],
           ),
           actions: [
