@@ -67,81 +67,91 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   void _showFuelCalibrationDialog() {
     double tempFuel = _fuelCalculator.currentLiters;
-    // 12 segments verticaux pour coller au tableau LCD de la Spark M300 (ta.jpeg)
+    // 12 segments en ARC DE CERCLE pour coller au tableau LCD de la Matiz M200 (ta.jpeg)
     // Chaque segment = 35 / 12 = ~2.9 Litres
     
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
-          backgroundColor: const Color(0xFF0A0A0A),
+          backgroundColor: const Color(0xFF000000),
           contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
-          title: const Column(
-            children: [
-              Text('CALIBRAGE RÉEL SPARK', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-              SizedBox(height: 4),
-              Text('Touche le segment correspondant à ton aiguille', style: TextStyle(color: Colors.grey, fontSize: 10)),
-            ],
+          title: const Center(
+             child: Text('CALIBRAGE CERCLE SPARK', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
           ),
-          content: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Affichage du modèle Spark (Image ta.jpeg pour aide visuelle)
-              Container(
-                width: 100, height: 180,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white12),
-                  image: const DecorationImage(
-                    image: AssetImage('assets/images/ta.jpeg'),
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-              // Ta nouvelle jauge interactive (Interactive Slashes)
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: List.generate(12, (index) {
-                  int segId = 12 - index; // De 12 (F) à 1 (E)
-                  bool isActive = tempFuel >= (segId * 2.91) - 1.45;
-                  
-                  Color segColor;
-                  if (segId <= 2) segColor = Colors.redAccent;
-                  else if (segId <= 6) segColor = Colors.orangeAccent;
-                  else segColor = Colors.greenAccent;
-                  
-                  return GestureDetector(
-                    onTap: () => setLocal(() => tempFuel = segId * 2.91),
-                    child: Container(
-                      width: 45, height: 12,
-                      margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 10),
-                      decoration: BoxDecoration(
-                        color: isActive ? segColor : Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(2),
-                        boxShadow: isActive ? [BoxShadow(color: segColor.withOpacity(0.4), blurRadius: 6)] : null,
-                      ),
-                      child: segId == 12 || segId == 1 ? Center(child: Text(segId == 12 ? 'F' : 'E', style: const TextStyle(color: Colors.black, fontSize: 8, fontWeight: FontWeight.bold))) : null,
-                    ),
-                  );
-                }),
-              ),
-              // Données calculées
-              Column(
-                mainAxisSize: MainAxisSize.min,
+              const Text('Touche ton segment (slash) sur le cercle', style: TextStyle(color: Colors.grey, fontSize: 10)),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('${tempFuel.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
-                  const Text('RÉEL', style: TextStyle(color: Colors.grey, fontSize: 9)),
-                  const SizedBox(height: 25),
-                  Text('${(tempFuel / 9.5 * 100).toInt()}', style: const TextStyle(color: Colors.cyanAccent, fontSize: 20, fontWeight: FontWeight.bold)),
-                  const Text('KM EST.', style: TextStyle(color: Colors.grey, fontSize: 9)),
+                  // L'Arc de segments interactif
+                  SizedBox(
+                    width: 180, height: 180,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: List.generate(12, (index) {
+                        int segId = index + 1; // De 1 (E) à 12 (F)
+                        // Angle : On commence à gauche (-150°) vers la droite (+30°)
+                        double angle = (index * 16.0) - 160.0; 
+                        bool isActive = tempFuel >= (segId * 2.91) - 1.45;
+                        
+                        Color segColor;
+                        if (segId <= 2) segColor = Colors.redAccent;
+                        else if (segId <= 6) segColor = Colors.orangeAccent;
+                        else segColor = Colors.greenAccent;
+                        
+                        return Transform.rotate(
+                          angle: angle * 3.14159 / 180,
+                          child: Transform.translate(
+                            offset: const Offset(0, -65),
+                            child: GestureDetector(
+                              onTap: () => setLocal(() => tempFuel = segId * 2.91),
+                              child: Container(
+                                width: 25, height: 10,
+                                decoration: BoxDecoration(
+                                  color: isActive ? segColor : Colors.white.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(2),
+                                  boxShadow: isActive ? [BoxShadow(color: segColor.withOpacity(0.6), blurRadius: 8)] : null,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  // Ta photo Spark M200 en petit repere
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 80, height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white10),
+                          image: const DecorationImage(
+                            image: AssetImage('assets/images/ta.jpeg'),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+                      Text('${tempFuel.toStringAsFixed(1)}L', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                      Text('${(tempFuel / 9.5 * 100).toInt()} KM', style: const TextStyle(color: Colors.cyanAccent, fontSize: 13)),
+                    ],
+                  )
                 ],
-              )
+              ),
             ],
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ANNULER', style: TextStyle(color: Colors.grey))),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
               onPressed: () {
                 Navigator.pop(ctx);
                 _fuelCalculator.calibrate(tempFuel);
