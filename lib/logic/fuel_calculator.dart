@@ -7,7 +7,7 @@ class FuelCalculator {
   bool lowFuelAlerted = false;
   int _lastAlertedKm = -1;
 
-  static const double _consumptionL100 = 9.5; // Conduite agressive (km/L)
+  static const double _consumptionL100 = 9.5; // Consommation Spark 2009 : 9.5 L/100km
   static const double _tankCapacity = 35.0;
 
   // Initialise en chargeant la dernière valeur sauvegardée

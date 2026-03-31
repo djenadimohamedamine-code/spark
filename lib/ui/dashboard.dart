@@ -67,8 +67,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   void _showFuelCalibrationDialog() {
     double tempFuel = _fuelCalculator.currentLiters;
-  void _showFuelCalibrationDialog() {
-    double tempFuel = _fuelCalculator.currentLiters;
     // 5 slashes en DEMI-CERCLE pour coller au tableau Daewoo Spark 2009 (Matiz)
     // Chaque segment = 35 / 5 = 7 Litres
     
