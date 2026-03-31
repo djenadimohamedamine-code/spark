@@ -54,14 +54,14 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
-      // Forcer la fermeture du socket TCP pour éviter le "Broken Pipe" fantôme iOS/Android
-      print("Mimo Spark : App en arrière-plan. Déconnexion agressive OBD.");
-      _obdService.disconnect();
-    } else if (state == AppLifecycleState.resumed) {
-      // Reconnexion propre au retour
-      print("Mimo Spark : App de retour. Reconnexion OBD...");
-      _connectObd();
+    if (state == AppLifecycleState.resumed) {
+      // On vérifie si la connexion a survécu au passage en arrière-plan
+      if (_obdService.socket == null) {
+        print("Mimo Spark : Connexion perdue en arrière-plan. Reconnexion...");
+        _connectObd();
+      } else {
+        print("Mimo Spark : Connexion maintenue. Reprise directe.");
+      }
     }
   }
 
