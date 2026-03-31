@@ -37,10 +37,10 @@ jobs:
           sed -i 's/kotlin_version = ".*"/kotlin_version = "2.0.21"/' android/build.gradle
           
           # Force compileSdk and targetSdk to 34 (android-35.jar is broken on ubuntu-latest)
-          sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/' android/app/build.gradle
-          sed -i 's/compileSdk [0-9]*/compileSdk 34/' android/app/build.gradle
-          sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 34/' android/app/build.gradle
-          sed -i 's/targetSdk [0-9]*/targetSdk 34/' android/app/build.gradle
+          sed -i 's/compileSdkVersion.*/compileSdkVersion 34/' android/app/build.gradle
+          sed -i 's/targetSdkVersion.*/targetSdkVersion 34/' android/app/build.gradle
+          sed -i 's/compileSdk =.*/compileSdk = 34/' android/app/build.gradle
+          sed -i 's/targetSdk =.*/targetSdk = 34/' android/app/build.gradle
           
           echo "--- android/build.gradle ---"
           cat android/build.gradle
