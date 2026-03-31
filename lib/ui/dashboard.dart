@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_gauges/gauges.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:sensors_plus/sensors_plus.dart';
+
 import '../vocal/tts_service.dart';
 import '../logic/fuel_calculator.dart';
 import '../core/obd_service.dart';
@@ -26,8 +26,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   double tension = 0.0;
   String currentGear = 'N';
   bool isHudMode = false;
-  double gX = 0.0;
-  double gY = 0.0;
+
   DateTime lastMafTime = DateTime.now();
   bool rpmAlertTriggered = false;
   
@@ -40,7 +39,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   
   bool alert98Triggered = false;
   bool alert103Triggered = false;
-  StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
+
   StreamSubscription<String>? _obdSubscription;
 
   @override
@@ -50,7 +49,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     WakelockPlus.enable();
     _fuelCalculator.init();
     _connectObd();
-    _initSensors();
+
   }
 
   @override
@@ -118,16 +117,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     );
   }
 
-  void _initSensors() {
-    _accelerometerSubscription = accelerometerEvents.listen((AccelerometerEvent event) {
-      if (mounted) {
-        setState(() {
-          gX = event.x / 9.81;
-          gY = event.y / 9.81;
-        });
-      }
-    });
-  }
+
 
   void _connectObd() async {
     bool connected = await _obdService.connect();
@@ -399,11 +389,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                                   Expanded(child: _buildSpeedGauge()),
                                 ],
                               ),
-                              const SizedBox(height: 16),
-                              _buildGlassCard(
-                                height: 130,
-                                child: Center(child: _buildGForceMeter()),
-                              )
                             ],
                           ),
                         ),
@@ -411,14 +396,14 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                     ),
                     // CONSOLE DE LOG
                     Container(
-                      height: 60,
+                      height: 40,
                       width: double.infinity,
                       color: Colors.black.withOpacity(0.8),
                       child: SingleChildScrollView(
                         reverse: true,
                         child: Padding(
                           padding: const EdgeInsets.all(4.0),
-                          child: Text(rawLog, style: const TextStyle(color: Colors.greenAccent, fontSize: 9, fontFamily: 'monospace')),
+                          child: Text(rawLog, style: const TextStyle(color: Colors.greenAccent, fontSize: 8, fontFamily: 'monospace')),
                         ),
                       ),
                     ),
@@ -639,23 +624,11 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildGForceMeter() {
-    return Column(children: [
-      const Text('G-FORCE', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 5),
-      Container(width: 100, height: 100, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white24), color: Colors.black),
-        child: Stack(children: [Center(child: Container(width: 100, height: 1, color: Colors.white24)), Center(child: Container(width: 1, height: 100, color: Colors.white24)),
-          AnimatedPositioned(duration: const Duration(milliseconds: 100), left: 50 - 8 - (gX * 30), top: 50 - 8 + (gY * 30), 
-          child: Container(width: 16, height: 16, decoration: BoxDecoration(color: Colors.cyanAccent, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.cyanAccent.withOpacity(0.8), blurRadius: 10)]))),
-        ]),
-      ),
-    ]);
-  }
+
 
   @override
   void dispose() {
     WakelockPlus.disable();
-    _accelerometerSubscription?.cancel();
     _obdSubscription?.cancel();
     _obdService.dispose();
     super.dispose();

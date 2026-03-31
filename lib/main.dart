@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 // MIMO SPARK V3.4 - RESTART DUAL BUILD APK & IPA
 import 'ui/dashboard.dart';
@@ -39,12 +40,48 @@ class MimoSmartCarApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'MIMO_SPARK',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
         primarySwatch: Colors.blue,
       ),
-      // Prépare l'UI pour être flexible (mode HUD plus tard)
-      home: const Dashboard(),
+      home: const SplashScreen(),
     );
   }
 }
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const Dashboard()),
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SizedBox.expand(
+        child: Image.asset(
+          'assets/images/IMG_1054.jpeg',
+          fit: BoxFit.cover,
+        ),
+      ),
+    );
+  }
+}
+
+
