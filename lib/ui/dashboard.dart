@@ -59,13 +59,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
       print("Mimo Spark : App en arrière-plan. Déconnexion agressive OBD.");
       _obdService.disconnect();
     } else if (state == AppLifecycleState.resumed) {
-      // Reconnexion propre
-      print("Mimo Spark : App de retour. Reconnexion OBD.");
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (_obdService.socket == null) {
-          _connectObd();
-        }
-      });
+      // Reconnexion propre au retour
+      print("Mimo Spark : App de retour. Reconnexion OBD...");
+      _connectObd();
     }
   }
 

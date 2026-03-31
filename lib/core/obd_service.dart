@@ -188,18 +188,20 @@ class ObdService {
     }
   }
 
-  void _handleDisconnect() {
+  void _handleDisconnect({bool autoReconnect = true}) {
     _socket?.destroy();
     _socket = null;
     _isPolling = false;
     _tcpBuffer = '';
 
-    Future.delayed(const Duration(seconds: 5), () {
-      if (_socket == null) {
-        print("Mimo Spark : Tentative de reconnexion...");
-        connect();
-      }
-    });
+    if (autoReconnect) {
+      Future.delayed(const Duration(seconds: 5), () {
+        if (_socket == null) {
+          _log("Mimo Spark : Tentative de reconnexion automatique...");
+          connect();
+        }
+      });
+    }
   }
 
   // ── Scan des codes DTC (Mode 03 + 07) ───────────────────────────────────
@@ -262,6 +264,6 @@ class ObdService {
   }
 
   void disconnect() {
-    _handleDisconnect();
+    _handleDisconnect(autoReconnect: false);
   }
 }
