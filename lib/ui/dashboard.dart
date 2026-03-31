@@ -150,10 +150,10 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
             rpm = ((a * 256) + b) / 4.0;
             currentGear = GearCalculator.calculateGear(rpm.toInt(), speed.toInt());
           });
-          if (rpm >= 3000 && !rpmAlertTriggered) {
-             _ttsService.speakAlert("Dépassement 3000 tours !");
+          if (rpm >= 3200 && !rpmAlertTriggered) {
+             _ttsService.speakAlert("Bip, Bip ! Dépassement 3200 tours !");
              rpmAlertTriggered = true;
-          } else if (rpm < 2800) {
+          } else if (rpm < 3000) {
              rpmAlertTriggered = false;
           }
         }

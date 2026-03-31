@@ -72,12 +72,23 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: SizedBox.expand(
-        child: Image.asset(
-          'assets/images/IMG_1056.PNG',
-          fit: BoxFit.cover,
-        ),
+      backgroundColor: Colors.white, // On passe en blanc pour voir si le widget apparait !
+      body: Stack(
+        children: [
+          SizedBox.expand(
+            child: Image.asset(
+              'assets/images/IMG_1056.PNG',
+              fit: BoxFit.contain, // Contain pour eviter de forcer l'usage d'une reso bizarre
+              errorBuilder: (context, error, stackTrace) {
+                return const Center(child: Text('ERREUR IMAGE', style: TextStyle(color: Colors.red, fontSize: 24)));
+              },
+            ),
+          ),
+          const Positioned(
+            bottom: 30, left: 0, right: 0,
+            child: Center(child: Text('Chargement Spark...', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold))),
+          )
+        ],
       ),
     );
   }
