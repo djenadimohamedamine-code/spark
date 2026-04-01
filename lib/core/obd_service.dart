@@ -249,34 +249,39 @@ class ObdService {
     }
   }
 
-  // ── Scan des codes DTC (Mode 03 + 07) ───────────────────────────────────
+  // ── Scan des codes DTC (Mode 03 + 07) — Version Multi-Header ────────────
   Future<void> scanTroubleCodes() async {
     _isDiagnosticMode = true;
-    _log("SCAN: Arrêt du polling et bascule en mode Diagnostic...");
+    _log("SCAN: Arrêt du polling et bascule en mode Diagnostic Multi-Header...");
 
     try {
-      // Attendre fin de la dernière commande polling (évite Erreur 103)
       await Future.delayed(const Duration(milliseconds: 1000));
-      _tcpBuffer = ''; // Vider le tampon avant le scan
+      _tcpBuffer = ''; 
 
-      _log("SCAN: Prise de contrôle du canal OBD (V4.30 - Sans Reset)");
+      // On teste les headers standards pour s'assurer de toucher tous les calculateurs
+      List<String> headers = ["7E0", "7E1", "7E8", "AUTO"];
+      
+      for (var h in headers) {
+        if (h != "AUTO") {
+          await sendCommandWait("ATSH $h", delay: 500);
+        } else {
+          await sendCommandWait("ATSH", delay: 500); // Retour au header par défaut
+        }
 
-      // Mode 03 — Codes confirmés (stockés, voyant allumé)
-      _log("SCAN: Envoi codes confirmés (03)...");
-      sendCommand("03");
-      await Future.delayed(const Duration(seconds: 4));
+        _log("SCAN: Envoi codes confirmés (03) sur Header $h...");
+        sendCommand("03");
+        await Future.delayed(const Duration(seconds: 3));
 
-      // Mode 07 — Codes en attente (voyant éteint mais panne détectée)
-      _log("SCAN: Envoi codes en attente (07)...");
-      sendCommand("07");
-      await Future.delayed(const Duration(seconds: 4));
+        _log("SCAN: Envoi codes en attente (07) sur Header $h...");
+        sendCommand("07");
+        await Future.delayed(const Duration(seconds: 3));
+      }
 
+      await sendCommandWait('ATSH', delay: 500); // Sécurité retour auto
       _log("SCAN: Libération du canal. Reprise du polling.");
     } catch (e) {
-      _log("Erreur Scan Force: $e");
+      _log("Erreur Scan DTC: $e");
     } finally {
-      // Pas besoin de forcer ATSP0 ou ATZ car nous n'avons pas changé de protocole !
-      _log("SCAN: Fin du diagnostic. Reprise Auto.");
       _tcpBuffer = '';
       _isDiagnosticMode = false;
     }

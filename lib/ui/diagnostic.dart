@@ -49,8 +49,8 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
     _ttsService.speak("Lancement du scan Mode 03 sur la Spark.");
     await _obdService.scanTroubleCodes();
 
-    // Attendre max 14 secondes (3 modes × 5 s + marge)
-    Future.delayed(const Duration(seconds: 14), () async {
+    // Attendre max 28 secondes (4 headers × 6 s + marge)
+    Future.delayed(const Duration(seconds: 28), () async {
       if (mounted && _isLoading) {
         setState(() => _isLoading = false);
         if (_currentErrors.isEmpty) {
@@ -109,45 +109,44 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
 
   // ── Parsing DTC ──────────────────────────────────────────────────────────
   void _parseDiagnosticData(String data) {
-    // CRITIQUE : on garde les espaces — ils séparent les octets pour Daewoo KWP2000
-    // NE JAMAIS faire replaceAll(' ', '') ← ce serait fatal pour le parsing
     String raw = data.trim().toUpperCase();
+    
+    // Support pour les réponses packées (sans espaces) envoyées par certains adaptateurs
+    if (!raw.contains(' ') && raw.length > 4) {
+       String spaced = "";
+       for (int i=0; i<raw.length; i+=2) {
+         if (i+2 <= raw.length) spaced += "${raw.substring(i, i+2)} ";
+       }
+       raw = spaced.trim();
+    }
 
-    // Séparer par espaces pour avoir les octets isolés
     List<String> parts = raw.split(RegExp(r'\s+'));
 
-    // Gestion du refus ECU (NRC 7F) : le 7F doit être un octet isolé
+    // Gestion du refus ECU (NRC 7F)
     if (parts.contains('7F')) {
       if (mounted) {
         setState(() {
-          _currentErrors.add('Refus ECU (7F) : Contact ON, moteur éteint requis !');
-          _isLoading = false;
+          if (!_currentErrors.contains('Refus ECU (7F) : Contact ON requis !')) {
+             _currentErrors.add('Refus ECU (7F) : Contact ON requis !');
+          }
         });
       }
       return;
     }
 
-    // Détection réponse DTC : le marqueur de mode DOIT être un token exact isolé
-    // '43' = réponse Mode 03, '47' = Mode 07, '4A' = Mode 0A
-    // IMPORTANT : on NE fait PAS raw.contains('43') car cela fausse des réponses
-    // PID normales comme "41 0C 10 43 BA" (RPM qui contient '43' en valeur de données)
+    // Détection réponse DTC (Mode 43, 47 ou 4A)
     int startIndex = parts.indexWhere((p) => p == '43' || p == '47' || p == '4A');
-    if (startIndex == -1) return; // Pas de marqueur DTC → ignorer
+    if (startIndex == -1) return;
 
     try {
       List<String> codesTrouves = [];
-
-      // Parcourir les octets deux par deux après le marqueur de mode
       for (int i = startIndex + 1; i + 1 < parts.length; i += 2) {
         String highByte = parts[i];
         String lowByte = parts[i + 1];
 
-        // Valider : exactement 2 caractères hex chacun
         if (highByte.length != 2 || lowByte.length != 2) continue;
-        // 00 00 = terminateur de liste OBD2
         if (highByte == '00' && lowByte == '00') break;
 
-        // Conversion octet → code DTC standard (P/C/B/U + 4 chiffres)
         String obdCode = _convertBytesToDtc(highByte, lowByte);
         if (obdCode.isNotEmpty) codesTrouves.add(obdCode);
       }
@@ -158,10 +157,9 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
           _currentErrors = _currentErrors.toSet().toList();
           _isLoading = false;
         });
-        _ttsService.speak("Mimo, j'ai trouvé ${codesTrouves.length} panne${codesTrouves.length > 1 ? 's' : ''}.");
+        _ttsService.speak("Mimo, j'ai trouvé des pannes.");
       }
     } catch (e) {
-      print('Erreur Parsing DTC: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
