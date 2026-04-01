@@ -17,6 +17,7 @@ class _MapPageState extends State<MapPage> {
   bool _isFollowing = true;
   bool _satelliteMode = true;
   StreamSubscription<Position>? _positionStream;
+  double _lastHeading = 0;
 
   // Position par défaut : Alger
   static const LatLng _defaultPosition = LatLng(36.7538, 3.0588);
@@ -81,7 +82,17 @@ class _MapPageState extends State<MapPage> {
       ),
     ).listen((Position pos) {
       if (!mounted) return;
-      setState(() => _currentPosition = pos);
+      
+      // Lissage du cap (Heading) pour éviter les tremblements (80/20 smoothing)
+      double currentHeading = pos.heading;
+      if (currentHeading < 0) currentHeading = 0;
+      double smoothed = (_lastHeading * 0.8) + (currentHeading * 0.2);
+      
+      setState(() {
+        _currentPosition = pos;
+        _lastHeading = smoothed;
+      });
+      
       if (_isFollowing) _moveTo(pos);
     });
   }
@@ -145,6 +156,10 @@ class _MapPageState extends State<MapPage> {
                   setState(() => _isFollowing = false);
                 }
               },
+              // Empêcher la rotation de la carte pour un look "Google Maps Pro" (Nord en haut)
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+              ),
             ),
             children: [
               // Couche principale : Satellite ESRI ou OSM plan
@@ -152,7 +167,7 @@ class _MapPageState extends State<MapPage> {
                 urlTemplate: _satelliteMode ? _esriSatelliteUrl : _osmTileUrl,
                 userAgentPackageName: 'com.mimo.spark',
                 maxZoom: 19,
-                keepBuffer: 8,
+                keepBuffer: 20, // Buffer pro
                 tileDisplay: const TileDisplay.fadeIn(),
               ),
 
@@ -163,7 +178,7 @@ class _MapPageState extends State<MapPage> {
                       'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
                   userAgentPackageName: 'com.mimo.spark',
                   maxZoom: 19,
-                  keepBuffer: 8,
+                  keepBuffer: 20, // Buffer pro pour éviter les zones blanches
                   tileDisplay: const TileDisplay.fadeIn(),
                 ),
 
@@ -173,23 +188,16 @@ class _MapPageState extends State<MapPage> {
                   markers: [
                     Marker(
                       point: centerPos,
-                      width: 75,
-                      height: 75,
+                      width: 70, // Taille ajustée
+                      height: 70,
                       alignment: Alignment.center,
                       child: Transform.rotate(
-                        // Correction de rotation : Heading en radians
-                        angle: (_currentPosition!.heading) * (3.14159 / 180),
-                        child: Container(
-                           // Petit halo blanc très fin pour détacher la voiture du fond satellite noir
-                           decoration: BoxDecoration(
-                             boxShadow: [
-                               BoxShadow(color: Colors.white.withOpacity(0.2), blurRadius: 15)
-                             ]
-                           ),
-                           child: Image.asset(
-                            'assets/images/spark_marker.png',
-                            fit: BoxFit.contain,
-                          ),
+                        // Lissage + Offset +90 (car l'image AI est souvent horizontale)
+                        angle: (_lastHeading + 90) * (3.14159 / 180),
+                        child: Image.asset(
+                          'assets/images/spark_marker.png',
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.high,
                         ),
                       ),
                     ),
