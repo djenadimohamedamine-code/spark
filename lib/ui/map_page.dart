@@ -163,29 +163,19 @@ class _MapPageState extends State<MapPage> {
                   maxZoom: 19,
                 ),
 
-              // Marqueur position actuelle
+              // Marqueur position actuelle (Spark avec rotation)
               if (_currentPosition != null)
                 MarkerLayer(
                   markers: [
                     Marker(
                       point: centerPos,
-                      width: 56,
-                      height: 56,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.cyanAccent, width: 3),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.cyanAccent.withOpacity(0.5),
-                              blurRadius: 10,
-                              spreadRadius: 2,
-                            )
-                          ],
-                          image: const DecorationImage(
-                            image: AssetImage('assets/images/spark2.png'),
-                            fit: BoxFit.cover,
-                          ),
+                      width: 65,
+                      height: 65,
+                      child: Transform.rotate(
+                        angle: (_currentPosition?.heading ?? 0) * (3.14159 / 180),
+                        child: Image.asset(
+                          'assets/images/spark_marker.png',
+                          fit: BoxFit.contain,
                         ),
                       ),
                     ),
