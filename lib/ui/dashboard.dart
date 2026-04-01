@@ -100,7 +100,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                   axes: <RadialAxis>[
                     RadialAxis(
                       minimum: 0, maximum: 35,
-                      startAngle: 208, endAngle: 322, // E pile à 208° (0L), F pile à 322° (35L)
+                      startAngle: 215, endAngle: 315, // Calibrage optimal pour Spark : E=215° / F=315°
                       showLabels: false, showTicks: false,
                       axisLineStyle: const AxisLineStyle(thickness: 0, color: Colors.transparent),
                       pointers: <GaugePointer>[
@@ -122,32 +122,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                   ]
                 )
               ),
-              const SizedBox(height: 20),
-              Text('${tempFuel.toStringAsFixed(1)} Litres', style: const TextStyle(color: Colors.orangeAccent, fontSize: 32, fontWeight: FontWeight.bold)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(10)),
-                child: Text('AUTONOMIE : ${(tempFuel / 6.5 * 100).toInt()} KM', style: const TextStyle(color: Colors.cyanAccent, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-              ),
-              const SizedBox(height: 15),
-              // Curseur (Slider) de précision
-              SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  activeTrackColor: Colors.orangeAccent,
-                  inactiveTrackColor: Colors.white10,
-                  thumbColor: Colors.white,
-                  overlayColor: Colors.orangeAccent.withOpacity(0.2),
-                ),
-                child: Slider(
-                  value: tempFuel,
-                  min: 0,
-                  max: 35,
-                  divisions: 70, // Précision par 0.5 Litre (35 * 2)
-                  onChanged: (val) {
-                    setLocal(() => tempFuel = val);
-                  },
-                ),
-              ),
+              const SizedBox(height: 10),
+              const Text('DRAGUEZ L\'AIGUILLE DIRECTEMENT', 
+                style: TextStyle(color: Colors.orangeAccent, fontSize: 10, fontWeight: FontWeight.bold)),
             ],
           ),
           actions: [
@@ -161,7 +138,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 Navigator.pop(ctx);
                 _fuelCalculator.calibrate(tempFuel);
                 setState(() {}); // Rafraîchir l'écran principal
-                _ttsService.speak("Calibrage du carburant enregistré à ${tempFuel.toStringAsFixed(1)} litres.");
+                _ttsService.speak("Calibrage du carburant enregistré.");
               },
               child: const Text('CALER AIGUILLE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
             ),
