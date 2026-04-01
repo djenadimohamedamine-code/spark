@@ -19,6 +19,14 @@ class _MapPageState extends State<MapPage> {
   StreamSubscription<Position>? _positionStream;
   double _lastHeading = 0;
 
+  // Lissage spécial pour les angles (Transition 359-0)
+  double _smoothAngle(double current, double target) {
+    double diff = target - current;
+    while (diff > 180) diff -= 360;
+    while (diff < -180) diff += 360;
+    return current + (diff * 0.15); // Lissage 15%
+  }
+
   // Position par défaut : Alger
   static const LatLng _defaultPosition = LatLng(36.7538, 3.0588);
 
@@ -83,10 +91,20 @@ class _MapPageState extends State<MapPage> {
     ).listen((Position pos) {
       if (!mounted) return;
       
-      // Lissage du cap (Heading) pour éviter les tremblements (80/20 smoothing)
+      // 1. Filtre de précision (Évite les sauts GPS brusques)
+      if (pos.accuracy > 25) return;
+
+      // 2. Gestion intelligente du Heading (Google Maps Style)
+      double speedKmh = pos.speed * 3.6;
       double currentHeading = pos.heading;
-      if (currentHeading < 0) currentHeading = 0;
-      double smoothed = (_lastHeading * 0.8) + (currentHeading * 0.2);
+
+      // Si vitesse faible (<5km/h) -> On garde la direction précédente (bloque le tremblement)
+      if (speedKmh < 5 || currentHeading < 0) {
+        currentHeading = _lastHeading;
+      }
+
+      // 3. Lissage circulaire (Gère le passage 359° -> 1°)
+      double smoothed = _smoothAngle(_lastHeading, currentHeading);
       
       setState(() {
         _currentPosition = pos;
@@ -98,8 +116,12 @@ class _MapPageState extends State<MapPage> {
   }
 
   void _moveTo(Position pos) {
+    // Calcul de l'offset de navigation (voiture en bas de l'écran pour voir la route devant)
+    // 0.0004 est un bon compromis pour zoom 17.5
+    double latOffset = 0.0004;
+    
     _mapController.move(
-      LatLng(pos.latitude, pos.longitude),
+      LatLng(pos.latitude + latOffset, pos.longitude),
       17.5,
     );
   }
@@ -190,15 +212,28 @@ class _MapPageState extends State<MapPage> {
                       point: centerPos,
                       width: 70, // Taille ajustée
                       height: 70,
-                      alignment: Alignment.center,
-                      child: Transform.rotate(
-                        // Lissage + Offset +90 (car l'image AI est souvent horizontale)
-                        angle: (_lastHeading + 90) * (3.14159 / 180),
-                        child: Image.asset(
-                          'assets/images/spark_marker.png',
-                          fit: BoxFit.contain,
-                          filterQuality: FilterQuality.high,
-                        ),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // Ombre dynamique pour "poser" la voiture sur la map
+                          Container(
+                            width: 25,
+                            height: 25,
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.4),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          Transform.rotate(
+                            // Lissage + Offset +90
+                            angle: (_lastHeading + 90) * (3.14159 / 180),
+                            child: Image.asset(
+                              'assets/images/spark_marker.png',
+                              fit: BoxFit.contain,
+                              filterQuality: FilterQuality.high,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],

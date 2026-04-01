@@ -177,6 +177,31 @@ class ObdService {
     await Future.delayed(Duration(milliseconds: delay));
   }
 
+  /// Version PRO : Attend réellement le prompt '>' au lieu d'un timer fixe
+  Future<String> sendCommandWaitPrompt(String cmd, {int timeoutSec = 5}) async {
+    final completer = Completer<String>();
+    
+    // On capture la trame brute pour ce scan spécifique
+    StreamSubscription? sub;
+    String buffer = "";
+    
+    sub = dtcStream.listen((data) {
+      buffer += "$data ";
+      // Note : ObdService.listen s'assure d'émettre seulement quand '>' est reçu
+      if (!completer.isCompleted) completer.complete(buffer);
+    });
+
+    sendCommand(cmd);
+
+    try {
+      return await completer.future.timeout(Duration(seconds: timeoutSec));
+    } catch (_) {
+      return "TIMEOUT";
+    } finally {
+      sub.cancel();
+    }
+  }
+
   bool _isPolling = false;
   bool _isDiagnosticMode = false;
 
@@ -263,26 +288,19 @@ class ObdService {
       
       for (var h in headers) {
         if (h != "AUTO") {
-          await sendCommandWait("ATSH $h", delay: 500);
+          await sendCommandWaitPrompt("ATSH $h");
         } else {
-          await sendCommandWait("ATSH", delay: 500); // Retour au header par défaut
+          await sendCommandWaitPrompt("ATSH"); 
         }
 
-        _log("SCAN: Envoi codes confirmés (03) sur Header $h...");
-        sendCommand("03");
-        await Future.delayed(const Duration(seconds: 3));
-
-        _log("SCAN: Envoi codes en attente (07) sur Header $h...");
-        sendCommand("07");
-        await Future.delayed(const Duration(seconds: 3));
-
-        _log("SCAN: Envoi codes permanents (0A) sur Header $h...");
-        sendCommand("0A");
-        await Future.delayed(const Duration(seconds: 3));
+        _log("SCAN: Header $h en cours...");
+        await sendCommandWaitPrompt("03");
+        await sendCommandWaitPrompt("07");
+        await sendCommandWaitPrompt("0A");
       }
-
-      await sendCommandWait('ATSH', delay: 500); // Sécurité retour auto
-      _log("SCAN: Libération du canal. Reprise du polling.");
+      
+      await sendCommandWaitPrompt("ATSH"); 
+      _log("SCAN: Libération du canal.");
     } catch (e) {
       _log("Erreur Scan DTC: $e");
     } finally {

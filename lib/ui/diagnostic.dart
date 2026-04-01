@@ -46,20 +46,19 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
       _isLoading = true;
       _currentErrors.clear();
     });
-    _ttsService.speak("Lancement du scan Mode 03 sur la Spark.");
+    _ttsService.speak("Lancement du diagnostic expert Mimo Spark.");
+    
+    // Attente dynamique du scan (Plus rapide et précis)
     await _obdService.scanTroubleCodes();
 
-    // Attendre max 28 secondes (4 headers × 6 s + marge)
-    Future.delayed(const Duration(seconds: 28), () async {
-      if (mounted && _isLoading) {
-        setState(() => _isLoading = false);
-        if (_currentErrors.isEmpty) {
-          _ttsService.speak("Scan terminé. Aucun code détecté. Consultez le journal.");
-        } else {
-          _showClearConfirmDialog();
-        }
+    if (mounted) {
+      setState(() => _isLoading = false);
+      if (_currentErrors.isEmpty) {
+        _ttsService.speak("Diagnostic terminé. Aucun code d'erreur trouvé.");
+      } else {
+        _showClearConfirmDialog();
       }
-    });
+    }
   }
 
   void _showClearConfirmDialog() {
@@ -107,50 +106,75 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
     );
   }
 
-  // ── Parsing DTC ──────────────────────────────────────────────────────────
+  // ── Parsing DTC Expert (ISO-TP + NRC) ───────────────────────────────────
+  static const Map<String, String> _nrcMap = {
+    '10': 'General Reject',
+    '11': 'Service Not Supported',
+    '12': 'SubFunction Not Supported',
+    '13': 'Incorrect Message Length',
+    '21': 'Busy - Repeat Request',
+    '22': 'Conditions Not Correct (Check Ignition)',
+    '31': 'Request Out Of Range',
+    '33': 'Security Access Denied',
+    '78': 'Response Pending',
+  };
+
   void _parseDiagnosticData(String data) {
     String raw = data.trim().toUpperCase();
     List<String> parts = raw.split(RegExp(r'\s+'));
 
-    // Gestion du refus ECU (NRC 7F)
+    // 1. Détection NRC (7F) avec décodage expert
     if (parts.contains('7F')) {
-      if (mounted) {
-        setState(() {
-          if (!_currentErrors.contains('Refus ECU (7F) : Contact ON requis !')) {
-             _currentErrors.add('Refus ECU (7F) : Contact ON requis !');
-          }
-        });
+      int idx = parts.indexOf('7F');
+      if (idx + 2 < parts.length) {
+        String service = parts[idx + 1];
+        String reason = parts[idx + 2];
+        String desc = _nrcMap[reason] ?? 'Unknown Error $reason';
+        if (mounted) {
+          setState(() {
+            _currentErrors.add('ECU Refus (7F $service) : $desc');
+          });
+        }
       }
       return;
     }
 
-    // Détection réponse DTC (Mode 43, 47 ou 4A)
-    int startIndex = parts.indexWhere((p) => p == '43' || p == '47' || p == '4A');
-    if (startIndex == -1) return;
+    // 2. Détection ISO-TP (Multi-frame)
+    // On ignore les octets de contrôle 10 (First Frame) et 21 (Consecutive)
+    // On cherche les marqueurs 43, 47, 4A (DTC Responses)
+    int markerIdx = parts.indexWhere((p) => p == '43' || p == '47' || p == '4A');
+    if (markerIdx == -1) return;
 
     try {
       List<String> codesTrouves = [];
-      for (int i = startIndex + 1; i + 1 < parts.length; i += 2) {
+      
+      // On commence après le marqueur 43/47/4A
+      for (int i = markerIdx + 1; i + 1 < parts.length; i += 2) {
         String highByte = parts[i];
         String lowByte = parts[i + 1];
 
+        // Ignorer les octets de contrôle CAN (21, 22...) s'ils apparaissent entre les paires
         if (highByte.length != 2 || lowByte.length != 2) continue;
-        if (highByte == '00' && lowByte == '00') break;
+        if (highByte == '00' && lowByte == '00') continue; // On continue au lieu de break (expert point 4)
+
+        // Si l'octet ressemble à un index de frame ISO-TP (21, 22), on le saute
+        if (highByte == '21' || highByte == '22' || highByte == '23') {
+           i -= 1; // On décale pour reprendre la vraie paire
+           continue;
+        }
 
         String obdCode = _convertBytesToDtc(highByte, lowByte);
-        if (obdCode.isNotEmpty) codesTrouves.add(obdCode);
+        if (obdCode.isNotEmpty && obdCode != "P0000") codesTrouves.add(obdCode);
       }
 
       if (mounted && codesTrouves.isNotEmpty) {
         setState(() {
           _currentErrors.addAll(codesTrouves);
           _currentErrors = _currentErrors.toSet().toList();
-          _isLoading = false;
         });
-        _ttsService.speak("Mimo, j'ai trouvé des pannes.");
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+      // Sourd
     }
   }
 
