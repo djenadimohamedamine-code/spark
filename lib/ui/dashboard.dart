@@ -327,7 +327,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   Widget _buildHudTransform({required Widget child}) {
     return Transform(
       alignment: Alignment.center,
-      transform: isHudMode ? (Matrix4.identity()...rotateY(3.14159)) : Matrix4.identity(),
+      transform: isHudMode ? (Matrix4.identity()..rotateY(3.14159)) : Matrix4.identity(),
       child: child,
     );
   }
