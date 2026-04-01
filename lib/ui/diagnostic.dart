@@ -157,9 +157,10 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
         if (highByte.length != 2 || lowByte.length != 2) continue;
         if (highByte == '00' && lowByte == '00') continue; // On continue au lieu de break (expert point 4)
 
-        // Si l'octet ressemble à un index de frame ISO-TP (21, 22), on le saute
-        if (highByte == '21' || highByte == '22' || highByte == '23') {
-           i -= 1; // On décale pour reprendre la vraie paire
+        // Si l'octet ressemble à un index de frame ISO-TP (21 à 2F), on le saute
+        int? val = int.tryParse(highByte, radix: 16);
+        if (val != null && val >= 0x21 && val <= 0x2F) {
+           i -= 1; // On décale pour reprendre la vraie paire de données DTC
            continue;
         }
 

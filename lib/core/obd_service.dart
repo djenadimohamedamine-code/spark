@@ -300,6 +300,8 @@ class ObdService {
       }
       
       await sendCommandWaitPrompt("ATSH"); 
+      _log("SCAN: Attente synchronisation finale...");
+      await Future.delayed(const Duration(seconds: 2)); // Sync delay pro
       _log("SCAN: Libération du canal.");
     } catch (e) {
       _log("Erreur Scan DTC: $e");

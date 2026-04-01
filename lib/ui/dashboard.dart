@@ -168,7 +168,10 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   }
 
   void _parseObdData(String data) {
-    String cleanData = data.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
+    // Version ELITE : on garde la structure hex originale (avec espaces si présents)
+    // On crée une version condensée (SANS ESPACES) uniquement pour la recherche de PID
+    String cleanData = data.replaceAll(' ', '').toUpperCase();
+    String raw = data.trim().toUpperCase();
 
     // RPM (410C)
     if (cleanData.contains('410C')) {
