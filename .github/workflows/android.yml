@@ -31,10 +31,11 @@ jobs:
 
       - name: Upgrade Kotlin Version
         run: |
-          # The maps/geolocator packages require Kotlin 1.9+, but flutter create uses older ones by default.
-          sed -i 's/version "1.7.1" apply false/version "1.9.22" apply false/' android/settings.gradle || true
-          sed -i "s/ext.kotlin_version = '1.7.1'/ext.kotlin_version = '1.9.22'/" android/build.gradle || true
-          sed -i "s/ext.kotlin_version = '1.8.22'/ext.kotlin_version = '1.9.22'/" android/build.gradle || true
+          # Flutter 3.22 ne met plus 'ext.kotlin_version' par défaut, mais certains packages l'exigent.
+          # 1. On l'ajoute de force tout en haut du build.gradle
+          sed -i '1i buildscript { ext.kotlin_version = "1.9.22" }' android/build.gradle
+          # 2. On met à jour la déclaration si elle existe dans settings.gradle
+          sed -i 's/id "org.jetbrains.kotlin.android" version ".*" apply false/id "org.jetbrains.kotlin.android" version "1.9.22" apply false/' android/settings.gradle || true
 
       - name: Add Android Network Permissions & Cleartext
         run: |
