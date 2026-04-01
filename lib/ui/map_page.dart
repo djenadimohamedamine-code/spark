@@ -152,6 +152,8 @@ class _MapPageState extends State<MapPage> {
                 urlTemplate: _satelliteMode ? _esriSatelliteUrl : _osmTileUrl,
                 userAgentPackageName: 'com.mimo.spark',
                 maxZoom: 19,
+                keepBuffer: 8,
+                tileDisplay: const TileDisplay.fadeIn(),
               ),
 
               // Si satellite : couche de noms de rues (hybride)
@@ -161,21 +163,33 @@ class _MapPageState extends State<MapPage> {
                       'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
                   userAgentPackageName: 'com.mimo.spark',
                   maxZoom: 19,
+                  keepBuffer: 8,
+                  tileDisplay: const TileDisplay.fadeIn(),
                 ),
 
-              // Marqueur position actuelle (Spark avec rotation)
+              // Marqueur position actuelle (Spark avec rotation dynamique)
               if (_currentPosition != null)
                 MarkerLayer(
                   markers: [
                     Marker(
                       point: centerPos,
-                      width: 65,
-                      height: 65,
+                      width: 75,
+                      height: 75,
+                      alignment: Alignment.center,
                       child: Transform.rotate(
-                        angle: (_currentPosition?.heading ?? 0) * (3.14159 / 180),
-                        child: Image.asset(
-                          'assets/images/spark_marker.png',
-                          fit: BoxFit.contain,
+                        // Correction de rotation : Heading en radians
+                        angle: (_currentPosition!.heading) * (3.14159 / 180),
+                        child: Container(
+                           // Petit halo blanc très fin pour détacher la voiture du fond satellite noir
+                           decoration: BoxDecoration(
+                             boxShadow: [
+                               BoxShadow(color: Colors.white.withOpacity(0.2), blurRadius: 15)
+                             ]
+                           ),
+                           child: Image.asset(
+                            'assets/images/spark_marker.png',
+                            fit: BoxFit.contain,
+                          ),
                         ),
                       ),
                     ),
