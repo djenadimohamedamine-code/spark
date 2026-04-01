@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
+import 'dart:math' as math;
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
@@ -17,14 +19,31 @@ class _MapPageState extends State<MapPage> {
   bool _isFollowing = true;
   bool _satelliteMode = true;
   StreamSubscription<Position>? _positionStream;
+  Timer? _moveTimer; // Pour le glissement fluide "Tesla-style"
   double _lastHeading = 0;
+  bool _rotateMap = false; // Mode Direction Lock (Tesla style)
 
   // Lissage spécial pour les angles (Transition 359-0)
   double _smoothAngle(double current, double target) {
     double diff = target - current;
     while (diff > 180) diff -= 360;
     while (diff < -180) diff += 360;
-    return current + (diff * 0.15); // Lissage 15%
+    // Lissage 8% pour plus d'inertie (Pro Style)
+    return current + (diff * 0.08); 
+  }
+
+  // Calcul de l'offset dynamique (Garde la voiture en bas de l'écran peu importe le sens)
+  LatLng _getOffsetPosition(Position pos, double heading) {
+    const double distance = 0.00045; // Ajuste selon le zoom
+    double rad = (heading) * (math.pi / 180);
+
+    double latOffset = distance * math.cos(rad);
+    double lngOffset = distance * math.sin(rad);
+
+    return LatLng(
+      pos.latitude + latOffset, // On décale la CAMÉRA vers l'avant (donc voiture en bas)
+      pos.longitude + lngOffset,
+    );
   }
 
   // Position par défaut : Alger
@@ -41,12 +60,16 @@ class _MapPageState extends State<MapPage> {
   @override
   void initState() {
     super.initState();
+    // Mode nuit automatique
+    final hour = DateTime.now().hour;
+    if (hour < 6 || hour > 18) _satelliteMode = true; 
     _startLocationTracking();
   }
 
   @override
   void dispose() {
     _positionStream?.cancel();
+    _moveTimer?.cancel();
     super.dispose();
   }
 
@@ -77,8 +100,12 @@ class _MapPageState extends State<MapPage> {
         desiredAccuracy: LocationAccuracy.high,
       );
       if (mounted) {
-        setState(() => _currentPosition = pos);
-        _moveTo(pos);
+        setState(() {
+          _currentPosition = pos;
+          // Initial heading smooth
+          _lastHeading = pos.heading >= 0 ? pos.heading : 0;
+        });
+        _moveSmooth(pos, 0);
       }
     } catch (_) {}
 
@@ -96,14 +123,23 @@ class _MapPageState extends State<MapPage> {
 
       // 2. Gestion intelligente du Heading (Google Maps Style)
       double speedKmh = pos.speed * 3.6;
-      double currentHeading = pos.heading;
+      
+      // Standstill Lock (Fige la flèche à l'arrêt complet)
+      if (speedKmh < 2) return;
 
-      // Si vitesse faible (<5km/h) -> On garde la direction précédente (bloque le tremblement)
-      if (speedKmh < 5 || currentHeading < 0) {
-        currentHeading = _lastHeading;
+      double currentHeading = pos.heading;
+      if (currentHeading < 0) currentHeading = _lastHeading;
+
+      // 3. Lissage circulaire (Inertie 8% Pro)
+      double diff = currentHeading - _lastHeading;
+      if (diff > 180) diff -= 360;
+      if (diff < -180) diff += 360;
+      
+      // Haptic Feedback sur virage serré
+      if (diff.abs() > 25) {
+        HapticFeedback.lightImpact();
       }
 
-      // 3. Lissage circulaire (Gère le passage 359° -> 1°)
       double smoothed = _smoothAngle(_lastHeading, currentHeading);
       
       setState(() {
@@ -111,19 +147,32 @@ class _MapPageState extends State<MapPage> {
         _lastHeading = smoothed;
       });
       
-      if (_isFollowing) _moveTo(pos);
+      if (_isFollowing) _moveSmooth(pos, speedKmh);
     });
   }
 
-  void _moveTo(Position pos) {
-    // Calcul de l'offset de navigation (voiture en bas de l'écran pour voir la route devant)
-    // 0.0004 est un bon compromis pour zoom 17.5
-    double latOffset = 0.0004;
+  void _moveSmooth(Position pos, double speedKmh) {
+    _moveTimer?.cancel(); // On annule l'ancien glissement
     
-    _mapController.move(
-      LatLng(pos.latitude + latOffset, pos.longitude),
-      17.5,
-    );
+    final target = _getOffsetPosition(pos, _lastHeading);
+    final double targetZoom = (speedKmh > 80) ? 15.5 : (speedKmh > 40) ? 16.5 : 17.5;
+    
+    // Timer 60 FPS (16ms) pour un rendu Waze/Tesla parfait
+    _moveTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+      if (!mounted) { timer.cancel(); return; }
+
+      final current = _mapController.camera.center;
+      // Interpolation 10% par tick (Smooth total)
+      double lat = current.latitude + (target.latitude - current.latitude) * 0.1;
+      double lng = current.longitude + (target.longitude - current.longitude) * 0.1;
+
+      _mapController.moveAndRotate(LatLng(lat, lng), targetZoom, _rotateMap ? -_lastHeading : 0);
+
+      // Si on est assez proche de la cible, on arrête le timer
+      if ((lat - target.latitude).abs() < 0.000001 && (lng - target.longitude).abs() < 0.000001) {
+        timer.cancel();
+      }
+    });
   }
 
   @override
@@ -147,12 +196,23 @@ class _MapPageState extends State<MapPage> {
             ),
             if (_currentPosition != null)
               Text(
-                '${speedKmh.toInt()} km/h  •  Alt: ${_currentPosition!.altitude.toInt()} m  •  ±${_currentPosition!.accuracy.toInt()} m',
+                '${speedKmh.toInt()} km/h  •  Cap: ${_lastHeading.toInt()}°  •  ±${_currentPosition!.accuracy.toInt()} m',
                 style: const TextStyle(color: Colors.greenAccent, fontSize: 10),
               ),
           ],
         ),
         actions: [
+          IconButton(
+            icon: Icon(
+              _rotateMap ? Icons.explore : Icons.explore_off,
+              color: _rotateMap ? Colors.greenAccent : Colors.white24,
+            ),
+            tooltip: 'Direction Lock (Tesla Mode)',
+            onPressed: () {
+               setState(() => _rotateMap = !_rotateMap);
+               HapticFeedback.mediumImpact();
+            },
+          ),
           IconButton(
             icon: Icon(
               _satelliteMode ? Icons.map_outlined : Icons.satellite_alt,
@@ -173,15 +233,10 @@ class _MapPageState extends State<MapPage> {
               maxZoom: 19,
               minZoom: 3,
               onPositionChanged: (pos, hasGesture) {
-                // Si l'utilisateur bouge manuellement la carte, désactiver le suivi
                 if (hasGesture && _isFollowing) {
                   setState(() => _isFollowing = false);
                 }
               },
-              // Empêcher la rotation de la carte pour un look "Google Maps Pro" (Nord en haut)
-              interactionOptions: const InteractionOptions(
-                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-              ),
             ),
             children: [
               // Couche principale : Satellite ESRI ou OSM plan
@@ -215,13 +270,18 @@ class _MapPageState extends State<MapPage> {
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          // Ombre dynamique pour "poser" la voiture sur la map
+                          // 2. Ombre dynamique RÉALISTE (Dégradé radial)
                           Container(
-                            width: 25,
-                            height: 25,
+                            width: 30,
+                            height: 30,
                             decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.4),
                               shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: [
+                                  Colors.black.withOpacity(0.5),
+                                  Colors.transparent,
+                                ],
+                              ),
                             ),
                           ),
                           Transform.rotate(
@@ -276,7 +336,7 @@ class _MapPageState extends State<MapPage> {
               backgroundColor: _isFollowing ? Colors.cyanAccent : Colors.black87,
               onPressed: () {
                 setState(() => _isFollowing = true);
-                if (_currentPosition != null) _moveTo(_currentPosition!);
+                if (_currentPosition != null) _moveSmooth(_currentPosition!, speedKmh);
               },
               child: Icon(
                 _isFollowing ? Icons.gps_fixed : Icons.gps_not_fixed,
