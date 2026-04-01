@@ -109,7 +109,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             scale: _scaleAnimation,
             child: Image.asset(
               'assets/images/spark2.png',
-              fit: BoxFit.cover,
+              fit: BoxFit.fill, // Remplit tout l'écran 9:16, plus de bandes noires
+              width: double.infinity,
+              height: double.infinity,
             ),
           ),
         ),

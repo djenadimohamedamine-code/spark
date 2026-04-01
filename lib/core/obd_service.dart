@@ -20,6 +20,11 @@ class ObdService {
       StreamController<String>.broadcast();
   Stream<String> get dtcStream => _dtcStreamController.stream;
 
+  // ─── Flux séparé pour l'Audit Kilométrage Caché ─────────────────────────
+  final StreamController<String> _mileageStreamController =
+      StreamController<String>.broadcast();
+  Stream<String> get mileageStream => _mileageStreamController.stream;
+
   final TtsService _ttsService = TtsService();
 
   // Tampon TCP — on accumule jusqu'à voir '>' (fin de trame ELM327)
@@ -90,6 +95,9 @@ class ObdService {
               }
               if (!_dtcStreamController.isClosed) {
                 _dtcStreamController.add(telegram);
+              }
+              if (!_mileageStreamController.isClosed) {
+                _mileageStreamController.add(telegram);
               }
             }
           }
@@ -237,6 +245,46 @@ class ObdService {
     }
   }
 
+  // ── Scan Kilométrage Caché PRO (Mode 22 Constructeur) ───────────────────
+  Future<void> scanMileage() async {
+    _isDiagnosticMode = true;
+    _log("SCAN KM: Arrêt du polling et bascule en mode Audit...");
+
+    try {
+      await Future.delayed(const Duration(milliseconds: 1000));
+      _tcpBuffer = ''; // Vider le tampon
+
+      // Reset + protocol Daewoo/Chevrolet KWP
+      await sendCommandWait('ATZ', delay: 1500);
+      await sendCommandWait('ATSP5', delay: 800);
+
+      // Les headers des modules possibles (0 = ECU, 1..4 = Autres)
+      List<String> headers = ["7E0", "7E1", "7E4", "8111F1"];
+      List<String> cmds = ["22F190", "22F187", "22F18C", "22010A"];
+
+      for (var h in headers) {
+        _log("SCAN KM: Changement Header -> ATSH $h");
+        await sendCommandWait("ATSH $h", delay: 800);
+
+        for (var cmd in cmds) {
+          _log("SCAN KM: Test Requête $cmd");
+          sendCommand(cmd);
+          await Future.delayed(const Duration(seconds: 2));
+        }
+      }
+
+      _log("SCAN KM: Libération du canal. Reprise du polling.");
+    } catch (e) {
+      _log("Erreur Scan KM: $e");
+    } finally {
+      // Nettoyage et restauration
+      await sendCommandWait('ATH0', delay: 500);
+      await sendCommandWait('ATSP0', delay: 1000);
+      _tcpBuffer = '';
+      _isDiagnosticMode = false;
+    }
+  }
+
   // ── Effacement (Mode 04) ─────────────────────────────────────────────────
   void clearCodes() {
     sendCommand('04');
@@ -261,6 +309,7 @@ class ObdService {
     _handleDisconnect();
     if (!_dataStreamController.isClosed) _dataStreamController.close();
     if (!_dtcStreamController.isClosed) _dtcStreamController.close();
+    if (!_mileageStreamController.isClosed) _mileageStreamController.close();
   }
 
   void disconnect() {
