@@ -22,6 +22,13 @@ jobs:
           rm -rf ios
           flutter create --platforms=ios .
 
+      - name: Inject_iOS_Permissions
+        run: |
+          # Injecter les permissions obligatoires pour le GPS et l'OBD Wifi
+          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Autorisation requise pour le radar GPS Mimo Spark'" ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Navigation requise en arriere-plan pour la vue satellite'" ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSLocalNetworkUsageDescription string 'Requis pour communiquer avec le dongle OBD2 WiFi'" ios/Runner/Info.plist
+
       - name: Get_Deps
         run: |
           flutter config --enable-ios
