@@ -42,7 +42,40 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   bool alert98Triggered = false;
   bool alert103Triggered = false;
 
+  // Optimisations PRO+++ (Tesla Level)
+  Timer? _uiTimer;
+  final Map<String, dynamic> _buffer = {};
+  double _smoothVoltage = 0.0;
+  double _smoothLph = 0.0;
+  DateTime _lastAlertTime = DateTime.now().subtract(const Duration(seconds: 10));
+
   StreamSubscription<String>? _obdSubscription;
+
+  // Calcul du score de santé (Health Score)
+  int get healthScore {
+    int score = 100;
+    if (temperature > 100) score -= 15;
+    else if (temperature > 95) score -= 5;
+    if (rpm > 4500) score -= 10;
+    if (tension < 12.5 && tension > 0 && tension < 20) score -= 10;
+    return score.clamp(0, 100);
+  }
+
+  void _scheduleUpdate() {
+    if (_uiTimer != null) return;
+    _uiTimer = Timer(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        setState(() {
+          rpm = _buffer['rpm'] ?? rpm;
+          speed = _buffer['speed'] ?? speed;
+          temperature = _buffer['temp'] ?? temperature;
+          tension = _buffer['tension'] ?? tension;
+          currentGear = _buffer['gear'] ?? currentGear;
+        });
+      }
+      _uiTimer = null;
+    });
+  }
 
   @override
   void initState() {
@@ -168,100 +201,111 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   }
 
   void _parseObdData(String data) {
-    // Version ELITE : on garde la structure hex originale (avec espaces si présents)
-    // On crée une version condensée (SANS ESPACES) uniquement pour la recherche de PID
+    if (data.trim().isEmpty) return;
+    
+    // Version ELITE/TESLA : on utilise les tokens (espaces) pour une fiabilité 100%
+    List<String> parts = data.trim().toUpperCase().split(RegExp(r'\s+'));
     String cleanData = data.replaceAll(' ', '').toUpperCase();
-    String raw = data.trim().toUpperCase();
 
-    // RPM (410C)
-    if (cleanData.contains('410C')) {
+    // 1. RPM (010C -> 410C)
+    if (parts.contains('41') && parts.contains('0C')) {
       try {
-        int idx = cleanData.indexOf('410C') + 4;
-        if (cleanData.length >= idx + 4) {
-          int a = int.parse(cleanData.substring(idx, idx + 2), radix: 16);
-          int b = int.parse(cleanData.substring(idx + 2, idx + 4), radix: 16);
-          setState(() {
-            rpm = ((a * 256) + b) / 4.0;
-            currentGear = GearCalculator.calculateGear(rpm.toInt(), speed.toInt());
-          });
-          if (rpm >= 3200 && !rpmAlertTriggered) {
-             _ttsService.speakAlert("Bip, Bip ! Dépassement 3200 tours !");
-             rpmAlertTriggered = true;
-          } else if (rpm < 3000) {
-             rpmAlertTriggered = false;
-          }
-        }
-      } catch (_) {}
-    }
-
-    // TEMP (4105)
-    if (cleanData.contains('4105')) {
-      try {
-        int idx = cleanData.indexOf('4105') + 4;
-        if (cleanData.length >= idx + 2) {
-          double val = int.parse(cleanData.substring(idx, idx + 2), radix: 16) - 40.0;
-          updateTemperature(val);
-        }
-      } catch (_) {}
-    }
-
-    // SPEED (410D)
-    if (cleanData.contains('410D')) {
-      try {
-        int idx = cleanData.indexOf('410D') + 4;
-        if (cleanData.length >= idx + 2) {
-          setState(() {
-            speed = int.parse(cleanData.substring(idx, idx + 2), radix: 16).toDouble();
-            currentGear = GearCalculator.calculateGear(rpm.toInt(), speed.toInt());
-          });
-        }
-      } catch (_) {}
-    }
-
-    // IAT - Température d'admission (410F) → mise à jour dans ObdService
-    if (cleanData.contains('410F')) {
-      try {
-        int idx = cleanData.indexOf('410F') + 4;
-        if (cleanData.length >= idx + 2) {
-          int iatRaw = int.parse(cleanData.substring(idx, idx + 2), radix: 16);
-          // Formule OBD2 : IAT(°C) = valeur - 40 ; Kelvin = IAT + 273.15
-          _obdService.lastIatKelvin = (iatRaw - 40) + 273.15;
-        }
-      } catch (_) {}
-    }
-
-    // MAP -> MAF Virtuel (010B)
-    if (cleanData.contains('410B')) {
-      try {
-        int idx = cleanData.indexOf('410B') + 4;
-        if (cleanData.length >= idx + 2) {
-          int mapKpa = int.parse(cleanData.substring(idx, idx + 2), radix: 16);
-
-          // SPEED DENSITY FORMULA: MAF(g/s) = (RPM * MAP / 120) * VE * ED * (MM / R) / TempK
-          // Mimo Spark 1.0L : VE=0.8, ED=1.0, MM_air=28.97, R=8.314
-          // IAT dynamique via PID 010F (sinon 313 K par défaut = 40°C)
-          final double tempK = _obdService.lastIatKelvin;
-          double mafGs = (rpm * mapKpa / 120.0) * 0.8 * 1.0 * (28.97 / 8.314) / tempK;
+        int idx = parts.indexOf('0C') + 1;
+        if (idx + 1 < parts.length) {
+          int a = int.parse(parts[idx], radix: 16);
+          int b = int.parse(parts[idx+1], radix: 16);
+          double newRpm = ((a * 256) + b) / 4.0;
           
-          double lph = _fuelCalculator.calculateConsumptionLph(mafGs);
-          DateTime now = DateTime.now();
-          double delta = now.difference(lastMafTime).inMilliseconds / 1000.0;
-          lastMafTime = now;
-          setState(() {
-            _fuelCalculator.updateVirtualFuel(lph, delta);
-          });
+          _buffer['rpm'] = newRpm;
+          
+          // Logique Rapports (Dead Zone)
+          if (speed < 5 || newRpm < 1000) {
+            _buffer['gear'] = 'N';
+          } else {
+            _buffer['gear'] = GearCalculator.calculateGear(newRpm.toInt(), speed.toInt());
+          }
+
+          // Alerte TTS intelligente (avec cooldown)
+          if (newRpm >= 3500 && DateTime.now().difference(_lastAlertTime).inSeconds > 7) {
+            _ttsService.speakAlert("Mimo, réduit les gaz, 3500 tours !");
+            _lastAlertTime = DateTime.now();
+          }
+          _scheduleUpdate();
         }
       } catch (_) {}
     }
 
-    // BATTERY (ATRV) - Réponse type "14.2V"
+    // 2. TEMP (0105 -> 4105)
+    if (parts.contains('41') && parts.contains('05')) {
+      try {
+        int idx = parts.indexOf('05') + 1;
+        if (idx < parts.length) {
+          double val = int.parse(parts[idx], radix: 16) - 40.0;
+          _buffer['temp'] = val;
+          _scheduleUpdate();
+          // Alertes via updateTemperature (que j'adapte pour ne pas spammer)
+          _checkTempAlerts(val); 
+        }
+      } catch (_) {}
+    }
+
+    // 3. SPEED (010D -> 410D)
+    if (parts.contains('41') && parts.contains('0D')) {
+      try {
+        int idx = parts.indexOf('0D') + 1;
+        if (idx < parts.length) {
+          double newSpeed = int.parse(parts[idx], radix: 16).toDouble();
+          _buffer['speed'] = newSpeed;
+          _scheduleUpdate();
+        }
+      } catch (_) {}
+    }
+
+    // 4. BATTERY (ATRV)
     if (data.contains('V') && data.contains('.')) {
       try {
         String volStr = data.replaceAll(RegExp(r'[^0-9.]'), '');
-        setState(() {
-          tension = double.parse(volStr);
-        });
+        double rawVolt = double.parse(volStr);
+        // Lissage exponentiel (EMA 0.8 / 0.2)
+        _smoothVoltage = (_smoothVoltage == 0) ? rawVolt : (_smoothVoltage * 0.8) + (rawVolt * 0.2);
+        _buffer['tension'] = _smoothVoltage;
+        _scheduleUpdate();
       } catch (_) {}
+    }
+
+    // 5. Fuel / MAF (010B MAP -> MAF)
+    if (parts.contains('41') && parts.contains('0B')) {
+      try {
+        int idx = parts.indexOf('0B') + 1;
+        if (idx < parts.length) {
+          int mapKpa = int.parse(parts[idx], radix: 16);
+          final double tempK = _obdService.lastIatKelvin;
+          double mafGs = (rpm * mapKpa / 120.0) * 0.8 * 1.0 * (28.97 / 8.314) / tempK;
+          
+          double rawLph = _fuelCalculator.calculateConsumptionLph(mafGs);
+          // Lissage fuel (EMA)
+          _smoothLph = (_smoothLph == 0) ? rawLph : (_smoothLph * 0.9) + (rawLph * 0.1);
+          
+          DateTime now = DateTime.now();
+          double delta = now.difference(lastMafTime).inMilliseconds / 1000.0;
+          lastMafTime = now;
+          
+          // Mise à jour fuel en tâche de fond (pas besoin de setState direct)
+          _fuelCalculator.updateVirtualFuel(_smoothLph, delta);
+        }
+      } catch (_) {}
+    }
+  }
+
+  void _checkTempAlerts(double val) {
+    if (val >= 98 && val < 103 && !alert98Triggered && DateTime.now().difference(_lastAlertTime).inSeconds > 10) {
+      _ttsService.speakAlert("Attention Mimo, 98 degrés.");
+      alert98Triggered = true;
+      _lastAlertTime = DateTime.now();
+    } else if (val >= 103 && !alert103Triggered && DateTime.now().difference(_lastAlertTime).inSeconds > 5) {
+      _ttsService.speakAlert("Critique ! temp 103 !");
+      alert103Triggered = true;
+      _lastAlertTime = DateTime.now();
     }
   }
 
@@ -486,29 +530,53 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   }
 
   Widget _buildBatteryStatus() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.black87, Colors.grey.shade900],
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
+    int health = healthScore;
+    Color healthColor = health > 90 ? Colors.greenAccent : (health > 70 ? Colors.orangeAccent : Colors.redAccent);
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.black54,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: healthColor.withOpacity(0.3)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.favorite, color: healthColor, size: 14),
+              const SizedBox(width: 6),
+              Text('ENGINE HEALTH: $health%', style: TextStyle(color: healthColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+            ],
+          ),
         ),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: tension > 13.5 ? Colors.green.withOpacity(0.5) : Colors.orange.withOpacity(0.5), width: 1.5),
-        boxShadow: [
-          BoxShadow(color: (tension > 13.5 ? Colors.green : Colors.orange).withOpacity(0.2), blurRadius: 10, spreadRadius: 1)
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(tension > 13.5 ? Icons.battery_charging_full : Icons.battery_alert, 
-               color: tension > 13.5 ? Colors.greenAccent : Colors.orangeAccent, size: 24),
-          const SizedBox(width: 8),
-          Text('${tension.toStringAsFixed(1)} V', 
-               style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
-        ],
-      ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.black87, Colors.grey.shade900],
+              begin: Alignment.topLeft, end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: tension > 13.5 ? Colors.green.withOpacity(0.5) : Colors.orange.withOpacity(0.5), width: 1.5),
+            boxShadow: [
+              BoxShadow(color: (tension > 13.5 ? Colors.green : Colors.orange).withOpacity(0.2), blurRadius: 10, spreadRadius: 1)
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(tension > 13.5 ? Icons.battery_charging_full : Icons.battery_alert, 
+                   color: tension > 13.5 ? Colors.greenAccent : Colors.orangeAccent, size: 24),
+              const SizedBox(width: 8),
+              Text('${tension.toStringAsFixed(1)} V', 
+                   style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -697,6 +765,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   @override
   void dispose() {
     WakelockPlus.disable();
+    _uiTimer?.cancel();
     _obdSubscription?.cancel();
     _obdService.dispose();
     super.dispose();
