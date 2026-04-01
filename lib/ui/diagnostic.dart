@@ -110,16 +110,6 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
   // ── Parsing DTC ──────────────────────────────────────────────────────────
   void _parseDiagnosticData(String data) {
     String raw = data.trim().toUpperCase();
-    
-    // Support pour les réponses packées (sans espaces) envoyées par certains adaptateurs
-    if (!raw.contains(' ') && raw.length > 4) {
-       String spaced = "";
-       for (int i=0; i<raw.length; i+=2) {
-         if (i+2 <= raw.length) spaced += "${raw.substring(i, i+2)} ";
-       }
-       raw = spaced.trim();
-    }
-
     List<String> parts = raw.split(RegExp(r'\s+'));
 
     // Gestion du refus ECU (NRC 7F)

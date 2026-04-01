@@ -275,6 +275,10 @@ class ObdService {
         _log("SCAN: Envoi codes en attente (07) sur Header $h...");
         sendCommand("07");
         await Future.delayed(const Duration(seconds: 3));
+
+        _log("SCAN: Envoi codes permanents (0A) sur Header $h...");
+        sendCommand("0A");
+        await Future.delayed(const Duration(seconds: 3));
       }
 
       await sendCommandWait('ATSH', delay: 500); // Sécurité retour auto
