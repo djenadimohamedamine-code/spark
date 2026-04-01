@@ -96,28 +96,30 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                     fit: BoxFit.cover,
                   ),
                 ),
-                child: IgnorePointer(
-                  child: SfRadialGauge(
-                    axes: <RadialAxis>[
-                      RadialAxis(
-                        minimum: 0, maximum: 35,
-                        startAngle: 208, endAngle: 322, // E pile à 208° (0L), F pile à 322° (35L)
-                        showLabels: false, showTicks: false,
-                        axisLineStyle: const AxisLineStyle(thickness: 0, color: Colors.transparent),
-                        pointers: <GaugePointer>[
-                          NeedlePointer(
-                            value: tempFuel, 
-                            needleColor: Colors.orangeAccent,
-                            tailStyle: const TailStyle(width: 8, color: Colors.orangeAccent),
-                            needleStartWidth: 1, needleEndWidth: 7, 
-                            needleLength: 0.85, 
-                            knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.12),
-                            enableAnimation: true,
-                          )
-                        ]
-                      )
-                    ]
-                  ),
+                child: SfRadialGauge(
+                  axes: <RadialAxis>[
+                    RadialAxis(
+                      minimum: 0, maximum: 35,
+                      startAngle: 208, endAngle: 322, // E pile à 208° (0L), F pile à 322° (35L)
+                      showLabels: false, showTicks: false,
+                      axisLineStyle: const AxisLineStyle(thickness: 0, color: Colors.transparent),
+                      pointers: <GaugePointer>[
+                        NeedlePointer(
+                          value: tempFuel, 
+                          needleColor: Colors.orangeAccent,
+                          tailStyle: const TailStyle(width: 8, color: Colors.orangeAccent),
+                          needleStartWidth: 1, needleEndWidth: 7, 
+                          needleLength: 0.85, 
+                          knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.12),
+                          enableAnimation: true,
+                          enableDragging: true,
+                          onValueChanged: (val) {
+                            setLocal(() => tempFuel = val);
+                          },
+                        )
+                      ]
+                    )
+                  ]
                 )
               ),
               const SizedBox(height: 20),

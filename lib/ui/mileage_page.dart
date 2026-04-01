@@ -44,6 +44,9 @@ class _MileagePageState extends State<MileagePage> {
     if (mounted) {
       setState(() {
         _isLoading = false;
+        if (_results.length <= 1) {
+           _results.add("❌ L'ECU de la Spark n'a renvoyé aucune donnée cachée.");
+        }
         _results.add("▶ Audit terminé.");
       });
       _ttsService.speak("Audit terminé. Vérifiez l'écran pour les résultats.");
