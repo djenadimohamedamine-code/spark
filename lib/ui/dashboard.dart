@@ -256,6 +256,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
           _scheduleUpdate();
         }
       } catch (_) {}
+    }
     // 2. TEMP (0105 -> 4105)
     if (parts.contains('41') && parts.contains('05')) {
       try {
