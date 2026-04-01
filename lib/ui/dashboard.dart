@@ -1,6 +1,7 @@
-import 'dart:async';
 import 'dart:io';
+import 'dart:collection';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_gauges/gauges.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:share_plus/share_plus.dart';
@@ -33,6 +34,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   bool rpmAlertTriggered = false;
   
   // Console de Log pour Mimo
+  final Queue<String> _logQueue = Queue<String>();
   String rawLog = "En attente de données...";
   
   final TtsService _ttsService = TtsService();
@@ -47,7 +49,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   final Map<String, dynamic> _buffer = {};
   double _smoothVoltage = 0.0;
   double _smoothLph = 0.0;
-  DateTime _lastAlertTime = DateTime.now().subtract(const Duration(seconds: 10));
+  
+  // Cooldowns d'alertes par label (Pro Style)
+  final Map<String, DateTime> _alertCooldowns = {};
 
   StreamSubscription<String>? _obdSubscription;
 
@@ -83,8 +87,20 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     WakelockPlus.enable();
     _fuelCalculator.init();
+    _loadFuelCalibration(); // Charger le calibrage sauvegardé
     _connectObd();
+  }
 
+  Future<void> _loadFuelCalibration() async {
+    final prefs = await SharedPreferences.getInstance();
+    double savedFuel = prefs.getDouble('fuel_calibration') ?? 15.0; // 15L par défaut
+    _fuelCalculator.calibrate(savedFuel);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _saveFuelCalibration(double val) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('fuel_calibration', val);
   }
 
   @override
@@ -167,10 +183,11 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(ctx);
                 _fuelCalculator.calibrate(tempFuel);
-                setState(() {}); // Rafraîchir l'écran principal
+                await _saveFuelCalibration(tempFuel); // Sauvegarde persistante
+                setState(() {}); 
                 _ttsService.speak("Calibrage du carburant enregistré.");
               },
               child: const Text('CALER AIGUILLE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
@@ -186,17 +203,32 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   void _connectObd() async {
     bool connected = await _obdService.connect();
     if (connected) {
-      _obdSubscription?.cancel(); // Nettoyer l'ancienne écoute
+      _obdSubscription?.cancel();
       _obdSubscription = _obdService.dataStream.listen((data) {
         if (mounted) {
-          setState(() {
-            rawLog += "\n$data";
-            List<String> lines = rawLog.split('\n');
-            if (lines.length > 10) rawLog = lines.sublist(lines.length - 10).join('\n');
-          });
+          _appendLog(data);
           _parseObdData(data);
         }
       });
+    }
+  }
+
+  void _appendLog(String line) {
+    _logQueue.add(line);
+    if (_logQueue.length > 8) _logQueue.removeFirst();
+    setState(() {
+      rawLog = _logQueue.join('\n');
+    });
+  }
+
+  // DRY Alert Helper (Tesla Style)
+  void _checkAlert(String label, double value, double threshold, int cooldownSec, String message) {
+    final now = DateTime.now();
+    final lastTime = _alertCooldowns[label] ?? now.subtract(const Duration(hours: 1));
+
+    if (value >= threshold && now.difference(lastTime).inSeconds > cooldownSec) {
+      _ttsService.speakAlert(message);
+      _alertCooldowns[label] = now;
     }
   }
 
@@ -212,39 +244,27 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
       try {
         int idx = parts.indexOf('0C') + 1;
         if (idx + 1 < parts.length) {
-          int a = int.parse(parts[idx], radix: 16);
-          int b = int.parse(parts[idx+1], radix: 16);
+          int a = int.tryParse(parts[idx], radix: 16) ?? 0;
+          int b = int.tryParse(parts[idx+1], radix: 16) ?? 0;
           double newRpm = ((a * 256) + b) / 4.0;
           
           _buffer['rpm'] = newRpm;
-          
-          // Logique Rapports (Dead Zone)
-          if (speed < 5 || newRpm < 1000) {
-            _buffer['gear'] = 'N';
-          } else {
-            _buffer['gear'] = GearCalculator.calculateGear(newRpm.toInt(), speed.toInt());
-          }
+          _buffer['gear'] = (speed < 5 || newRpm < 1000) ? 'N' : GearCalculator.calculateGear(newRpm.toInt(), speed.toInt());
 
-          // Alerte TTS intelligente (avec cooldown)
-          if (newRpm >= 3500 && DateTime.now().difference(_lastAlertTime).inSeconds > 7) {
-            _ttsService.speakAlert("Mimo, réduit les gaz, 3500 tours !");
-            _lastAlertTime = DateTime.now();
-          }
+          _checkAlert("RPM_HIGH", newRpm, 3500, 7, "Mimo, réduit les gaz, 3500 tours !");
           _scheduleUpdate();
         }
       } catch (_) {}
-    }
-
     // 2. TEMP (0105 -> 4105)
     if (parts.contains('41') && parts.contains('05')) {
       try {
         int idx = parts.indexOf('05') + 1;
         if (idx < parts.length) {
-          double val = int.parse(parts[idx], radix: 16) - 40.0;
+          double val = (int.tryParse(parts[idx], radix: 16) ?? 40).toDouble() - 40.0;
           _buffer['temp'] = val;
           _scheduleUpdate();
-          // Alertes via updateTemperature (que j'adapte pour ne pas spammer)
-          _checkTempAlerts(val); 
+          _checkAlert("TEMP_98", val, 98, 10, "Attention Mimo, 98 degrés.");
+          _checkAlert("TEMP_103", val, 103, 5, "Critique ! temp 103 !");
         }
       } catch (_) {}
     }
@@ -254,7 +274,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
       try {
         int idx = parts.indexOf('0D') + 1;
         if (idx < parts.length) {
-          double newSpeed = int.parse(parts[idx], radix: 16).toDouble();
+          double newSpeed = (int.tryParse(parts[idx], radix: 16) ?? 0).toDouble();
           _buffer['speed'] = newSpeed;
           _scheduleUpdate();
         }
@@ -297,33 +317,17 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     }
   }
 
-  void _checkTempAlerts(double val) {
-    if (val >= 98 && val < 103 && !alert98Triggered && DateTime.now().difference(_lastAlertTime).inSeconds > 10) {
-      _ttsService.speakAlert("Attention Mimo, 98 degrés.");
-      alert98Triggered = true;
-      _lastAlertTime = DateTime.now();
-    } else if (val >= 103 && !alert103Triggered && DateTime.now().difference(_lastAlertTime).inSeconds > 5) {
-      _ttsService.speakAlert("Critique ! temp 103 !");
-      alert103Triggered = true;
-      _lastAlertTime = DateTime.now();
-    }
-  }
-
-  void updateTemperature(double newTemp) {
-    setState(() => temperature = newTemp);
-    if (temperature >= 98 && temperature < 103 && !alert98Triggered) {
-      _ttsService.speakAlert("Mimo, attention. Température à 98 degrés.");
-      alert98Triggered = true;
-    } else if (temperature >= 103 && !alert103Triggered) {
-      _ttsService.speakAlert("Alerte critique Mimo ! Température à 103 degrés.");
-      alert103Triggered = true;
-    }
-    if (temperature < 95) { alert98Triggered = false; alert103Triggered = false; }
-  }
-
   void _shareLog() async {
     File? logFile = await _obdService.getLogFile();
     if (logFile != null) await Share.shareXFiles([XFile(logFile.path)], text: 'Journal de bord Mimo Spark OBD2 Dashboard');
+  }
+
+  Widget _buildHudTransform({required Widget child}) {
+    return Transform(
+      alignment: Alignment.center,
+      transform: isHudMode ? (Matrix4.identity()...rotateY(3.14159)) : Matrix4.identity(),
+      child: child,
+    );
   }
 
   @override
@@ -426,9 +430,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                       tooltip: "Partager les logs",
                     ),
                     Expanded(
-                      child: Transform(
-                        alignment: Alignment.center,
-                        transform: isHudMode ? (Matrix4.identity()..rotateY(3.14159)) : Matrix4.identity(),
+                      child: _buildHudTransform(
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -467,9 +469,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
             ),
             // GESTION DU CORPS DE L'APPLICATION
             Expanded(
-              child: Transform(
-                alignment: Alignment.center,
-                transform: isHudMode ? (Matrix4.identity()..rotateY(3.14159)) : Matrix4.identity(),
+              child: _buildHudTransform(
                 child: Column(
                   children: [
                     Expanded(
