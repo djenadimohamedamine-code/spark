@@ -59,6 +59,8 @@ class ObdService {
     print(message);
   }
 
+  bool _isReconnecting = false;
+
   Future<bool> connect() async {
     await _initLogFile();
     _log("Mimo Spark: Tentative de connexion Wi-Fi...");
@@ -119,11 +121,20 @@ class ObdService {
       await sendCommandWait('0100', delay: 1000); // Test de com + sync protocole
 
       _ttsService.speak("Scanner Mimo Spark prêt.");
+      _isReconnecting = false; // Reset d'état car succès
       _startPolling();
       return true;
     } catch (e) {
       _log("CONNECTION FAILED: $e");
-      _ttsService.speak("Connexion Wi-Fi perdue.");
+      if (!_isReconnecting) {
+        _ttsService.speak("Réseau de la Spark perdu. Recherche en cours...");
+        _isReconnecting = true;
+      }
+      
+      // Infinite Background Loop: Retry silently in 5s
+      Future.delayed(const Duration(seconds: 5), () {
+        if (_socket == null) connect();
+      });
       return false;
     }
   }
@@ -206,9 +217,15 @@ class ObdService {
       Future.delayed(const Duration(seconds: 5), () {
         if (_socket == null) {
           _log("Mimo Spark : Tentative de reconnexion automatique...");
+          if (!_isReconnecting) {
+            _ttsService.speak("Réseau de la Spark perdu. Recherche en cours...");
+            _isReconnecting = true;
+          }
           connect();
         }
       });
+    } else {
+      _isReconnecting = false; // Force quit
     }
   }
 
