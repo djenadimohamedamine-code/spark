@@ -60,6 +60,17 @@ class ObdService {
   }
 
   bool _isReconnecting = false;
+  int _noDataCount = 0;
+
+  Future<void> _wakeUpEcu() async {
+    _isDiagnosticMode = true;
+    _log("Mimo Spark: Tentative de réveil de l'ECU (Électrochoc)...");
+    await sendCommandWait('ATZ', delay: 1000);
+    await sendCommandWait('ATSP0', delay: 500);
+    await sendCommandWait('0100', delay: 1000);
+    _isDiagnosticMode = false;
+    _noDataCount = 0;
+  }
 
   Future<bool> connect() async {
     await _initLogFile();
@@ -90,6 +101,15 @@ class ObdService {
               if (telegram.isEmpty) continue;
               // Filtrer les éléments de configuration non utiles
               if (_isConfigResponse(telegram)) continue;
+              
+              if (telegram == 'NO DATA' || telegram == 'UNABLE TO CONNECT') {
+                _noDataCount++;
+                if (_noDataCount >= 4 && !_isDiagnosticMode) {
+                  _wakeUpEcu();
+                }
+              } else if (telegram.length >= 4) {
+                _noDataCount = 0; // Remise à zéro dès qu'on capte des vraies données
+              }
 
               _log("CLEAN: $telegram");
               if (!_dataStreamController.isClosed) {
