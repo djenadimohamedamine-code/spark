@@ -108,8 +108,6 @@ class _MapPageState extends State<MapPage> {
       double speedKmh = pos.speed * 3.6;
       _smoothedSpeed = _smoothedSpeed + ((speedKmh - _smoothedSpeed) * 0.1);
 
-      if (_smoothedSpeed < 2) return;
-
       double currentHeading = pos.heading;
       if (currentHeading < 0) currentHeading = _lastHeading;
 
@@ -125,7 +123,10 @@ class _MapPageState extends State<MapPage> {
         _lastHeading = smoothed;
       });
 
-      if (_isFollowing) _moveSmooth(pos, _smoothedSpeed);
+      // 4. On ne glisse la CARTE que si on roule un peu (stabilité)
+      if (_isFollowing && _smoothedSpeed > 2) {
+        _moveSmooth(pos, _smoothedSpeed);
+      }
     });
   }
 
