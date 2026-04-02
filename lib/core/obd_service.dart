@@ -292,55 +292,49 @@ class ObdService {
     }
   }
 
-  // ── Scan des codes DTC (Mode 03 + 07 + 0A) — Version KWP Strict (V4.32) ──────
+  // ── Scan des codes DTC (Mode 03 + 07) — Version Heritage V4.33 ──────
+  // Restauration de la logique V4.28 qui "scannait très bien" (Build #66)
   Future<void> scanTroubleCodes() async {
     _isDiagnosticMode = true;
     _isPolling = false; 
-    _log("SCAN: Bascule en mode KWP Strict (Headers OFF pour éviter les pannes fantômes)...");
+    _log("SCAN: Restauration Mode Heritage V4.28 (Refined Diagnostic Isolation)...");
 
     try {
       await Future.delayed(const Duration(seconds: 1));
       _tcpBuffer = ''; 
 
-      // ✅ Re-init complet pour garantir ATE0 et filtrer tout écho
-      _log("SCAN: Reset Matériel (ATZ)...");
+      // ✅ Initialisation stricte comme en V4.28
+      _log("SCAN: Reset complet (ATZ)...");
       await sendCommandWait('ATZ', delay: 2000);
-      await sendCommandWait('ATE0', delay: 500); // Pas d'écho des commandes
+      await sendCommandWait('ATE0', delay: 500); 
       await sendCommandWait('ATL0', delay: 500);
-      await sendCommandWait('ATS1', delay: 500);  // Spaces ON pour le scan
+      await sendCommandWait('ATS1', delay: 500); 
       
-      // ✅ Crucial: Headers OFF (ATH0)
-      // L'ELM filtrera les en-têtes KWP (86 F1 11) et les checksums.
-      // On ne recevra que le payload (ex: 43 13 03).
+      // ✅ V4.32 Hybrid Fix: Headers OFF pour éviter les pannes fantômes 11/CS
       await sendCommandWait('ATH0', delay: 500);  
       
-      // ✅ Protocole KWP2000 (Type 5)
-      await sendCommandWait('ATSP5', delay: 1500); 
+      // ✅ RETOUR AU MODE AUTO (ATSP0) — Clé du succès V4.28
+      await sendCommandWait('ATSP0', delay: 1500); 
+      
+      // ✅ SYNC ECU CRUCIAL en mode Auto
+      await sendCommandWait('0100', delay: 1500);
       _tcpBuffer = '';
 
-      // Cibles prioritaires pour Spark (11=Moteur, 10=Broadcast)
-      List<String> addresses = ["11", "10"];
-      
-      for (var addr in addresses) {
-        _log("SCAN: Ciblage ECU $addr...");
-        await sendCommandWait("ATSH $addr", delay: 800);
-
-        // Demande des codes (Mode 03, 07)
-        // Mode 0A souvent non supporté sur KWP2000
-        List<String> modes = ["03", "07"];
-        for (var m in modes) {
-          _log("SCAN: Commande $m...");
-          _tcpBuffer = ''; 
-          sendCommand(m);
-          await Future.delayed(const Duration(seconds: 3)); // Sécurité timing
-        }
+      // On scanne les modes standards sans boucle d'adresses manuelle
+      // pour laisser l'ELM gérer son canal établi par le 0100
+      List<String> modes = ["03", "07"];
+      for (var m in modes) {
+        _log("SCAN: Lecture $m...");
+        _tcpBuffer = ''; 
+        sendCommand(m);
+        await Future.delayed(const Duration(seconds: 4)); // Délai V28
       }
       
-      _log("SCAN: Opération terminée.");
+      _log("SCAN: Terminé avec succès.");
     } catch (e) {
-      _log("Erreur Scan: $e");
+      _log("Erreur Heritage Scan: $e");
     } finally {
-      // ✅ Restauration Elite Dashboard
+      // ✅ Restauration Standard Elite
       await sendCommandWait('ATZ', delay: 2000);
       await sendCommandWait('ATE0', delay: 500);
       await sendCommandWait('ATS0', delay: 500);
