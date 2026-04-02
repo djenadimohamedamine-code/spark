@@ -262,8 +262,10 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
               // Filtrage anti-vibrations (EMA Smoothing)
               _smoothTemp = (_smoothTemp == 0) ? rawVal : (_smoothTemp * 0.85) + (rawVal * 0.15);
               _buffer['temp'] = _smoothTemp;
-              _checkAlert("TEMP_98", _smoothTemp, 98, 10, "Attention Mimo, 98 degrés.");
-              _checkAlert("TEMP_103", _smoothTemp, 103, 5, "Critique ! temp 103 !");
+              // Alerte sur valeur BRUTE pour la réactivité (conseil GPT)
+              _checkAlert("TEMP_98", rawVal, 98, 15, "Attention Mimo, 98 degrés.");
+              _checkAlert("TEMP_103", rawVal, 103, 5, "Critique ! temp 103 !");
+              _scheduleUpdate();
             }
             break;
 

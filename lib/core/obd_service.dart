@@ -64,10 +64,10 @@ class ObdService {
 
   Future<void> _wakeUpEcu() async {
     _isDiagnosticMode = true;
-    _log("Mimo Spark: Tentative de réveil de l'ECU (Électrochoc)...");
-    await sendCommandWait('ATZ', delay: 1000);
-    await sendCommandWait('ATSP0', delay: 500);
-    await sendCommandWait('0100', delay: 1000);
+    _log("Mimo Spark: Tentative de réveil de l'ECU (Protocol Flash)...");
+    await sendCommandWait('ATZ', delay: 2000);
+    await sendCommandWait('ATSP5', delay: 1500); // Forcer le protocole 5
+    await sendCommandWait('0100', delay: 1500);
     _isDiagnosticMode = false;
     _noDataCount = 0;
   }
@@ -132,15 +132,15 @@ class ObdService {
       );
 
       // ── Séquence d'initialisation ELM327 PROFESIONNELLE ──────────────────
-      _log("INIT: Séquence de réveil Elite...");
-      await sendCommandWait('ATZ', delay: 1500);    // Reset complet
+      _log("INIT: Séquence de réveil Elite (Mode Chevrolet KWP)...");
+      await sendCommandWait('ATZ', delay: 2000);    // Reset complet (plus long)
       await sendCommandWait('ATE0', delay: 500);   // Echo OFF
       await sendCommandWait('ATL0', delay: 500);   // Linefeed OFF
-      await sendCommandWait('ATS0', delay: 500);   // Spaces OFF (Optimisation débit)
-      await sendCommandWait('ATH0', delay: 500);   // Headers OFF (Sauf si multi-ECU demandé)
-      await sendCommandWait('ATSP0', delay: 1000); // Protocole Auto
-      await sendCommandWait('ATSTFF', delay: 500); // Timeout au maximum pour les calculateurs lents
-      await sendCommandWait('0100', delay: 1000);  // Test de com + sync protocole
+      await sendCommandWait('ATS0', delay: 500);   // Spaces OFF
+      await sendCommandWait('ATH0', delay: 500);   // Headers OFF
+      await sendCommandWait('ATSP5', delay: 1500); // FORCER PROTOCOLE 5 (KWP FAST) - Spécifique Chevrolet
+      await sendCommandWait('0100', delay: 1500);  // Sync avec l'ECU
+      await sendCommandWait('ATSTFF', delay: 500); // Timeout max pour stabilité
 
       _ttsService.speak("Scanner Mimo Spark prêt.");
       _isReconnecting = false; // Reset d'état car succès
@@ -232,28 +232,28 @@ class ObdService {
 
       try {
         if (!_isDiagnosticMode) sendCommand('010C'); // RPM
-        await Future.delayed(const Duration(milliseconds: 350));
+        await Future.delayed(const Duration(milliseconds: 450));
 
         if (!_isDiagnosticMode) sendCommand('010D'); // Vitesse
-        await Future.delayed(const Duration(milliseconds: 350));
+        await Future.delayed(const Duration(milliseconds: 450));
 
         // Priorité basse selon cycle de tick
         if (tick % 5 == 0 && !_isDiagnosticMode) {
           sendCommand('0105'); // Temp liquide refroidissement
-          await Future.delayed(const Duration(milliseconds: 300));
+          await Future.delayed(const Duration(milliseconds: 400));
         }
         if (tick % 3 == 0 && !_isDiagnosticMode) {
           sendCommand('010B'); // MAP (pression d'admission en kPa)
-          await Future.delayed(const Duration(milliseconds: 300));
+          await Future.delayed(const Duration(milliseconds: 400));
         }
         // IAT toutes les ~15 itérations (≈7 s) pour la formule MAF dynamique
         if (tick % 15 == 0 && !_isDiagnosticMode) {
           sendCommand('010F'); // IAT — Température d'admission
-          await Future.delayed(const Duration(milliseconds: 300));
+          await Future.delayed(const Duration(milliseconds: 400));
         }
         if (tick % 10 == 0 && !_isDiagnosticMode) {
           sendCommand('ATRV'); // Tension batterie
-          await Future.delayed(const Duration(milliseconds: 300));
+          await Future.delayed(const Duration(milliseconds: 400));
         }
 
         tick++;
