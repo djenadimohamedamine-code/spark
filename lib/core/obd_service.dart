@@ -4,6 +4,10 @@ import 'package:path_provider/path_provider.dart';
 import '../vocal/tts_service.dart';
 
 class ObdService {
+  static final ObdService _instance = ObdService._internal();
+  factory ObdService() => _instance;
+  ObdService._internal();
+
   final String ip = '192.168.0.10';
   final int port = 35000;
 
