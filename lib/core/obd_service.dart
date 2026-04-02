@@ -315,13 +315,13 @@ class ObdService {
       await sendCommandWait('0100', delay: 1500);  // Sync ECU (Tester adress 0x11)
       _tcpBuffer = '';
 
-      // On teste les adresses ECU probables en KWP (11 = Moteur Spark)
+      // On teste les adresses ECU probables en KWP (11 = Moteur Spark, 10 = Broadcast)
       List<String> addresses = ["11", "10", "01"];
       
       for (var addr in addresses) {
         _log("SCAN: Test Adresse ECU $addr...");
-        // Format Header KWP: 86 (Long) + F1 (Tester) + Addr (ECU)
-        await sendCommandWait("ATSH 86 F1 $addr", delay: 800);
+        // En KWP, ATSH avec l'adresse destination suffit (l'ELM gère le format 86 F1 XX)
+        await sendCommandWait("ATSH $addr", delay: 800);
 
         _tcpBuffer = '';
         sendCommand("03");
