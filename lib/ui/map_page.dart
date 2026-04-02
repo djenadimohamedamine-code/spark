@@ -224,7 +224,7 @@ class _MapPageState extends State<MapPage> {
                 userAgentPackageName: 'com.mimo.spark',
                 maxZoom: 19,
                 keepBuffer: 3,
-                tileDisplay: const TileDisplay.instant(),
+                tileDisplay: const TileDisplay.fadeIn(duration: Duration.zero),
               ),
               if (_satelliteMode)
                 TileLayer(
@@ -233,7 +233,7 @@ class _MapPageState extends State<MapPage> {
                   userAgentPackageName: 'com.mimo.spark',
                   maxZoom: 19,
                   keepBuffer: 1,
-                  tileDisplay: const TileDisplay.instant(),
+                  tileDisplay: const TileDisplay.fadeIn(duration: Duration.zero),
                 ),
               if (_currentPosition != null)
                 MarkerLayer(
