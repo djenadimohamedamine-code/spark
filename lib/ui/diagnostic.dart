@@ -156,29 +156,43 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
       return;
     }
 
-    // 2. Parsing sur chaîne fusionnée (Robustesse Elite)
+    // 2. Parsing sur chaîne fusionnée (Robustesse V4.32 Pure Scan)
     List<String> codesTrouves = [];
 
-    // Marqueurs DTC standards (Mode 03, 07, 0A)
     for (String marker in ['43', '47', '4A']) {
       int idx = fused.indexOf(marker);
       if (idx == -1) continue;
 
-      // On commence après le marqueur (2 car.) + l'octet suivant (2 car.) = +4 car.
-      int start = idx + 4;
+      // --- LOGIQUE STRICTE KWP vs CAN ---
+      // Si la réponse est courte (ex: 43 13 03), on commence à +2 (KWP Sans Count)
+      // Si on voit un octet qui ressemble à un compteur (ex: 01, 02), on peut l'ignorer.
+      int start = idx + 2; 
+
+      // Détection count byte (Si fused[idx+2..idx+4] est petit ex "01" et suivi de données)
+      if (start + 4 <= fused.length) {
+        String possibleCount = fused.substring(start, start + 2);
+        int? count = int.tryParse(possibleCount, radix: 16);
+        if (count != null && count > 0 && count < 10) {
+          // C'est probablement un count byte (CAN style), on le saute
+          start += 2;
+        }
+      }
 
       while (start + 3 < fused.length) {
         String highHex = fused.substring(start, start + 2);
         String lowHex = fused.substring(start + 2, start + 4);
-        
-        // On avance de paire d'octets (4 caractères hex)
         start += 4;
 
-        // Ignorer les octets de contrôle ISO-TP (21 à 2F) dans le flux fusionné
+        // --- FILTRE ANTI-FANTÔMES (Strict V4.32) ---
+        // 1. Ignorer l'adresse ECU (11 ou 10) qui traîne souvent en KWP ELM clones
+        if (highHex == '11' || highHex == '10') continue;
+
+        // 2. Ignorer les zéros
+        if (highHex == '00' && lowHex == '00') continue;
+        
+        // 3. Ignorer ISO-TP Flow Control
         int? val = int.tryParse(highHex, radix: 16);
         if (val != null && val >= 0x21 && val <= 0x2F) continue;
-
-        if (highHex == '00' && lowHex == '00') continue;
 
         String code = _convertBytesToDtc(highHex, lowHex);
         if (code.isNotEmpty && code != 'P0000') codesTrouves.add(code);

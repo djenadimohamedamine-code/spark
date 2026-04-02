@@ -292,63 +292,60 @@ class ObdService {
     }
   }
 
-  // ── Scan des codes DTC (Mode 03 + 07 + 0A) — Version KWP Expert (Spark) ──────
+  // ── Scan des codes DTC (Mode 03 + 07 + 0A) — Version KWP Strict (V4.32) ──────
   Future<void> scanTroubleCodes() async {
     _isDiagnosticMode = true;
-    _isPolling = false; // Stop total du polling pour éviter les conflits
-    _log("SCAN PRO: Arrêt du polling et bascule en mode KWP Expert...");
+    _isPolling = false; 
+    _log("SCAN: Bascule en mode KWP Strict (Headers OFF pour éviter les pannes fantômes)...");
 
     try {
       await Future.delayed(const Duration(seconds: 1));
       _tcpBuffer = ''; 
 
-      // ✅ Reset complet comme au démarrage — revenir à l'état "propre"
-      _log("SCAN: Initialisation KWP2000 (Reset ATZ)...");
+      // ✅ Re-init complet pour garantir ATE0 et filtrer tout écho
+      _log("SCAN: Reset Matériel (ATZ)...");
       await sendCommandWait('ATZ', delay: 2000);
-      await sendCommandWait('ATE0', delay: 500);
+      await sendCommandWait('ATE0', delay: 500); // Pas d'écho des commandes
       await sendCommandWait('ATL0', delay: 500);
-      await sendCommandWait('ATS1', delay: 500);  // Spaces ON pour parser les octets KWP
-      await sendCommandWait('ATH1', delay: 500);  // Headers ON — indispensable en KWP
+      await sendCommandWait('ATS1', delay: 500);  // Spaces ON pour le scan
       
-      // ✅ Protocole KWP2000 (Type 5) pour Daewoo/Spark
+      // ✅ Crucial: Headers OFF (ATH0)
+      // L'ELM filtrera les en-têtes KWP (86 F1 11) et les checksums.
+      // On ne recevra que le payload (ex: 43 13 03).
+      await sendCommandWait('ATH0', delay: 500);  
+      
+      // ✅ Protocole KWP2000 (Type 5)
       await sendCommandWait('ATSP5', delay: 1500); 
-      await sendCommandWait('0100', delay: 1500);  // Sync ECU (Tester adress 0x11)
       _tcpBuffer = '';
 
-      // On teste les adresses ECU probables en KWP (11 = Moteur Spark, 10 = Broadcast)
-      List<String> addresses = ["11", "10", "01"];
+      // Cibles prioritaires pour Spark (11=Moteur, 10=Broadcast)
+      List<String> addresses = ["11", "10"];
       
       for (var addr in addresses) {
-        _log("SCAN: Test Adresse ECU $addr...");
-        // En KWP, ATSH avec l'adresse destination suffit (l'ELM gère le format 86 F1 XX)
+        _log("SCAN: Ciblage ECU $addr...");
         await sendCommandWait("ATSH $addr", delay: 800);
 
-        _tcpBuffer = '';
-        sendCommand("03");
-        await Future.delayed(const Duration(seconds: 3));
-
-        _tcpBuffer = '';
-        sendCommand("07");
-        await Future.delayed(const Duration(seconds: 3));
-
-        _tcpBuffer = '';
-        sendCommand("0A");
-        await Future.delayed(const Duration(seconds: 3));
+        // Demande des codes (Mode 03, 07)
+        // Mode 0A souvent non supporté sur KWP2000
+        List<String> modes = ["03", "07"];
+        for (var m in modes) {
+          _log("SCAN: Commande $m...");
+          _tcpBuffer = ''; 
+          sendCommand(m);
+          await Future.delayed(const Duration(seconds: 3)); // Sécurité timing
+        }
       }
       
-      _log("SCAN: Libération du canal.");
+      _log("SCAN: Opération terminée.");
     } catch (e) {
-      _log("Erreur Scan DTC: $e");
+      _log("Erreur Scan: $e");
     } finally {
-      // ✅ Restore état polling normal (Elite - Fast Dashboard)
-      _log("SCAN: Restauration mode Dashboard Elite (ATH0/ATS0)...");
+      // ✅ Restauration Elite Dashboard
       await sendCommandWait('ATZ', delay: 2000);
       await sendCommandWait('ATE0', delay: 500);
-      await sendCommandWait('ATL0', delay: 500);
-      await sendCommandWait('ATS0', delay: 500);  // Spaces OFF pour polling rapide
-      await sendCommandWait('ATH0', delay: 500);  // Headers OFF
-      await sendCommandWait('ATSP0', delay: 1500); // Retour AUTO
-      await sendCommandWait('0100', delay: 1000);
+      await sendCommandWait('ATS0', delay: 500);
+      await sendCommandWait('ATH0', delay: 500);
+      await sendCommandWait('ATSP0', delay: 1500); 
       _tcpBuffer = '';
       _isDiagnosticMode = false;
       _isPolling = false; 
