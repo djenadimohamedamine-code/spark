@@ -223,8 +223,8 @@ class _MapPageState extends State<MapPage> {
                 urlTemplate: _satelliteMode ? _esriSatelliteUrl : _osmTileUrl,
                 userAgentPackageName: 'com.mimo.spark',
                 maxZoom: 19,
-                keepBuffer: 20,
-                tileDisplay: const TileDisplay.fadeIn(),
+                keepBuffer: 3,
+                tileDisplay: const TileDisplay.instant(),
               ),
               if (_satelliteMode)
                 TileLayer(
@@ -232,22 +232,22 @@ class _MapPageState extends State<MapPage> {
                       'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
                   userAgentPackageName: 'com.mimo.spark',
                   maxZoom: 19,
-                  keepBuffer: 20,
-                  tileDisplay: const TileDisplay.fadeIn(),
+                  keepBuffer: 1,
+                  tileDisplay: const TileDisplay.instant(),
                 ),
               if (_currentPosition != null)
                 MarkerLayer(
                   markers: [
                     Marker(
                       point: centerPos,
-                      width: 70,
-                      height: 70,
+                      width: 45,
+                      height: 45,
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
                           Container(
-                            width: 30,
-                            height: 30,
+                            width: 18,
+                            height: 18,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               gradient: RadialGradient(
@@ -256,7 +256,7 @@ class _MapPageState extends State<MapPage> {
                             ),
                           ),
                           Transform.rotate(
-                            angle: (_lastHeading + 90) * (math.pi / 180),
+                            angle: (_lastHeading + 45) * (math.pi / 180),
                             child: Image.asset(
                               'assets/images/spark_marker.png',
                               fit: BoxFit.contain,
