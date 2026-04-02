@@ -109,7 +109,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       // On vérifie si la connexion a survécu au passage en arrière-plan
-      if (_obdService.socket == null) {
+      if (!_obdService.isConnected) {
         print("Mimo Spark : Connexion perdue en arrière-plan. Reconnexion...");
         _connectObd();
       } else {
@@ -279,8 +279,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
           case '0B': // MAP (pour MAF Virtuel)
             if (i + 2 < parts.length) {
               int mapKpa = int.tryParse(parts[i + 2], radix: 16) ?? 0;
-              final double tempK = _obdService.lastIatKelvin;
-              double mafGs = (rpm * mapKpa / 120.0) * 0.8 * 1.0 * (28.97 / 8.314) / tempK;
+              final double tempK = temperature + 273.15; // Utilise la température d'eau comme approximation si IAT indisponible
+              double ve = 0.75 + (rpm / 10000.0); // VE dynamique estimée pour Spark 1.0L
+              double mafGs = (rpm * mapKpa / 120.0) * ve * (28.97 / 8.314) / tempK;
               double rawLph = _fuelCalculator.calculateConsumptionLph(mafGs);
               _smoothLph = (_smoothLph == 0) ? rawLph : (_smoothLph * 0.9) + (rawLph * 0.1);
               
@@ -295,11 +296,12 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     }
 
     // Gestion ATRV (Batterie) - N'est pas préfixé par 41
-    if (data.contains('V') && data.contains('.')) {
+    // Gestion ATRV (Batterie) avec Regex Robuste
+    if (RegExp(r'\d+\.\d+V').hasMatch(data)) {
       try {
         String volStr = data.replaceAll(RegExp(r'[^0-9.]'), '');
         double rawVolt = double.tryParse(volStr) ?? 0.0;
-        if (rawVolt > 0) {
+        if (rawVolt > 5.0 && rawVolt < 16.0) { // Range de sécurité Spark
           _smoothVoltage = (_smoothVoltage == 0) ? rawVolt : (_smoothVoltage * 0.8) + (rawVolt * 0.2);
           _buffer['tension'] = _smoothVoltage;
         }

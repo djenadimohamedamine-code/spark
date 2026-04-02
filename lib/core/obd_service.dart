@@ -14,6 +14,8 @@ class ObdService {
   Socket? _socket;
   Socket? get socket => _socket;
 
+  bool get isConnected => _socket != null && _socket!.remoteAddress != null;
+
   // ─── Flux de données pour les jauges du dashboard ───────────────────────
   final StreamController<String> _dataStreamController =
       StreamController<String>.broadcast();
@@ -368,9 +370,13 @@ class ObdService {
   }
 
   // ── Effacement (Mode 04) ─────────────────────────────────────────────────
-  void clearCodes() {
-    sendCommand('04');
-    _ttsService.speak("Codes erreurs effacés.");
+  Future<bool> clearCodes() async {
+    String resp = await sendCommandWaitPrompt('04', timeoutSec: 3);
+    if (resp.toUpperCase().contains('OK') || resp.contains('44')) {
+      _ttsService.speak("Codes erreurs effacés.");
+      return true;
+    }
+    return false;
   }
 
   void sendCommand(String command) {

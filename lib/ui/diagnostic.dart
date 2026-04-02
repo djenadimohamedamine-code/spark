@@ -171,8 +171,9 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
         if (highByte == '00' && lowByte == '00') continue; // On continue au lieu de break (expert point 4)
 
         // Si l'octet ressemble à un index de frame ISO-TP (21 à 2F), on le saute
+        // On vérifie que c'est bien un octet de contrôle CAN (souvent seul ou en début de ligne ELM)
         int? val = int.tryParse(highByte, radix: 16);
-        if (val != null && val >= 0x21 && val <= 0x2F) {
+        if (val != null && val >= 0x21 && val <= 0x2F && i % 2 != 0) {
            i -= 1; // On décale pour reprendre la vraie paire de données DTC
            continue;
         }
@@ -216,9 +217,13 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
   }
 
   void _clearDtc() async {
-    _obdService.clearCodes();
-    setState(() => _currentErrors.clear());
-    _ttsService.speak("Effacement en cours Mimo. Regarde le voyant moteur.");
+    bool success = await _obdService.clearCodes();
+    if (success) {
+      setState(() => _currentErrors.clear());
+      _ttsService.speak("Effacement réussi Mimo. Le voyant devrait s'éteindre.");
+    } else {
+      _ttsService.speak("Échec de l'effacement. Vérifie ton contact.");
+    }
   }
 
   void _lireBoiteNoire() async {
