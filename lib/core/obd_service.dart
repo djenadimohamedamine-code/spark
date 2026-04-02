@@ -292,47 +292,31 @@ class ObdService {
     }
   }
 
-  // ── Scan des codes DTC (Mode 03 + 07) — Version Heritage V4.28 ──────
+  // ── Scan des codes DTC (Mode 03 + 07) — Version Legacy "Auto" (V4.35) ──
   Future<void> scanTroubleCodes() async {
-    _isDiagnosticMode = true; // On verrouille le canal (Priorité scan)
-    _log("SCAN: Arrêt du polling et bascule en mode Diagnostic (Bessif V4.28)...");
+    _isDiagnosticMode = true; // On verrouille le canal
+    _log("SCAN: Lancement Instant Scan (Protocol Auto)...");
 
     try {
-      // 1. On laisse le temps à la dernière commande de polling de finir
-      await Future.delayed(const Duration(milliseconds: 1000));
+      // 1. Délai très court pour stabiliser le canal après polling
+      await Future.delayed(const Duration(milliseconds: 500));
 
-      _log("SCAN: Prise de contrôle du canal OBD (V4.28 Force)");
-
-      // Étape 2 : Reset du boîtier pour vider le tampon
-      await sendCommandWait('ATZ', delay: 1500);   
-
-      // Étape 3 : Configuration Spark (KWP2000 Fast Init)
-      await sendCommandWait('ATSP5', delay: 800); 
-      await sendCommandWait('ATSH8111F1', delay: 500);
-
-      // Étape 4 : Demande des codes (Mode 03 + 07)
-      _log("SCAN: Envoi demande codes (03)...");
+      // Étape 2 : Pas de ATZ, pas de ATSP5. On utilise le canal déjà ouvert en Auto.
+      _log("SCAN: Envoi direct Mode 03...");
       _tcpBuffer = ''; 
       sendCommand("03"); 
-      await Future.delayed(const Duration(seconds: 4)); 
+      await Future.delayed(const Duration(seconds: 3)); 
 
-      _log("SCAN: Envoi demande codes (07)...");
+      _log("SCAN: Envoi direct Mode 07...");
       sendCommand("07");
-      await Future.delayed(const Duration(seconds: 4));
+      await Future.delayed(const Duration(seconds: 3));
 
-      _log("SCAN: Libération du canal. Reprise du polling.");
+      _log("SCAN: Termin. Libration du canal.");
     } catch (e) {
-      _log("Erreur Scan Force: $e");
+      _log("Erreur Scan Auto: $e");
     } finally {
-      // ✅ Restauration Standard Elite (V4.28 Style)
-      await sendCommandWait('ATZ', delay: 1200);   
-      await sendCommandWait('ATE0', delay: 400);    
-      await sendCommandWait('ATH0', delay: 400);    
-      await sendCommandWait('ATSP0', delay: 1000); 
       _tcpBuffer = '';
       _isDiagnosticMode = false;
-      _isPolling = false; 
-      _startPolling();    
     }
   }
 

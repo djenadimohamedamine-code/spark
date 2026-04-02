@@ -198,7 +198,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
             context: context,
             builder: (context) => AlertDialog(
               backgroundColor: const Color(0xFF1A1A1A),
-              title: const Text('Mimo Spark V4.34 - Heritage Fast', style: TextStyle(color: Colors.greenAccent, fontSize: 13)),
+              title: const Text('Mimo Spark V4.35 - Legacy Auto', style: TextStyle(color: Colors.greenAccent, fontSize: 13)),
               content: SingleChildScrollView(
                 child: Text(finDuLog, style: const TextStyle(fontSize: 10, color: Colors.greenAccent, fontFamily: 'monospace')),
               ),
