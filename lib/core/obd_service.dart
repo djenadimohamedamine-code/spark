@@ -302,6 +302,9 @@ class ObdService {
       await Future.delayed(const Duration(seconds: 1));
       _tcpBuffer = ''; 
 
+      // ✅ CRITIQUE : Active les headers pour que l'ECU réponde aux DTC
+      await sendCommandWait('ATH1', delay: 500);
+
       // On teste les headers essentiels pour toucher tous les calculateurs
       List<String> headers = ["7E0", "7E8", "7DF"];
       
@@ -322,13 +325,15 @@ class ObdService {
         await Future.delayed(const Duration(seconds: 2));
       }
       
-      await sendCommandWait("ATSH 7DF", delay: 100); // Reset header broadcast
+      await sendCommandWait("ATSH 7DF", delay: 500); // Reset header broadcast
       _log("SCAN: Attente synchronisation finale...");
       await Future.delayed(const Duration(seconds: 1));
       _log("SCAN: Libération du canal.");
     } catch (e) {
       _log("Erreur Scan DTC: $e");
     } finally {
+      // ✅ Restore headers OFF pour le polling normal
+      await sendCommandWait('ATH0', delay: 500);
       _tcpBuffer = '';
       _isDiagnosticMode = false;
       _isPolling = false; // Reset pour redémarrage propre via _startPolling
