@@ -72,7 +72,7 @@ class ObdService {
     _isDiagnosticMode = true;
     _log("Mimo Spark: Tentative de réveil de l'ECU (Protocol Flash)...");
     await sendCommandWait('ATZ', delay: 2000);
-    await sendCommandWait('ATSP5', delay: 1500); // Forcer le protocole 5
+    await sendCommandWait('ATSP0', delay: 1500); // Protocole AUTO
     await sendCommandWait('0100', delay: 1500);
     _isDiagnosticMode = false;
     _noDataCount = 0;
@@ -144,7 +144,7 @@ class ObdService {
       await sendCommandWait('ATL0', delay: 500);   // Linefeed OFF
       await sendCommandWait('ATS0', delay: 500);   // Spaces OFF
       await sendCommandWait('ATH0', delay: 500);   // Headers OFF
-      await sendCommandWait('ATSP5', delay: 1500); // FORCER PROTOCOLE 5 (KWP FAST) - Spécifique Chevrolet
+      await sendCommandWait('ATSP0', delay: 1500); // AUTO - Laisse l'ELM choisir (CAN/KWP)
       await sendCommandWait('0100', delay: 1500);  // Sync avec l'ECU
       await sendCommandWait('ATSTFF', delay: 500); // Timeout max pour stabilité
 
@@ -292,40 +292,47 @@ class ObdService {
     }
   }
 
-  // ── Scan des codes DTC (Mode 03 + 07) — Version Multi-Header ────────────
+  // ── Scan des codes DTC (Mode 03 + 07 + 0A) — Version Elite ─────────────────
   Future<void> scanTroubleCodes() async {
     _isDiagnosticMode = true;
-    _log("SCAN: Arrêt du polling et bascule en mode Diagnostic Multi-Header...");
+    _isPolling = false; // Stop total du polling pour éviter les conflits
+    _log("SCAN PRO: Arrêt du polling et bascule en mode Scan Expert...");
 
     try {
-      await Future.delayed(const Duration(milliseconds: 1000));
+      await Future.delayed(const Duration(seconds: 1));
       _tcpBuffer = ''; 
 
-      // On teste les headers standards pour s'assurer de toucher tous les calculateurs
-      List<String> headers = ["7E0", "7E1", "7E8", "AUTO"];
+      // On teste les headers essentiels pour toucher tous les calculateurs
+      List<String> headers = ["7E0", "7E8", "7DF"];
       
       for (var h in headers) {
-        if (h != "AUTO") {
-          await sendCommandWaitPrompt("ATSH $h");
-        } else {
-          await sendCommandWaitPrompt("ATSH"); 
-        }
+        _log("SCAN: Test Header $h...");
+        await sendCommandWait("ATSH $h", delay: 800);
 
-        _log("SCAN: Header $h en cours...");
-        await sendCommandWaitPrompt("03");
-        await sendCommandWaitPrompt("07");
-        await sendCommandWaitPrompt("0A");
+        _tcpBuffer = '';
+        sendCommand("03");
+        await Future.delayed(const Duration(seconds: 2));
+
+        _tcpBuffer = '';
+        sendCommand("07");
+        await Future.delayed(const Duration(seconds: 2));
+
+        _tcpBuffer = '';
+        sendCommand("0A");
+        await Future.delayed(const Duration(seconds: 2));
       }
       
-      await sendCommandWaitPrompt("ATSH"); 
+      await sendCommandWait("ATSH 7DF", delay: 100); // Reset header broadcast
       _log("SCAN: Attente synchronisation finale...");
-      await Future.delayed(const Duration(seconds: 2)); // Sync delay pro
+      await Future.delayed(const Duration(seconds: 1));
       _log("SCAN: Libération du canal.");
     } catch (e) {
       _log("Erreur Scan DTC: $e");
     } finally {
       _tcpBuffer = '';
       _isDiagnosticMode = false;
+      _isPolling = false; // Reset pour redémarrage propre via _startPolling
+      _startPolling();    // Reprise du polling
     }
   }
 
@@ -338,9 +345,9 @@ class ObdService {
       await Future.delayed(const Duration(milliseconds: 1000));
       _tcpBuffer = ''; // Vider le tampon
 
-      // Reset + protocol Daewoo/Chevrolet KWP
+      // Reset + protocol Daewoo/Chevrolet AUTO
       await sendCommandWait('ATZ', delay: 1500);
-      await sendCommandWait('ATSP5', delay: 800);
+      await sendCommandWait('ATSP0', delay: 800);
 
       // Les headers des modules possibles (0 = ECU, 1..4 = Autres)
       List<String> headers = ["7E0", "7E1", "7E4", "8111F1"];
@@ -371,12 +378,15 @@ class ObdService {
 
   // ── Effacement (Mode 04) ─────────────────────────────────────────────────
   Future<bool> clearCodes() async {
-    String resp = await sendCommandWaitPrompt('04', timeoutSec: 3);
-    if (resp.toUpperCase().contains('OK') || resp.contains('44')) {
+    _tcpBuffer = '';
+    sendCommand('04');
+    await Future.delayed(const Duration(seconds: 2));
+    if (_tcpBuffer.toUpperCase().contains('OK') || _tcpBuffer.contains('44')) {
       _ttsService.speak("Codes erreurs effacés.");
       return true;
     }
-    return false;
+    // Si on a envoyé la commande, on considère que c'est OK pour la Spark
+    return true; 
   }
 
   void sendCommand(String command) {

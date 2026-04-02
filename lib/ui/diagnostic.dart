@@ -134,6 +134,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
 
   void _parseDiagnosticData(String data) {
     String raw = data.trim().toUpperCase();
+    print("DTC RAW: $raw"); // Log expert pour Mimo
     List<String> parts = raw.split(RegExp(r'\s+'));
 
     // 1. Détection NRC (7F) avec décodage expert
