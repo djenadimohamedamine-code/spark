@@ -138,14 +138,14 @@ class ObdService {
       );
 
       // ── Séquence d'initialisation ELM327 PROFESIONNELLE ──────────────────
-      _log("INIT: Séquence de réveil Elite (Mode Chevrolet KWP)...");
-      await sendCommandWait('ATZ', delay: 2000);    // Reset complet (plus long)
-      await sendCommandWait('ATE0', delay: 500);   // Echo OFF
-      await sendCommandWait('ATL0', delay: 500);   // Linefeed OFF
-      await sendCommandWait('ATS0', delay: 500);   // Spaces OFF
-      await sendCommandWait('ATH0', delay: 500);   // Headers OFF
-      await sendCommandWait('ATSP0', delay: 1500); // AUTO - Laisse l'ELM choisir (CAN/KWP)
-      await sendCommandWait('0100', delay: 1500);  // Sync avec l'ECU
+      // ── Séquence de réveil MIMO SPARK - Version Originale (Auto) ──────────
+      _log("INIT: Séquence de réveil...");
+      await sendCommandWait('ATZ', delay: 1200);   // Reset long
+      await sendCommandWait('ATE0', delay: 500);    // Echo Off
+      await sendCommandWait('ATL0', delay: 500);    // Linefeed Off
+      await sendCommandWait('ATH0', delay: 500);    // Pas de headers
+      await sendCommandWait('ATSP0', delay: 1000);  // Protocole Automatique
+      await sendCommandWait('0100', delay: 1000);   // Sync avec l'ECU
       await sendCommandWait('ATSTFF', delay: 500); // Timeout max pour stabilité
 
       _ttsService.speak("Scanner Mimo Spark prêt.");
@@ -292,54 +292,43 @@ class ObdService {
     }
   }
 
-  // ── Scan des codes DTC (Mode 03 + 07) — Version Heritage V4.33 ──────
-  // Restauration de la logique V4.28 qui "scannait très bien" (Build #66)
+  // ── Scan des codes DTC (Mode 03 + 07) — Version Heritage V4.28 ──────
   Future<void> scanTroubleCodes() async {
-    _isDiagnosticMode = true;
-    _isPolling = false; 
-    _log("SCAN: Restauration Mode Heritage V4.28 (Refined Diagnostic Isolation)...");
+    _isDiagnosticMode = true; // On verrouille le canal (Priorité scan)
+    _log("SCAN: Arrêt du polling et bascule en mode Diagnostic (Bessif V4.28)...");
 
     try {
-      await Future.delayed(const Duration(seconds: 1));
+      // 1. On laisse le temps à la dernière commande de polling de finir
+      await Future.delayed(const Duration(milliseconds: 1000));
+
+      _log("SCAN: Prise de contrôle du canal OBD (V4.28 Force)");
+
+      // Étape 2 : Reset du boîtier pour vider le tampon
+      await sendCommandWait('ATZ', delay: 1500);   
+
+      // Étape 3 : Configuration Spark (KWP2000 Fast Init)
+      await sendCommandWait('ATSP5', delay: 800); 
+      await sendCommandWait('ATSH8111F1', delay: 500);
+
+      // Étape 4 : Demande des codes (Mode 03 + 07)
+      _log("SCAN: Envoi demande codes (03)...");
       _tcpBuffer = ''; 
+      sendCommand("03"); 
+      await Future.delayed(const Duration(seconds: 4)); 
 
-      // ✅ Initialisation stricte comme en V4.28
-      _log("SCAN: Reset complet (ATZ)...");
-      await sendCommandWait('ATZ', delay: 2000);
-      await sendCommandWait('ATE0', delay: 500); 
-      await sendCommandWait('ATL0', delay: 500);
-      await sendCommandWait('ATS1', delay: 500); 
-      
-      // ✅ V4.32 Hybrid Fix: Headers OFF pour éviter les pannes fantômes 11/CS
-      await sendCommandWait('ATH0', delay: 500);  
-      
-      // ✅ RETOUR AU MODE AUTO (ATSP0) — Clé du succès V4.28
-      await sendCommandWait('ATSP0', delay: 1500); 
-      
-      // ✅ SYNC ECU CRUCIAL en mode Auto
-      await sendCommandWait('0100', delay: 1500);
-      _tcpBuffer = '';
+      _log("SCAN: Envoi demande codes (07)...");
+      sendCommand("07");
+      await Future.delayed(const Duration(seconds: 4));
 
-      // On scanne les modes standards sans boucle d'adresses manuelle
-      // pour laisser l'ELM gérer son canal établi par le 0100
-      List<String> modes = ["03", "07"];
-      for (var m in modes) {
-        _log("SCAN: Lecture $m...");
-        _tcpBuffer = ''; 
-        sendCommand(m);
-        await Future.delayed(const Duration(seconds: 4)); // Délai V28
-      }
-      
-      _log("SCAN: Terminé avec succès.");
+      _log("SCAN: Libération du canal. Reprise du polling.");
     } catch (e) {
-      _log("Erreur Heritage Scan: $e");
+      _log("Erreur Scan Force: $e");
     } finally {
-      // ✅ Restauration Standard Elite
-      await sendCommandWait('ATZ', delay: 2000);
-      await sendCommandWait('ATE0', delay: 500);
-      await sendCommandWait('ATS0', delay: 500);
-      await sendCommandWait('ATH0', delay: 500);
-      await sendCommandWait('ATSP0', delay: 1500); 
+      // ✅ Restauration Standard Elite (V4.28 Style)
+      await sendCommandWait('ATZ', delay: 1200);   
+      await sendCommandWait('ATE0', delay: 400);    
+      await sendCommandWait('ATH0', delay: 400);    
+      await sendCommandWait('ATSP0', delay: 1000); 
       _tcpBuffer = '';
       _isDiagnosticMode = false;
       _isPolling = false; 

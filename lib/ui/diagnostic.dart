@@ -132,104 +132,46 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
     '78': 'Response Pending',
   };
 
-  void _parseDiagnosticData(String data) {
-    String raw = data.trim().toUpperCase();
-    print("DTC RAW: $raw");
-
-    // Support avec ET sans espaces (ATS0/ATS1) — Stratégie Fusion
-    String fused = raw.replaceAll(RegExp(r'\s+'), '');
-    List<String> parts = raw.split(RegExp(r'\s+'));
-
-    // 1. Détection NRC (7F) avec décodage expert
-    if (parts.contains('7F')) {
-      int idx = parts.indexOf('7F');
-      if (idx + 2 < parts.length) {
-        String service = parts[idx + 1];
-        String reason = parts[idx + 2];
-        String desc = _nrcMap[reason] ?? 'Unknown Error $reason';
-        if (mounted) {
-          setState(() {
-            _currentErrors.add('ECU Refus (7F $service) : $desc');
-          });
-        }
-      }
-      return;
-    }
-
-    // 2. Parsing sur chaîne fusionnée (Robustesse V4.32 Pure Scan)
-    List<String> codesTrouves = [];
-
-    for (String marker in ['43', '47', '4A']) {
-      int idx = fused.indexOf(marker);
-      if (idx == -1) continue;
-
-      // --- LOGIQUE STRICTE KWP vs CAN ---
-      // Si la réponse est courte (ex: 43 13 03), on commence à +2 (KWP Sans Count)
-      // Si on voit un octet qui ressemble à un compteur (ex: 01, 02), on peut l'ignorer.
-      int start = idx + 2; 
-
-      // Détection count byte (Si fused[idx+2..idx+4] est petit ex "01" et suivi de données)
-      if (start + 4 <= fused.length) {
-        String possibleCount = fused.substring(start, start + 2);
-        int? count = int.tryParse(possibleCount, radix: 16);
-        if (count != null && count > 0 && count < 10) {
-          // C'est probablement un count byte (CAN style), on le saute
-          start += 2;
-        }
-      }
-
-      while (start + 3 < fused.length) {
-        String highHex = fused.substring(start, start + 2);
-        String lowHex = fused.substring(start + 2, start + 4);
-        start += 4;
-
-        // --- FILTRE ANTI-FANTÔMES (Strict V4.32) ---
-        // 1. Ignorer l'adresse ECU (11 ou 10) qui traîne souvent en KWP ELM clones
-        if (highHex == '11' || highHex == '10') continue;
-
-        // 2. Ignorer les zéros
-        if (highHex == '00' && lowHex == '00') continue;
-        
-        // 3. Ignorer ISO-TP Flow Control
-        int? val = int.tryParse(highHex, radix: 16);
-        if (val != null && val >= 0x21 && val <= 0x2F) continue;
-
-        String code = _convertBytesToDtc(highHex, lowHex);
-        if (code.isNotEmpty && code != 'P0000') codesTrouves.add(code);
-      }
-      break; 
-    }
-
-    if (mounted && codesTrouves.isNotEmpty) {
-      setState(() {
-        _currentErrors.addAll(codesTrouves);
-        _currentErrors = _currentErrors.toSet().toList();
-      });
-    }
-  }
-
-  /// Convertit deux octets hex en code DTC standard OBD2
-  /// Ex: "01" "13" → "P0113"
-  String _convertBytesToDtc(String highHex, String lowHex) {
+  void _parseDiagnosticData(String raw) {
+    _log("PARSING RAW: $raw");
+    
     try {
-      int firstByte = int.parse(highHex, radix: 16);
-      int prefixBits = (firstByte & 0xC0) >> 6;
-      String letter;
-      switch (prefixBits) {
-        case 0: letter = 'P'; break;
-        case 1: letter = 'C'; break;
-        case 2: letter = 'B'; break;
-        case 3: letter = 'U'; break;
-        default: letter = 'P';
+      List<String> parts = raw.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+      int startIndex = parts.indexOf('43');
+      if (startIndex == -1) startIndex = parts.indexOf('47');
+      if (startIndex == -1) startIndex = parts.indexOf('4A');
+
+      List<String> codesTrouves = [];
+      if (startIndex != -1) {
+        // Logique V4.28 : On prend les paires directement après 43/47/4A
+        for (int i = startIndex + 1; i + 1 < parts.length; i += 2) {
+          String highByte = parts[i];
+          String lowByte = parts[i + 1];
+
+          if (highByte.length == 2 && lowByte.length == 2) {
+            if (highByte != '00' || lowByte != '00') {
+              // V4.28 : On force le prefix P pour éviter les ghosts C/B/U
+              codesTrouves.add('P$highByte$lowByte');
+            }
+          }
+        }
       }
-      // Les 4 chiffres après la lettre
-      String nibble1 = ((firstByte & 0x30) >> 4).toRadixString(16).toUpperCase();
-      String nibble2 = (firstByte & 0x0F).toRadixString(16).toUpperCase();
-      return '$letter$nibble1$nibble2${lowHex.toUpperCase()}';
-    } catch (_) {
-      return '';
+
+      if (mounted && codesTrouves.isNotEmpty) {
+        setState(() {
+          _currentErrors.addAll(codesTrouves);
+          _currentErrors = _currentErrors.toSet().toList(); // Unique
+          _isLoading = false;
+        });
+        _ttsService.speak("Mimo, j'ai trouvé ${codesTrouves.length} pannes.");
+      }
+    } catch (e) {
+      _log("Parser Error: $e");
+      if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  void _log(String msg) => print(msg);
 
   void _clearDtc() async {
     bool success = await _obdService.clearCodes();
@@ -256,7 +198,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
             context: context,
             builder: (context) => AlertDialog(
               backgroundColor: const Color(0xFF1A1A1A),
-              title: const Text('Boîte Noire Mimo Spark', style: TextStyle(color: Colors.blueAccent, fontSize: 16)),
+              title: const Text('Mimo Spark V4.34 - Heritage Fast', style: TextStyle(color: Colors.greenAccent, fontSize: 13)),
               content: SingleChildScrollView(
                 child: Text(finDuLog, style: const TextStyle(fontSize: 10, color: Colors.greenAccent, fontFamily: 'monospace')),
               ),
