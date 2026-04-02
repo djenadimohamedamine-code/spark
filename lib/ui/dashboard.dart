@@ -235,92 +235,76 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   }
 
   void _parseObdData(String data) {
-    if (data.trim().isEmpty) return;
+    if (data.trim().isEmpty || data.contains('SEARCHING') || data.contains('NO DATA') || data.contains('STOPPED')) return;
     
-    // Version ELITE/TESLA : on utilise les tokens (espaces) pour une fiabilité 100%
+    // Version ELITE PRO : Parsing Séquentiel par Index pour éviter les confusions de trames
     List<String> parts = data.trim().toUpperCase().split(RegExp(r'\s+'));
 
-    // 1. RPM (010C -> 410C)
-    if (parts.contains('41') && parts.contains('0C')) {
-      try {
-        int idx = parts.indexOf('0C') + 1;
-        if (idx + 1 < parts.length) {
-          int a = int.tryParse(parts[idx], radix: 16) ?? 0;
-          int b = int.tryParse(parts[idx+1], radix: 16) ?? 0;
-          double newRpm = ((a * 256) + b) / 4.0;
-          
-          _buffer['rpm'] = newRpm;
-          _buffer['gear'] = (speed < 5 || newRpm < 1000) ? 'N' : GearCalculator.calculateGear(newRpm.toInt(), speed.toInt());
+    for (int i = 0; i < parts.length - 1; i++) {
+      if (parts[i] == '41') {
+        String pid = parts[i + 1];
 
-          _checkAlert("RPM_HIGH", newRpm, 3500, 7, "Mimo, réduit les gaz, 3500 tours !");
-          _scheduleUpdate();
+        switch (pid) {
+          case '0C': // RPM (2 octets)
+            if (i + 3 < parts.length) {
+              int a = int.tryParse(parts[i + 2], radix: 16) ?? 0;
+              int b = int.tryParse(parts[i + 3], radix: 16) ?? 0;
+              double newRpm = ((a * 256) + b) / 4.0;
+              _buffer['rpm'] = newRpm;
+              _buffer['gear'] = (speed < 5 || newRpm < 1000) ? 'N' : GearCalculator.calculateGear(newRpm.toInt(), speed.toInt());
+              _checkAlert("RPM_HIGH", newRpm, 3500, 7, "Mimo, réduit les gaz, 3500 tours !");
+            }
+            break;
+
+          case '05': // TEMP (1 octet)
+            if (i + 2 < parts.length) {
+              double rawVal = (int.tryParse(parts[i + 2], radix: 16) ?? 40).toDouble() - 40.0;
+              // Filtrage anti-vibrations (EMA Smoothing)
+              _smoothTemp = (_smoothTemp == 0) ? rawVal : (_smoothTemp * 0.85) + (rawVal * 0.15);
+              _buffer['temp'] = _smoothTemp;
+              _checkAlert("TEMP_98", _smoothTemp, 98, 10, "Attention Mimo, 98 degrés.");
+              _checkAlert("TEMP_103", _smoothTemp, 103, 5, "Critique ! temp 103 !");
+            }
+            break;
+
+          case '0D': // SPEED (1 octet)
+            if (i + 2 < parts.length) {
+              double newSpeed = (int.tryParse(parts[i + 2], radix: 16) ?? 0).toDouble();
+              _buffer['speed'] = newSpeed;
+            }
+            break;
+
+          case '0B': // MAP (pour MAF Virtuel)
+            if (i + 2 < parts.length) {
+              int mapKpa = int.tryParse(parts[i + 2], radix: 16) ?? 0;
+              final double tempK = _obdService.lastIatKelvin;
+              double mafGs = (rpm * mapKpa / 120.0) * 0.8 * 1.0 * (28.97 / 8.314) / tempK;
+              double rawLph = _fuelCalculator.calculateConsumptionLph(mafGs);
+              _smoothLph = (_smoothLph == 0) ? rawLph : (_smoothLph * 0.9) + (rawLph * 0.1);
+              
+              DateTime now = DateTime.now();
+              double delta = now.difference(lastMafTime).inMilliseconds / 1000.0;
+              lastMafTime = now;
+              _fuelCalculator.updateVirtualFuel(_smoothLph, delta);
+            }
+            break;
         }
-      } catch (_) {}
-    }
-    // 2. TEMP (0105 -> 4105)
-    if (parts.contains('41') && parts.contains('05')) {
-      try {
-        int idx = parts.indexOf('05') + 1;
-        if (idx < parts.length) {
-          double rawVal = (int.tryParse(parts[idx], radix: 16) ?? 40).toDouble() - 40.0;
-          
-          // EMA Smoothing (0.85/0.15) pour éviter les sauts brusques
-          _smoothTemp = (_smoothTemp == 0) ? rawVal : (_smoothTemp * 0.85) + (rawVal * 0.15);
-          
-          _buffer['temp'] = _smoothTemp;
-          _scheduleUpdate();
-          _checkAlert("TEMP_98", _smoothTemp, 98, 10, "Attention Mimo, 98 degrés.");
-          _checkAlert("TEMP_103", _smoothTemp, 103, 5, "Critique ! temp 103 !");
-        }
-      } catch (_) {}
+      }
     }
 
-    // 3. SPEED (010D -> 410D)
-    if (parts.contains('41') && parts.contains('0D')) {
-      try {
-        int idx = parts.indexOf('0D') + 1;
-        if (idx < parts.length) {
-          double newSpeed = (int.tryParse(parts[idx], radix: 16) ?? 0).toDouble();
-          _buffer['speed'] = newSpeed;
-          _scheduleUpdate();
-        }
-      } catch (_) {}
-    }
-
-    // 4. BATTERY (ATRV)
+    // Gestion ATRV (Batterie) - N'est pas préfixé par 41
     if (data.contains('V') && data.contains('.')) {
       try {
         String volStr = data.replaceAll(RegExp(r'[^0-9.]'), '');
-        double rawVolt = double.parse(volStr);
-        // Lissage exponentiel (EMA 0.8 / 0.2)
-        _smoothVoltage = (_smoothVoltage == 0) ? rawVolt : (_smoothVoltage * 0.8) + (rawVolt * 0.2);
-        _buffer['tension'] = _smoothVoltage;
-        _scheduleUpdate();
-      } catch (_) {}
-    }
-
-    // 5. Fuel / MAF (010B MAP -> MAF)
-    if (parts.contains('41') && parts.contains('0B')) {
-      try {
-        int idx = parts.indexOf('0B') + 1;
-        if (idx < parts.length) {
-          int mapKpa = int.parse(parts[idx], radix: 16);
-          final double tempK = _obdService.lastIatKelvin;
-          double mafGs = (rpm * mapKpa / 120.0) * 0.8 * 1.0 * (28.97 / 8.314) / tempK;
-          
-          double rawLph = _fuelCalculator.calculateConsumptionLph(mafGs);
-          // Lissage fuel (EMA)
-          _smoothLph = (_smoothLph == 0) ? rawLph : (_smoothLph * 0.9) + (rawLph * 0.1);
-          
-          DateTime now = DateTime.now();
-          double delta = now.difference(lastMafTime).inMilliseconds / 1000.0;
-          lastMafTime = now;
-          
-          // Mise à jour fuel en tâche de fond (pas besoin de setState direct)
-          _fuelCalculator.updateVirtualFuel(_smoothLph, delta);
+        double rawVolt = double.tryParse(volStr) ?? 0.0;
+        if (rawVolt > 0) {
+          _smoothVoltage = (_smoothVoltage == 0) ? rawVolt : (_smoothVoltage * 0.8) + (rawVolt * 0.2);
+          _buffer['tension'] = _smoothVoltage;
         }
       } catch (_) {}
     }
+
+    _scheduleUpdate();
   }
 
   void _shareLog() async {

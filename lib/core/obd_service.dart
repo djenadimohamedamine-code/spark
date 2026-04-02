@@ -131,14 +131,16 @@ class ObdService {
         onDone: () => _handleDisconnect(),
       );
 
-      // ── Séquence d'initialisation ELM327 ──────────────────────────────
-      _log("INIT: Séquence de réveil...");
-      await sendCommandWait('ATZ', delay: 1200);
-      await sendCommandWait('ATE0', delay: 500);
-      await sendCommandWait('ATL0', delay: 500);
-      await sendCommandWait('ATH0', delay: 500);
-      await sendCommandWait('ATSP0', delay: 1000);
-      await sendCommandWait('0100', delay: 1000); // Test de com + sync protocole
+      // ── Séquence d'initialisation ELM327 PROFESIONNELLE ──────────────────
+      _log("INIT: Séquence de réveil Elite...");
+      await sendCommandWait('ATZ', delay: 1500);    // Reset complet
+      await sendCommandWait('ATE0', delay: 500);   // Echo OFF
+      await sendCommandWait('ATL0', delay: 500);   // Linefeed OFF
+      await sendCommandWait('ATS0', delay: 500);   // Spaces OFF (Optimisation débit)
+      await sendCommandWait('ATH0', delay: 500);   // Headers OFF (Sauf si multi-ECU demandé)
+      await sendCommandWait('ATSP0', delay: 1000); // Protocole Auto
+      await sendCommandWait('ATSTFF', delay: 500); // Timeout au maximum pour les calculateurs lents
+      await sendCommandWait('0100', delay: 1000);  // Test de com + sync protocole
 
       _ttsService.speak("Scanner Mimo Spark prêt.");
       _isReconnecting = false; // Reset d'état car succès
@@ -166,10 +168,16 @@ class ObdService {
         upper.startsWith('ATZ') ||
         upper.startsWith('ATE') ||
         upper.startsWith('ATL') ||
+        upper.startsWith('ATS') ||
         upper.startsWith('ATH') ||
         upper.startsWith('ATSP') ||
         upper.startsWith('ATSH') ||
-        upper.startsWith('SEARCHING');
+        upper.startsWith('ATST') ||
+        upper.startsWith('SEARCHING') ||
+        upper.startsWith('STOPPED') ||
+        upper.startsWith('ERROR') ||
+        upper.startsWith('?') ||
+        upper == 'CAN ERROR';
   }
 
   Future<void> sendCommandWait(String cmd, {int delay = 400}) async {
