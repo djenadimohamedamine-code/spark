@@ -50,6 +50,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   final Map<String, dynamic> _buffer = {};
   double _smoothVoltage = 0.0;
   double _smoothLph = 0.0;
+  double _smoothTemp = 0.0;
   
   // Cooldowns d'alertes par label (Pro Style)
   final Map<String, DateTime> _alertCooldowns = {};
@@ -238,7 +239,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     
     // Version ELITE/TESLA : on utilise les tokens (espaces) pour une fiabilité 100%
     List<String> parts = data.trim().toUpperCase().split(RegExp(r'\s+'));
-    String cleanData = data.replaceAll(' ', '').toUpperCase();
 
     // 1. RPM (010C -> 410C)
     if (parts.contains('41') && parts.contains('0C')) {
@@ -262,11 +262,15 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
       try {
         int idx = parts.indexOf('05') + 1;
         if (idx < parts.length) {
-          double val = (int.tryParse(parts[idx], radix: 16) ?? 40).toDouble() - 40.0;
-          _buffer['temp'] = val;
+          double rawVal = (int.tryParse(parts[idx], radix: 16) ?? 40).toDouble() - 40.0;
+          
+          // EMA Smoothing (0.85/0.15) pour éviter les sauts brusques
+          _smoothTemp = (_smoothTemp == 0) ? rawVal : (_smoothTemp * 0.85) + (rawVal * 0.15);
+          
+          _buffer['temp'] = _smoothTemp;
           _scheduleUpdate();
-          _checkAlert("TEMP_98", val, 98, 10, "Attention Mimo, 98 degrés.");
-          _checkAlert("TEMP_103", val, 103, 5, "Critique ! temp 103 !");
+          _checkAlert("TEMP_98", _smoothTemp, 98, 10, "Attention Mimo, 98 degrés.");
+          _checkAlert("TEMP_103", _smoothTemp, 103, 5, "Critique ! temp 103 !");
         }
       } catch (_) {}
     }

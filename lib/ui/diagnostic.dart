@@ -20,6 +20,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
   // Utilise l'obdService partagé via widget.obdService (déjà connecté)
   ObdService get _obdService => widget.obdService;
   List<String> _currentErrors = [];
+  List<Map<String, String>> _resolvedErrors = [];
   bool _isLoading = false;
 
   StreamSubscription? _dtcSubscription;
@@ -27,7 +28,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
   @override
   void initState() {
     super.initState();
-    DtcDatabase.loadCodes();
+    _loadDtcDb();
     // On écoute le flux DTC dédié, pas le flux jauges général
     _dtcSubscription = _obdService.dtcStream.listen((data) {
       if (_isLoading) _parseDiagnosticData(data);
@@ -41,19 +42,31 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
     super.dispose();
   }
 
+  Future<void> _loadDtcDb() async {
+    await DtcDatabase.loadCodes();
+  }
+
   void _scanDtc() async {
     setState(() {
       _isLoading = true;
       _currentErrors.clear();
+      _resolvedErrors.clear();
     });
     _ttsService.speak("Lancement du diagnostic expert Mimo Spark.");
     
     // Attente dynamique du scan (Plus rapide et précis)
     await _obdService.scanTroubleCodes();
 
+    // Résolution asynchrone des codes trouvés
+    final resolved = await DtcDatabase.resolveAll(_currentErrors);
+
     if (mounted) {
-      setState(() => _isLoading = false);
-      if (_currentErrors.isEmpty) {
+      setState(() {
+        _isLoading = false;
+        _resolvedErrors = resolved;
+      });
+      
+      if (_resolvedErrors.isEmpty) {
         _ttsService.speak("Diagnostic terminé. Aucun code d'erreur trouvé.");
       } else {
         _showClearConfirmDialog();
@@ -306,7 +319,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
 
           // Zone de résultats
           Expanded(
-            child: _currentErrors.isEmpty
+            child: _resolvedErrors.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -328,22 +341,27 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
                     ),
                   )
                 : ListView.builder(
-                    itemCount: _currentErrors.length,
+                    itemCount: _resolvedErrors.length,
                     itemBuilder: (context, index) {
-                      String code = _currentErrors[index];
-                      bool isNrc = code.startsWith('Refus ECU');
+                      final item = _resolvedErrors[index];
+                      String code = item['code'] ?? 'UNK';
+                      String msg = item['msg'] ?? '...';
+                      String sev = item['sev'] ?? 'info';
+                      
+                      bool isNrc = code.startsWith('ECU Refus');
+                      Color textColor = sev == 'critique' ? Colors.redAccent : (sev == 'alerte' ? Colors.orangeAccent : Colors.grey);
+
                       return Card(
-                        color: isNrc ? Colors.red[900] : Colors.grey[900],
+                        color: isNrc || sev == 'critique' ? const Color(0xFF2A0000) : const Color(0xFF1A1A1A),
                         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: isNrc ? Colors.red : Colors.white10)),
                         child: ListTile(
                           leading: Icon(
-                            isNrc ? Icons.block : Icons.warning,
-                            color: isNrc ? Colors.red[300] : Colors.orange,
+                            isNrc || sev == 'critique' ? Icons.report_problem : (sev == 'alerte' ? Icons.warning : Icons.info_outline),
+                            color: isNrc || sev == 'critique' ? Colors.red : (sev == 'alerte' ? Colors.orange : Colors.blueGrey),
                           ),
-                          title: Text(code, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13)),
-                          subtitle: isNrc
-                              ? const Text('ECU a refusé la commande. Voir LOG.', style: TextStyle(color: Colors.redAccent))
-                              : Text(DtcDatabase.getDescription(code), style: const TextStyle(color: Colors.grey)),
+                          title: Text(code, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13, letterSpacing: 1.1)),
+                          subtitle: Text(msg, style: TextStyle(color: textColor, fontSize: 12)),
                         ),
                       );
                     },

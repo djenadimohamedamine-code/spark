@@ -187,11 +187,15 @@ class ObdService {
     
     sub = dtcStream.listen((data) {
       buffer += "$data ";
-      // Note : ObdService.listen s'assure d'émettre seulement quand '>' est reçu
-      if (!completer.isCompleted) completer.complete(buffer);
     });
 
     sendCommand(cmd);
+
+    // Version PRO : On attend le timeout complet pour capter TOUTES les lignes (multi-frame)
+    Future.delayed(Duration(seconds: timeoutSec), () {
+      if (!completer.isCompleted) completer.complete(buffer.trim());
+    });
+
 
     try {
       return await completer.future.timeout(Duration(seconds: timeoutSec));

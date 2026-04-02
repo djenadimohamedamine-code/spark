@@ -7,8 +7,11 @@ class FuelCalculator {
   bool lowFuelAlerted = false;
   int _lastAlertedKm = -1;
 
-  static const double _consumptionL100 = 9.5; // Consommation Spark 2009 : 9.5 L/100km
+  static const double _consumptionL100 = 9.5;
   static const double _tankCapacity = 35.0;
+  static const double _fuelDensity = 750.0;  // g/L essence SP95
+  static const double _afr = 14.7;           // Air-Fuel Ratio stœchiométrique
+  DateTime _lastSave = DateTime.fromMillisecondsSinceEpoch(0);
 
   // Initialise en chargeant la dernière valeur sauvegardée
   Future<void> init() async {
@@ -18,10 +21,7 @@ class FuelCalculator {
     final lastTimestamp = prefs.getInt('last_session_timestamp') ?? 0;
 
     if (savedFuel != null) {
-      currentLiters = savedFuel;
-      // Le rattrapage temporel a été supprimé car il vidait l'essence quand la voiture était garée.
-      // Si l'utilisateur conduit sans l'application, il devra recaler l'aiguille manuellement
-      // via le menu "Calibrage Essence" (qui met à jour cette sauvegarde).
+      currentLiters = savedFuel.clamp(0.0, _tankCapacity);
     }
     await _save();
   }
@@ -29,6 +29,8 @@ class FuelCalculator {
   // Calibrage manuel par l'utilisateur (bouton dans le menu)
   Future<void> calibrate(double liters) async {
     currentLiters = liters.clamp(0.0, _tankCapacity);
+    lowFuelAlerted = false;
+    _lastAlertedKm = -1;
     await _save();
     _ttsService.speak("Niveau essence calé à ${liters.toStringAsFixed(1)} litres.");
   }
@@ -56,15 +58,15 @@ class FuelCalculator {
         _ttsService.speakAlert('Mimo, autonomie basse à $alertDecade kilomètres.');
         _lastAlertedKm = alertDecade;
       }
-    } else if (km > 100) {
+    } else if (km > 110) {
       _lastAlertedKm = -1;
     }
   }
 
-  // Calcule L/h depuis le débit MAF (g/s)
+  // MAF (g/s) → L/h
   double calculateConsumptionLph(double mafGs) {
     if (mafGs <= 0) return 0.0;
-    return (mafGs * 3600.0) / (14.7 * 737.0);
+    return (mafGs / (_afr * _fuelDensity)) * 3600.0;
   }
 
   // Mise à jour directe si le PID 012F répond (rare sur Spark)
@@ -83,6 +85,10 @@ class FuelCalculator {
   }
 
   void _saveAsync() {
-    _save(); // fire and forget
+    final now = DateTime.now();
+    if (now.difference(_lastSave).inSeconds >= 30) {
+      _lastSave = now;
+      _save();
+    }
   }
 }
