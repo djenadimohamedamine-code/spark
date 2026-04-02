@@ -134,7 +134,10 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
 
   void _parseDiagnosticData(String data) {
     String raw = data.trim().toUpperCase();
-    print("DTC RAW: $raw"); // Log expert pour Mimo
+    print("DTC RAW: $raw");
+
+    // Support avec ET sans espaces (ATS0/ATS1) — Stratégie Fusion
+    String fused = raw.replaceAll(RegExp(r'\s+'), '');
     List<String> parts = raw.split(RegExp(r'\s+'));
 
     // 1. Détection NRC (7F) avec décodage expert
@@ -153,44 +156,41 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
       return;
     }
 
-    // 2. Détection ISO-TP (Multi-frame)
-    // On ignore les octets de contrôle 10 (First Frame) et 21 (Consecutive)
-    // On cherche les marqueurs 43, 47, 4A (DTC Responses)
-    int markerIdx = parts.indexWhere((p) => p == '43' || p == '47' || p == '4A');
-    if (markerIdx == -1) return;
+    // 2. Parsing sur chaîne fusionnée (Robustesse Elite)
+    List<String> codesTrouves = [];
 
-    try {
-      List<String> codesTrouves = [];
-      
-      // On commence après le marqueur 43/47/4A
-      for (int i = markerIdx + 1; i + 1 < parts.length; i += 2) {
-        String highByte = parts[i];
-        String lowByte = parts[i + 1];
+    // Marqueurs DTC standards (Mode 03, 07, 0A)
+    for (String marker in ['43', '47', '4A']) {
+      int idx = fused.indexOf(marker);
+      if (idx == -1) continue;
 
-        // Ignorer les octets de contrôle CAN (21, 22...) s'ils apparaissent entre les paires
-        if (highByte.length != 2 || lowByte.length != 2) continue;
-        if (highByte == '00' && lowByte == '00') continue; // On continue au lieu de break (expert point 4)
+      // On commence après le marqueur (2 car.) + l'octet suivant (2 car.) = +4 car.
+      int start = idx + 4;
 
-        // Si l'octet ressemble à un index de frame ISO-TP (21 à 2F), on le saute
-        // On vérifie que c'est bien un octet de contrôle CAN (souvent seul ou en début de ligne ELM)
-        int? val = int.tryParse(highByte, radix: 16);
-        if (val != null && val >= 0x21 && val <= 0x2F && i % 2 != 0) {
-           i -= 1; // On décale pour reprendre la vraie paire de données DTC
-           continue;
-        }
+      while (start + 3 < fused.length) {
+        String highHex = fused.substring(start, start + 2);
+        String lowHex = fused.substring(start + 2, start + 4);
+        
+        // On avance de paire d'octets (4 caractères hex)
+        start += 4;
 
-        String obdCode = _convertBytesToDtc(highByte, lowByte);
-        if (obdCode.isNotEmpty && obdCode != "P0000") codesTrouves.add(obdCode);
+        // Ignorer les octets de contrôle ISO-TP (21 à 2F) dans le flux fusionné
+        int? val = int.tryParse(highHex, radix: 16);
+        if (val != null && val >= 0x21 && val <= 0x2F) continue;
+
+        if (highHex == '00' && lowHex == '00') continue;
+
+        String code = _convertBytesToDtc(highHex, lowHex);
+        if (code.isNotEmpty && code != 'P0000') codesTrouves.add(code);
       }
+      break; 
+    }
 
-      if (mounted && codesTrouves.isNotEmpty) {
-        setState(() {
-          _currentErrors.addAll(codesTrouves);
-          _currentErrors = _currentErrors.toSet().toList();
-        });
-      }
-    } catch (e) {
-      // Sourd
+    if (mounted && codesTrouves.isNotEmpty) {
+      setState(() {
+        _currentErrors.addAll(codesTrouves);
+        _currentErrors = _currentErrors.toSet().toList();
+      });
     }
   }
 
