@@ -292,33 +292,36 @@ class ObdService {
     }
   }
 
-  // ── Scan des codes DTC (Mode 03 + 07 + 0A) — Version Elite (Full Reset) ────
+  // ── Scan des codes DTC (Mode 03 + 07 + 0A) — Version KWP Expert (Spark) ──────
   Future<void> scanTroubleCodes() async {
     _isDiagnosticMode = true;
     _isPolling = false; // Stop total du polling pour éviter les conflits
-    _log("SCAN PRO: Arrêt du polling et bascule en mode Scan Expert (Full Reset)...");
+    _log("SCAN PRO: Arrêt du polling et bascule en mode KWP Expert...");
 
     try {
       await Future.delayed(const Duration(seconds: 1));
       _tcpBuffer = ''; 
 
       // ✅ Reset complet comme au démarrage — revenir à l'état "propre"
-      _log("SCAN: Initialisation matériel (Reset ATZ)...");
+      _log("SCAN: Initialisation KWP2000 (Reset ATZ)...");
       await sendCommandWait('ATZ', delay: 2000);
       await sendCommandWait('ATE0', delay: 500);
       await sendCommandWait('ATL0', delay: 500);
-      await sendCommandWait('ATS1', delay: 500);  // Spaces ON pour parser les bytes
-      await sendCommandWait('ATH1', delay: 500);  // Headers ON — ECU répond mieux aux DTC
-      await sendCommandWait('ATSP0', delay: 1500); // AUTO — laisse l'ELM choisir (CAN/KWP)
-      await sendCommandWait('0100', delay: 1500);  // Sync ECU
+      await sendCommandWait('ATS1', delay: 500);  // Spaces ON pour parser les octets KWP
+      await sendCommandWait('ATH1', delay: 500);  // Headers ON — indispensable en KWP
+      
+      // ✅ Protocole KWP2000 (Type 5) pour Daewoo/Spark
+      await sendCommandWait('ATSP5', delay: 1500); 
+      await sendCommandWait('0100', delay: 1500);  // Sync ECU (Tester adress 0x11)
       _tcpBuffer = '';
 
-      // On teste les headers essentiels pour toucher tous les calculateurs
-      List<String> headers = ["7E0", "7E8", "7DF"];
+      // On teste les adresses ECU probables en KWP (11 = Moteur Spark)
+      List<String> addresses = ["11", "10", "01"];
       
-      for (var h in headers) {
-        _log("SCAN: Test Header $h...");
-        await sendCommandWait("ATSH $h", delay: 800);
+      for (var addr in addresses) {
+        _log("SCAN: Test Adresse ECU $addr...");
+        // Format Header KWP: 86 (Long) + F1 (Tester) + Addr (ECU)
+        await sendCommandWait("ATSH 86 F1 $addr", delay: 800);
 
         _tcpBuffer = '';
         sendCommand("03");
@@ -337,19 +340,19 @@ class ObdService {
     } catch (e) {
       _log("Erreur Scan DTC: $e");
     } finally {
-      // ✅ Restore état polling normal (Elite - Fast)
+      // ✅ Restore état polling normal (Elite - Fast Dashboard)
       _log("SCAN: Restauration mode Dashboard Elite (ATH0/ATS0)...");
       await sendCommandWait('ATZ', delay: 2000);
       await sendCommandWait('ATE0', delay: 500);
       await sendCommandWait('ATL0', delay: 500);
       await sendCommandWait('ATS0', delay: 500);  // Spaces OFF pour polling rapide
       await sendCommandWait('ATH0', delay: 500);  // Headers OFF
-      await sendCommandWait('ATSP0', delay: 1500);
+      await sendCommandWait('ATSP0', delay: 1500); // Retour AUTO
       await sendCommandWait('0100', delay: 1000);
       _tcpBuffer = '';
       _isDiagnosticMode = false;
-      _isPolling = false; // Reset pour redémarrage propre via _startPolling
-      _startPolling();    // Reprise du polling
+      _isPolling = false; 
+      _startPolling();    
     }
   }
 
