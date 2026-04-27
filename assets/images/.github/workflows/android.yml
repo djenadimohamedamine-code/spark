@@ -1,0 +1,52 @@
+# Trigger Build Final v6 - Optimized Structural Sync
+name: CarteNabil-Android-Build-APK-Final
+
+# on:
+#   push:
+#     branches: [ main, master ]
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.3'
+          channel: 'stable'
+
+      - name: Clean Gradle cache
+        run: rm -rf ~/.gradle/caches
+
+      - name: Prepare Build Files
+        run: |
+          # Use local files but ensure R8 tool is available in buildscript if needed for the engine
+          # However, the user said B) rebuild complete (recommende). Let's do B partly by forcing structures.
+          
+          # Inject Google Services JSON
+          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" ]; then
+            echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
+          fi
+
+      - name: Build APK Release
+        run: |
+          flutter pub get
+          flutter build apk --release --target-platform android-arm64
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ASSIMA-10-Final-APK
+          path: build/app/outputs/flutter-apk/app-release.apk

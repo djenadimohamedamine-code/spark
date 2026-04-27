@@ -14,6 +14,12 @@ import '../core/gear_calculator.dart';
 import 'diagnostic.dart';
 import 'mileage_page.dart';
 import 'map_page.dart';
+import 'daily_report_page.dart';
+import 'settings_page.dart';
+import 'ride_summary_dialog.dart';
+import '../core/background_service.dart';
+import '../logic/analytics_engine.dart';
+import 'package:intl/intl.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -56,6 +62,15 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   final Map<String, DateTime> _alertCooldowns = {};
 
   StreamSubscription<String>? _obdSubscription;
+  Timer? _dataSyncTimer;
+
+  // Ride Tracking
+  bool isRideActive = false;
+  int? rideStartTime;
+  double startFuelLiters = 0.0;
+  double rideDistance = 0.0;
+  double _lastLat = 0.0;
+  double _lastLng = 0.0;
 
   // Calcul du score de santé (Health Score)
   int get healthScore {
@@ -90,7 +105,45 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     WakelockPlus.enable();
     _fuelCalculator.init();
     _loadFuelCalibration(); // Charger le calibrage sauvegardé
-    _connectObd();
+    // _connectObd(); // Désactivé : Le Foreground Service gère la connexion maintenant
+    _startDataSync();
+  }
+
+  void _startDataSync() {
+    _dataSyncTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) async {
+      final prefs = await SharedPreferences.getInstance();
+      
+      if (mounted) {
+        setState(() {
+          rpm = prefs.getDouble(SparkServiceKeys.rpm) ?? rpm;
+          speed = prefs.getDouble(SparkServiceKeys.speed) ?? speed;
+          temperature = prefs.getDouble(SparkServiceKeys.temp) ?? temperature;
+          tension = prefs.getDouble(SparkServiceKeys.voltage) ?? tension;
+          
+          // Update Gear
+          currentGear = (speed < 5 || rpm < 1000) ? 'N' : GearCalculator.calculateGear(rpm.toInt(), speed.toInt());
+          
+          // Update Fuel from Service Lph
+          double lph = prefs.getDouble(SparkServiceKeys.fuelLph) ?? 0.0;
+          if (lph > 0) {
+             _fuelCalculator.updateVirtualFuel(lph, 0.5); 
+          }
+
+          // Update Ride Distance if active
+          if (isRideActive && speed > 0) {
+            rideDistance += (speed * (0.5 / 3600.0));
+          }
+          // Sync raw telegram for Scan DTC / Logs
+          String? raw = prefs.getString(SparkServiceKeys.rawTelegram);
+          if (raw != null && _obdService.socket == null) {
+             _appendLog(raw);
+             _parseObdData(raw);
+             // Clear to avoid duplicate processing
+             await prefs.remove(SparkServiceKeys.rawTelegram);
+          }
+        });
+      }
+    });
   }
 
   Future<void> _loadFuelCalibration() async {
@@ -380,6 +433,14 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.receipt_long, color: Colors.greenAccent),
+                title: const Text('Bilan Journalier', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const DailyReportPage()));
+                },
+              ),
+              ListTile(
                 leading: Icon(isHudMode ? Icons.flip_to_front : Icons.flip_to_back, color: Colors.cyanAccent),
                 title: Text(isHudMode ? 'Mode Normal' : 'Mode HUD (Miroir)', style: const TextStyle(color: Colors.cyanAccent)),
                 onTap: () {
@@ -395,6 +456,14 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 onTap: () {
                   Navigator.pop(context);
                   _showFuelCalibrationDialog();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.settings, color: Colors.grey),
+                title: const Text('Configuration', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsPage()));
                 },
               ),
             ],
@@ -428,16 +497,23 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.speed, color: Colors.redAccent, size: 24),
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                'MIMO SPARK V4.31',
-                                style: const TextStyle(color: Colors.greenAccent, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.0, fontStyle: FontStyle.italic),
-                                overflow: TextOverflow.ellipsis,
+                            // Bouton Start/Stop discret
+                            GestureDetector(
+                              onTap: _toggleRide,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: isRideActive ? Colors.red.withOpacity(0.2) : Colors.green.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: isRideActive ? Colors.red : Colors.green, width: 1),
+                                ),
+                                child: Text(
+                                  isRideActive ? 'STOP' : 'START',
+                                  style: TextStyle(color: isRideActive ? Colors.red : Colors.green, fontSize: 10, fontWeight: FontWeight.bold),
+                                ),
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 15),
                             // Indicateur de statut
                             Container(
                               width: 8, height: 8,
@@ -474,7 +550,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                           child: Column(
                             children: [
                               if (!isHudMode) ...[
-                                _buildBatteryStatus(),
+                                _buildClock(),
                                 const SizedBox(height: 16),
                                 Row(
                                   children: [
@@ -500,17 +576,24 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                         ),
                       ),
                     ),
-                    // CONSOLE DE LOG
+                    // CONSOLE DE LOG + BATTERY
                     Container(
-                      height: 40,
+                      height: 50,
                       width: double.infinity,
                       color: Colors.black.withOpacity(0.8),
-                      child: SingleChildScrollView(
-                        reverse: true,
-                        child: Padding(
-                          padding: const EdgeInsets.all(4.0),
-                          child: Text(rawLog, style: const TextStyle(color: Colors.greenAccent, fontSize: 8, fontFamily: 'monospace')),
-                        ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: SingleChildScrollView(
+                              reverse: true,
+                              child: Padding(
+                                padding: const EdgeInsets.all(4.0),
+                                child: Text(rawLog, style: const TextStyle(color: Colors.greenAccent, fontSize: 8, fontFamily: 'monospace')),
+                              ),
+                            ),
+                          ),
+                          _buildBatteryMini(),
+                        ],
                       ),
                     ),
                   ],
@@ -523,55 +606,69 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildBatteryStatus() {
-    int health = healthScore;
-    Color healthColor = health > 90 ? Colors.greenAccent : (health > 70 ? Colors.orangeAccent : Colors.redAccent);
-
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-          decoration: BoxDecoration(
-            color: Colors.black54,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: healthColor.withOpacity(0.3)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.favorite, color: healthColor, size: 14),
-              const SizedBox(width: 6),
-              Text('ENGINE HEALTH: $health%', style: TextStyle(color: healthColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.black87, Colors.grey.shade900],
-              begin: Alignment.topLeft, end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: tension > 13.5 ? Colors.green.withOpacity(0.5) : Colors.orange.withOpacity(0.5), width: 1.5),
-            boxShadow: [
-              BoxShadow(color: (tension > 13.5 ? Colors.green : Colors.orange).withOpacity(0.2), blurRadius: 10, spreadRadius: 1)
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(tension > 13.5 ? Icons.battery_charging_full : Icons.battery_alert, 
-                   color: tension > 13.5 ? Colors.greenAccent : Colors.orangeAccent, size: 24),
-              const SizedBox(width: 8),
-              Text('${tension.toStringAsFixed(1)} V', 
-                   style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
-            ],
-          ),
-        ),
-      ],
+  Widget _buildClock() {
+    return StreamBuilder(
+      stream: Stream.periodic(const Duration(seconds: 1)),
+      builder: (context, snapshot) {
+        return Text(
+          DateFormat('HH:mm').format(DateTime.now()),
+          style: const TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.w300, letterSpacing: 2),
+        );
+      },
     );
+  }
+
+  Widget _buildBatteryMini() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(tension > 13.5 ? Icons.battery_charging_full : Icons.battery_std, 
+               color: tension > 13.5 ? Colors.greenAccent : Colors.orangeAccent, size: 14),
+          const SizedBox(width: 4),
+          Text('${tension.toStringAsFixed(1)}V', 
+               style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  void _toggleRide() {
+    if (!isRideActive) {
+      // START
+      setState(() {
+        isRideActive = true;
+        rideStartTime = DateTime.now().millisecondsSinceEpoch;
+        startFuelLiters = _fuelCalculator.currentLiters;
+        rideDistance = 0.0;
+      });
+      _ttsService.speak("Course démarrée. Bonne route Mimo.");
+    } else {
+      // STOP
+      final endTime = DateTime.now().millisecondsSinceEpoch;
+      final fuelConsumed = startFuelLiters - _fuelCalculator.currentLiters;
+      
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => RideSummaryDialog(
+          fuelLiters: fuelConsumed < 0 ? 0 : fuelConsumed,
+          distanceKm: rideDistance,
+          onValidate: (amount) async {
+            await AnalyticsEngine().saveRide(
+              startTime: rideStartTime!,
+              endTime: endTime,
+              fuelLiters: fuelConsumed < 0 ? 0 : fuelConsumed,
+              earnedDa: amount,
+              distanceKm: rideDistance,
+            );
+            setState(() => isRideActive = false);
+            _ttsService.speak("Course enregistrée. Bénéfice calculé.");
+          },
+        ),
+      );
+    }
   }
 
   // --- GAUGE DESIGN METRICS ---

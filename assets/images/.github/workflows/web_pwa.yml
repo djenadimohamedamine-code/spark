@@ -1,0 +1,48 @@
+name: CarteNabil-Web-PWA
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Enable Web Support
+        run: flutter config --enable-web
+        
+      - name: Create Web Native Folder
+        run: flutter create --org com.supportclub.carte --project-name carte_nabil . --platforms=web --no-overwrite
+
+      - name: Fix App Name & Manifest
+        run: |
+          sed -i 's/<title>carte_nabil<\/title>/<title>ASSIMA-10<\/title>/g' web/index.html || true
+          sed -i 's/"name": "carte_nabil"/"name": "ASSIMA-10"/g' web/manifest.json || true
+          sed -i 's/"short_name": "carte_nabil"/"short_name": "ASSIMA-10"/g' web/manifest.json || true
+          sed -i 's/"background_color": "#0175C2"/"background_color": "#FFC107"/g' web/manifest.json || true
+
+      - name: Fetch Dependencies
+        run: flutter pub get
+
+      - name: Build Web App
+        run: flutter build web --release --base-href "/carte-nabil/"
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build/web

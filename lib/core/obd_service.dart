@@ -1,6 +1,6 @@
-import 'dart:async';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import '../vocal/tts_service.dart';
 
 class ObdService {
@@ -32,6 +32,14 @@ class ObdService {
   Stream<String> get mileageStream => _mileageStreamController.stream;
 
   final TtsService _ttsService = TtsService();
+
+  // ─── Valeurs temps réel exposées (lues par background_service.dart) ─────────
+  double lastRpm     = 0.0;
+  double lastSpeed   = 0.0;
+  double lastTemp    = 0.0;
+  double lastVoltage = 0.0;
+  double lastMapKpa  = 0.0;
+  double lastFuelLph = 0.0;
 
   // Tampon TCP — on accumule jusqu'à voir '>' (fin de trame ELM327)
   // CRITIQUE : Sans tampon, plusieurs réponses se collent (bug vu dans les logs)
@@ -118,6 +126,7 @@ class ObdService {
               }
 
               _log("CLEAN: $telegram");
+              _updateLastValues(telegram); // Sync pour background service
               if (!_dataStreamController.isClosed) {
                 _dataStreamController.add(telegram);
               }
@@ -184,6 +193,47 @@ class ObdService {
         upper.startsWith('ERROR') ||
         upper.startsWith('?') ||
         upper == 'CAN ERROR';
+  }
+
+  // ── Parsing léger pour mettre à jour les last* values (bg service) ────────
+  void _updateLastValues(String telegram) {
+    try {
+      List<String> p = telegram.trim().toUpperCase().split(RegExp(r'\s+'));
+      for (int i = 0; i < p.length - 1; i++) {
+        if (p[i] == '41') {
+          switch (p[i + 1]) {
+            case '0C': // RPM
+              if (i + 3 < p.length) {
+                int a = int.tryParse(p[i + 2], radix: 16) ?? 0;
+                int b = int.tryParse(p[i + 3], radix: 16) ?? 0;
+                lastRpm = ((a * 256) + b) / 4.0;
+              }
+              break;
+            case '0D': // Speed
+              if (i + 2 < p.length) lastSpeed = (int.tryParse(p[i + 2], radix: 16) ?? 0).toDouble();
+              break;
+            case '05': // Temp
+              if (i + 2 < p.length) lastTemp = ((int.tryParse(p[i + 2], radix: 16) ?? 40) - 40).toDouble();
+              break;
+            case '0B': // MAP kPa
+              if (i + 2 < p.length) {
+                lastMapKpa = (int.tryParse(p[i + 2], radix: 16) ?? 0).toDouble();
+                final ve = 0.75 + (lastRpm / 10000.0);
+                final tempK = (lastTemp > 0 ? lastTemp : 60) + 273.15;
+                final mafGs = (lastRpm * lastMapKpa / 120.0) * ve * (28.97 / 8.314) / tempK;
+                lastFuelLph = mafGs > 0 ? (mafGs / (14.7 * 750.0)) * 3600.0 : 0.0;
+              }
+              break;
+          }
+        }
+      }
+      // Tension batterie (ATRV)
+      if (RegExp(r'\d+\.\d+V').hasMatch(telegram)) {
+        String v = telegram.replaceAll(RegExp(r'[^0-9.]'), '');
+        double vol = double.tryParse(v) ?? 0.0;
+        if (vol > 5.0 && vol < 16.0) lastVoltage = vol;
+      }
+    } catch (_) {}
   }
 
   Future<void> sendCommandWait(String cmd, {int delay = 400}) async {
@@ -377,6 +427,9 @@ class ObdService {
     if (_socket != null) {
       _log("SENT: $command");
       _socket!.write('$command\r');
+    } else {
+      // Proxy via Background Service si socket local absent
+      FlutterBackgroundService().invoke('sendCommand', {'command': command});
     }
   }
 

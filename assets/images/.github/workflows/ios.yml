@@ -1,0 +1,138 @@
+name: CarteNabil-iOS-Build-Final-Fix
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.3'
+
+      - name: Mise à jour des dépendances
+        run: |
+          flutter pub upgrade --major-versions
+          flutter pub get
+
+      - name: Reconstruction & Forçage iOS 16
+        run: |
+          rm -rf ios/
+          flutter create --project-name=carte_nabil --platforms=ios --org com.supportclub .
+          
+          # On corrige le Bundle ID pour qu'il corresponde EXACTEMENT à Firebase (avec le N majuscule)
+          /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.supportclub.carteNabil" ios/Runner/Info.plist
+          
+          # Injection du fichier GoogleService-Info.plist (CRUCIAL pour éviter le crash)
+          cat <<EOF > ios/Runner/GoogleService-Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>API_KEY</key>
+            <string>AIzaSyBo7b1MlMUiGdHMBDUIf2XVjWK3eWyVvOg</string>
+            <key>GCM_SENDER_ID</key>
+            <string>911900427556</string>
+            <key>PLIST_VERSION</key>
+            <string>1</string>
+            <key>BUNDLE_ID</key>
+            <string>com.supportclub.carteNabil</string>
+            <key>PROJECT_ID</key>
+            <string>elite-by-s</string>
+            <key>STORAGE_BUCKET</key>
+            <string>elite-by-s.firebasestorage.app</string>
+            <key>IS_ADS_ENABLED</key>
+            <false></false>
+            <key>IS_ANALYTICS_ENABLED</key>
+            <false></false>
+            <key>IS_APPINVITE_ENABLED</key>
+            <true></true>
+            <key>IS_GCM_ENABLED</key>
+            <true></true>
+            <key>IS_SIGNIN_ENABLED</key>
+            <true></true>
+            <key>GOOGLE_APP_ID</key>
+            <string>1:911900427556:ios:970d722b3514a254b51fb1</string>
+          </dict>
+          </plist>
+          EOF
+
+          # On réécrit le Podfile pour imposer iOS 16.0 partout
+          cat <<EOF > ios/Podfile
+          platform :ios, '16.0'
+          ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+          
+          project 'Runner', {
+            'Debug' => :debug,
+            'Profile' => :release,
+            'Release' => :release,
+          }
+          
+          def flutter_root
+            generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+            File.foreach(generated_xcode_build_settings_path) do |line|
+              matches = line.match(/FLUTTER_ROOT=(.*)/)
+              return matches[1].strip if matches
+            end
+            raise "FLUTTER_ROOT not found"
+          end
+          
+          require File.expand_path(File.join(flutter_root, 'packages', 'flutter_tools', 'bin', 'podhelper'))
+          
+          flutter_ios_podfile_setup
+          
+          target 'Runner' do
+            use_frameworks!
+            use_modular_headers!
+            flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+          end
+          
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              flutter_additional_ios_build_settings(target)
+              target.build_configurations.each do |config|
+                # On force iOS 16.0 pour satisfaire ML Kit et Firebase 12+
+                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
+                config.build_settings['CLANG_ENABLE_CODE_COVERAGE'] = 'NO'
+                config.build_settings['GCC_GENERATE_DEBUGGING_SYMBOLS'] = 'NO'
+              end
+            end
+          end
+          EOF
+
+      - name: Injection des permissions (Fix Crash Startup)
+        run: |
+          PLIST="ios/Runner/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Application USMA Zone 14 souhaite utiliser la camera pour le scanner de cartes'" $PLIST || true
+          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Application USMA Zone 14 souhaite utiliser le micro'" $PLIST || true
+
+      - name: Install Pods
+        run: |
+          cd ios
+          pod install --repo-update
+          cd ..
+
+      - name: Build iOS
+        run: |
+          flutter clean
+          flutter pub get
+          # Le build final
+          flutter build ios --release --no-codesign
+
+      - name: Create IPA for Sideloadly
+        run: |
+          mkdir -p Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/
+          zip -r CarteNabil.ipa Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: CarteNabil-iOS-IPA-Final
+          path: CarteNabil.ipa

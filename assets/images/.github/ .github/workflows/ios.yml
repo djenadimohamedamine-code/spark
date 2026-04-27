@@ -1,0 +1,40 @@
+name: CarteNabil-iOS-Build
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.3'
+          channel: 'stable'
+
+      - name: Regenerate Platforms
+        run: |
+          flutter create --platforms=ios,web,android .
+          # Ensure camera permissions are added to Info.plist
+          sed -i '' '/<dict>/a \
+          <key>NSCameraUsageDescription</key> \
+          <string>Cette application utilise la camera pour scanner les cartes de membre.</string> \
+          ' ios/Runner/Info.plist
+
+      - name: Build iOS (No Codesign)
+        run: |
+          flutter pub get
+          flutter build ios --release --no-codesign
+
+      - name: Upload iOS App Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ASSIMA-10-iOS-App
+          path: build/ios/iphoneos/Runner.app

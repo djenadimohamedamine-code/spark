@@ -4,6 +4,7 @@ import 'package:audioplayers/audioplayers.dart';
 // MIMO SPARK V3.4 - RESTART DUAL BUILD APK & IPA
 import 'ui/dashboard.dart';
 import 'vocal/tts_service.dart';
+import 'core/background_service.dart';
 
 import 'package:permission_handler/permission_handler.dart';
 
@@ -28,6 +29,9 @@ void main() async {
   
   // Appeler le forçage des permissions selon le brief de Mimo
   await requestSparkPermissions();
+
+  // Initialiser le Foreground Service pour la stabilité OBD
+  await initBackgroundService();
 
   runApp(const MimoSmartCarApp());
 }
