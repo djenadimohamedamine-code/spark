@@ -37,13 +37,23 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   double tension = 0.0;
   String currentGear = 'N';
   bool isHudMode = false;
+  bool showDebugConsole = true; // Affichée par défaut pour le debug
 
   DateTime lastMafTime = DateTime.now();
   bool rpmAlertTriggered = false;
   
   // Console de Log pour Mimo
-  final Queue<String> _logQueue = Queue<String>();
+  final List<String> _mimoLogs = [];
   String rawLog = "En attente de données...";
+  
+  void _addLog(String msg) {
+    final time = DateFormat('HH:mm:ss').format(DateTime.now());
+    setState(() {
+      _mimoLogs.insert(0, "[$time] $msg");
+      if (_mimoLogs.length > 50) _mimoLogs.removeLast();
+    });
+    print(msg);
+  }
   
   final TtsService _ttsService = TtsService();
   final FuelCalculator _fuelCalculator = FuelCalculator();
@@ -105,10 +115,11 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     WakelockPlus.enable();
     _fuelCalculator.init();
-    _loadFuelCalibration(); // Charger le calibrage sauvegardé
-    // _connectObd(); // Désactivé : Le Foreground Service gère la connexion maintenant
+    _loadFuelCalibration(); 
     _startDataSync();
 
+    _addLog("🚀 Mimo Spark Initialisée");
+    
     // Activer l'Armure Native Kotlin APRES le chargement de l'UI
     _activateNativeShield();
 
@@ -117,9 +128,11 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   }
 
   Future<void> _checkLastCrash() async {
+    _addLog("🔍 Vérification Crash précédent...");
     final prefs = await SharedPreferences.getInstance();
     final crash = prefs.getString('last_crash');
     if (crash != null) {
+      _addLog("⚠️ Crash détecté !");
       // On affiche l'erreur dans un dialogue
       showDialog(
         context: context,
@@ -141,12 +154,13 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   }
 
   Future<void> _activateNativeShield() async {
+    _addLog("🛡️ Armure Kotlin...");
     try {
       const platform = MethodChannel('mimo.spark/shield');
-      await platform.invokeMethod('activateShield');
-      print("Mimo Spark: Bouclier Natif Activé depuis le Dashboard !");
+      final result = await platform.invokeMethod('activateShield');
+      _addLog("✅ $result");
     } catch (e) {
-      print("Mimo Spark: Erreur d'activation du bouclier natif: $e");
+      _addLog("❌ Crash Shield: $e");
     }
   }
 
@@ -424,8 +438,63 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF050505),
+      body: Stack(
+        children: [
+          // L'interface actuelle
+          _buildMainDashboard(),
+          
+          // La Console de Debug (Style iPhone)
+          if (showDebugConsole)
+            Positioned(
+              bottom: 80,
+              left: 10,
+              right: 10,
+              child: GestureDetector(
+                onLongPress: () => setState(() => showDebugConsole = false),
+                child: Container(
+                  height: 150,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.85),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.cyanAccent.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text("CONSOLE MIMO SPARK", style: TextStyle(color: Colors.cyanAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.copy, color: Colors.white, size: 16),
+                                onPressed: () {
+                                  Share.share(_mimoLogs.join("\n"));
+                                  _addLog("📋 Logs copiés !");
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close, color: Colors.redAccent, size: 20),
+                                onPressed: () => setState(() => showDebugConsole = false),
+                              ),
+                            ],
+                          )
+                        ],
+                      ),
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: _mimoLogs.length,
+                          itemBuilder: (context, index) => Text(_mimoLogs[index], style: const TextStyle(color: Colors.white70, fontSize: 10, fontFamily: 'monospace')),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
       endDrawer: Drawer(
         child: Container(
           color: const Color(0xFF0F0F0F),
