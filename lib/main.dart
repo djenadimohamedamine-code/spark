@@ -35,11 +35,8 @@ void main() async {
     // 1. Demander les permissions
     await requestSparkPermissions();
     
-    // 2. PAUSE DE SÉCURITÉ (1 seconde) pour laisser Android respirer
-    await Future.delayed(const Duration(seconds: 1));
-    
-    // 3. Lancer le service seulement après
-    await initBackgroundService();
+    // On ne lance RIEN d'autre ici pour éviter le crash au démarrage.
+    // Tout sera lancé depuis le Dashboard après 2 secondes.
 
     runApp(const MimoSmartCarApp());
   }, (error, stack) async {

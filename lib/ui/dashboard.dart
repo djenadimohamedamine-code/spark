@@ -115,13 +115,20 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     WakelockPlus.enable();
     _fuelCalculator.init();
-    _loadFuelCalibration(); 
-    _startDataSync();
-
     _addLog("🚀 Mimo Spark Initialisée");
     
-    // Activer l'Armure Native Kotlin APRES le chargement de l'UI
-    _activateNativeShield();
+    // DEMARRAGE PASSIF (Style iPhone) : On attend que tout soit prêt
+    Timer(const Duration(seconds: 3), () async {
+      _addLog("⚙️ Lancement du Service OBD...");
+      try {
+        await initBackgroundService();
+        _addLog("✅ Service Actif");
+      } catch (e) {
+        _addLog("❌ Erreur Service: $e");
+      }
+      
+      _activateNativeShield();
+    });
 
     // Vérifier s'il y a eu un crash précédent
     _checkLastCrash();
