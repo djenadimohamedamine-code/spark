@@ -138,10 +138,14 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
           if (raw != null && _obdService.socket == null) {
              _appendLog(raw);
              _parseObdData(raw);
-             // Clear to avoid duplicate processing
-             await prefs.remove(SparkServiceKeys.rawTelegram);
           }
         });
+        
+        // Clear to avoid duplicate processing (must be outside setState)
+        String? raw = prefs.getString(SparkServiceKeys.rawTelegram);
+        if (raw != null && _obdService.socket == null) {
+             await prefs.remove(SparkServiceKeys.rawTelegram);
+        }
       }
     });
   }

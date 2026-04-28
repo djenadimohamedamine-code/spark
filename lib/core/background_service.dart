@@ -57,6 +57,7 @@ Future<bool> iosBackground(ServiceInstance service) async {
 void onServiceStart(ServiceInstance service) async {
   DartPluginRegistrant.ensureInitialized();
 
+  final obd = ObdService();
   if (service is AndroidServiceInstance) {
     // Écoute le signal "passer en background/foreground" depuis l'UI
     service.on('setAsForeground').listen((_) => service.setAsForegroundService());
@@ -71,7 +72,6 @@ void onServiceStart(ServiceInstance service) async {
     });
   }
 
-  final obd = ObdService();
   bool wasConnected = false;
 
   // Relay du stream vers SharedPreferences pour l'UI Isolate

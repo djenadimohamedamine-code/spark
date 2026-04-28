@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
 // MIMO SPARK V3.4 - RESTART DUAL BUILD APK & IPA
 import 'ui/dashboard.dart';
@@ -29,6 +30,15 @@ void main() async {
   
   // Appeler le forçage des permissions selon le brief de Mimo
   await requestSparkPermissions();
+
+  // Activer l'Armure Native Kotlin (WakeLock, WifiLock, NetworkBind)
+  try {
+    const platform = MethodChannel('mimo.spark/shield');
+    await platform.invokeMethod('activateShield');
+    print("Mimo Spark: Bouclier Natif Activé (WakeLock+WifiLock+NetworkBind)");
+  } catch (e) {
+    print("Mimo Spark: Impossible d'activer le bouclier natif: \$e");
+  }
 
   // Initialiser le Foreground Service pour la stabilité OBD
   await initBackgroundService();

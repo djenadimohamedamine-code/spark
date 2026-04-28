@@ -27,7 +27,12 @@ jobs:
           channel: 'stable'
 
       - name: Create Native Folders on Cloud
-        run: flutter create --org com.mimo . --platforms=android --no-overwrite
+        run: flutter create --org com.mimo.spark . --platforms=android --no-overwrite
+
+      - name: Inject Native Shield
+        run: |
+          mkdir -p android/app/src/main/kotlin/com/mimo/spark
+          cp native/android/MainActivity.kt android/app/src/main/kotlin/com/mimo/spark/MainActivity.kt
 
       - name: Upgrade Kotlin Version
         run: |
