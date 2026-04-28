@@ -588,7 +588,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
             ],
           ),
         ),
-      ),
     );
   }
 
