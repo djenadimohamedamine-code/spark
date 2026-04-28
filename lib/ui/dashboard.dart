@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_gauges/gauges.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../vocal/tts_service.dart';
@@ -107,6 +108,19 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     _loadFuelCalibration(); // Charger le calibrage sauvegardé
     // _connectObd(); // Désactivé : Le Foreground Service gère la connexion maintenant
     _startDataSync();
+
+    // Activer l'Armure Native Kotlin APRES le chargement de l'UI
+    _activateNativeShield();
+  }
+
+  Future<void> _activateNativeShield() async {
+    try {
+      const platform = MethodChannel('mimo.spark/shield');
+      await platform.invokeMethod('activateShield');
+      print("Mimo Spark: Bouclier Natif Activé depuis le Dashboard !");
+    } catch (e) {
+      print("Mimo Spark: Erreur d'activation du bouclier natif: $e");
+    }
   }
 
   void _startDataSync() {
