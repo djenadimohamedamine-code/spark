@@ -14,35 +14,40 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "mimo.spark/shield"
 
-    private var wakeLock: PowerManager.WakeLock? = null
-    private var wifiLock: WifiManager.WifiLock? = null
-
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             if (call.method == "activateShield") {
-                activateShield()
-                result.success(true)
+                val status = activateShield()
+                result.success(status)
             } else {
                 result.notImplemented()
             }
         }
     }
 
-    private fun activateShield() {
+    private fun activateShield(): String {
+        var log = "Shield: "
         try {
-            // 1. WakeLock (Garde le CPU éveillé)
             val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MimoSpark::WakeLock")
-            wakeLock?.acquire()
+            val wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MimoSpark::WakeLock")
+            wakeLock.acquire(10*60*1000L)
+            log += "WakeOK "
+        } catch (e: Exception) {
+            log += "WakeFail "
+        }
 
-            // 2. WifiLock (Garde l'antenne Wi-Fi à fond)
+        try {
             val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-            wifiLock = wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "MimoSpark::WifiLock")
-            wifiLock?.acquire()
+            val wifiLock = wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "MimoSpark::WifiLock")
+            wifiLock.acquire()
+            log += "WifiOK "
+        } catch (e: Exception) {
+            log += "WifiFail "
+        }
 
-            // 3. Network Binding (Force l'utilisation du Wi-Fi même sans internet)
+        try {
             val connManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
             val request = NetworkRequest.Builder()
                 .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
@@ -50,22 +55,16 @@ class MainActivity: FlutterActivity() {
 
             connManager.requestNetwork(request, object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
-                    super.onAvailable(network)
-                    // Bind the entire process to this Wi-Fi network
-                    connManager.bindProcessToNetwork(network)
-                    println("MimoSpark: Process is now bound to Wi-Fi network!")
+                    try {
+                        connManager.bindProcessToNetwork(network)
+                    } catch (e: Exception) {}
                 }
             })
-            
-            println("MimoSpark: Shield Activated (WakeLock + WifiLock + NetworkRequest)")
+            log += "NetOK"
         } catch (e: Exception) {
-            e.printStackTrace()
+            log += "NetFail "
         }
-    }
 
-    override fun onDestroy() {
-        wakeLock?.release()
-        wifiLock?.release()
-        super.onDestroy()
+        return log
     }
 }
