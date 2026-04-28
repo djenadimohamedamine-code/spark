@@ -32,7 +32,13 @@ void main() async {
     final ttsService = TtsService();
     await ttsService.init();
     
+    // 1. Demander les permissions
     await requestSparkPermissions();
+    
+    // 2. PAUSE DE SÉCURITÉ (1 seconde) pour laisser Android respirer
+    await Future.delayed(const Duration(seconds: 1));
+    
+    // 3. Lancer le service seulement après
     await initBackgroundService();
 
     runApp(const MimoSmartCarApp());
