@@ -55,7 +55,7 @@ jobs:
           sed -i 's/android:label=".*"/android:label="Mimo Spark"/' android/app/src/main/AndroidManifest.xml
           
           # 4. Declare the FlutterBackgroundService inside <application> (before closing tag)
-          sed -i 's|</application>|    <service android:name="id.flutter.flutter_background_service.BackgroundService" android:foregroundServiceType="connectedDevice" android:exported="false" />\n    </application>|' android/app/src/main/AndroidManifest.xml
+          sed -i 's|</application>|    <service android:name="id.flutter.flutter_background_service.BackgroundService" android:foregroundServiceType="connectedDevice" android:exported="true" />\n    </application>|' android/app/src/main/AndroidManifest.xml
           
           # Verification
           cat android/app/src/main/AndroidManifest.xml
