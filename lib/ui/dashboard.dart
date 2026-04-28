@@ -328,11 +328,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   }
 
   void _appendLog(String line) {
-    _logQueue.add(line);
-    if (_logQueue.length > 8) _logQueue.removeFirst();
-    setState(() {
-      rawLog = _logQueue.join('\n');
-    });
+    _addLog(line);
   }
 
   // DRY Alert Helper (Tesla Style)
@@ -438,9 +434,11 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF050505),
       body: Stack(
         children: [
-          // L'interface actuelle
+          // L'interface principale (Tes jauges)
           _buildMainDashboard(),
           
           // La Console de Debug (Style iPhone)
@@ -449,15 +447,15 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
               bottom: 80,
               left: 10,
               right: 10,
-              child: GestureDetector(
-                onLongPress: () => setState(() => showDebugConsole = false),
+              child: Material(
+                color: Colors.transparent,
                 child: Container(
                   height: 150,
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.85),
+                    color: Colors.black.withOpacity(0.9),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.cyanAccent.withOpacity(0.3)),
+                    border: Border.all(color: Colors.cyanAccent.withOpacity(0.5)),
                   ),
                   child: Column(
                     children: [
@@ -584,7 +582,11 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
           ),
         ),
       ),
-      body: Container(
+    );
+  }
+
+  Widget _buildMainDashboard() {
+    return Container(
         decoration: const BoxDecoration(
           gradient: RadialGradient(
             center: Alignment.center,
