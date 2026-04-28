@@ -111,6 +111,33 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
     // Activer l'Armure Native Kotlin APRES le chargement de l'UI
     _activateNativeShield();
+
+    // Vérifier s'il y a eu un crash précédent
+    _checkLastCrash();
+  }
+
+  Future<void> _checkLastCrash() async {
+    final prefs = await SharedPreferences.getInstance();
+    final crash = prefs.getString('last_crash');
+    if (crash != null) {
+      // On affiche l'erreur dans un dialogue
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("Dernière Erreur Détectée"),
+          content: SingleChildScrollView(child: Text(crash)),
+          actions: [
+            TextButton(
+              onPressed: () {
+                prefs.remove('last_crash');
+                Navigator.pop(context);
+              }, 
+              child: const Text("Effacer et Continuer")
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Future<void> _activateNativeShield() async {

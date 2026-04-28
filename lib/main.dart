@@ -9,10 +9,13 @@ import 'core/background_service.dart';
 
 import 'package:permission_handler/permission_handler.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 Future<void> requestSparkPermissions() async {
   Map<Permission, PermissionStatus> statuses = await [
     Permission.location,
     Permission.nearbyWifiDevices,
+    Permission.notification, // Ajout de la permission notification pour Android 13+
   ].request();
   
   if (statuses[Permission.location]!.isGranted) {
@@ -23,18 +26,22 @@ Future<void> requestSparkPermissions() async {
 }
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  final ttsService = TtsService();
-  await ttsService.init();
-  
-  // Appeler le forçage des permissions selon le brief de Mimo
-  await requestSparkPermissions();
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    
+    final ttsService = TtsService();
+    await ttsService.init();
+    
+    await requestSparkPermissions();
+    await initBackgroundService();
 
-  // Initialiser le Foreground Service pour la stabilité OBD
-  await initBackgroundService();
-
-  runApp(const MimoSmartCarApp());
+    runApp(const MimoSmartCarApp());
+  }, (error, stack) async {
+    // Si ça crashe, on enregistre l'erreur pour la lire après
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('last_crash', "CRASH: $error \nSTACK: $stack");
+    print("CRASH CAPTURÉ: $error");
+  });
 }
 
 class MimoSmartCarApp extends StatelessWidget {
