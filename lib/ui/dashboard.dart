@@ -115,18 +115,13 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     WakelockPlus.enable();
     _fuelCalculator.init();
-    _addLog("🚀 Mimo Spark Initialisée");
+    _loadFuelCalibration();
+    _startDataSync();
+    _addLog("🚀 Mimo Spark Démarrée");
     
-    // DEMARRAGE PASSIF (Style iPhone) : On attend que tout soit prêt
-    Timer(const Duration(seconds: 3), () async {
-      _addLog("⚙️ Lancement du Service OBD...");
-      try {
-        await initBackgroundService();
-        _addLog("✅ Service Actif");
-      } catch (e) {
-        _addLog("❌ Erreur Service: $e");
-      }
-      
+    // On attend 2 secondes pour activer le bouclier
+    // AUCUN service en arrière-plan - connexion directe uniquement
+    Timer(const Duration(seconds: 2), () {
       _activateNativeShield();
     });
 
