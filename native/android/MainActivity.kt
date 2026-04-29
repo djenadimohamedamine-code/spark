@@ -1,10 +1,6 @@
 package com.mimo.spark
 
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkCapabilities
-import android.net.NetworkRequest
 import android.net.wifi.WifiManager
 import android.os.PowerManager
 import io.flutter.embedding.android.FlutterActivity
@@ -14,7 +10,6 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "mimo.spark/shield"
 
-    // Singletons pour éviter les crashs si appelé plusieurs fois
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
 
@@ -38,7 +33,7 @@ class MainActivity: FlutterActivity() {
             if (wakeLock == null) {
                 val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
                 wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MimoSpark::WakeLock")
-                wakeLock?.acquire() // Pas de limite de temps
+                wakeLock?.acquire()
             }
             log += "WakeOK "
         } catch (e: Exception) {
@@ -56,23 +51,8 @@ class MainActivity: FlutterActivity() {
             log += "WifiFail "
         }
 
-        try {
-            val connManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            val request = NetworkRequest.Builder()
-                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-                .build()
-
-            connManager.requestNetwork(request, object : ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: Network) {
-                    try {
-                        connManager.bindProcessToNetwork(network)
-                    } catch (e: Exception) {}
-                }
-            })
-            log += "NetOK"
-        } catch (e: Exception) {
-            log += "NetFail "
-        }
+        // SUPPRESSION DU BIND RÉSEAU POUR LAISSER LA 4G ACTIVE
+        log += "NetFree"
 
         return log
     }
