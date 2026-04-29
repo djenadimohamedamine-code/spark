@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:collection';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_gauges/gauges.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:intl/intl.dart';
 
+import 'expenses_page.dart';
 import '../vocal/tts_service.dart';
 import '../logic/fuel_calculator.dart';
 import '../core/obd_service.dart';
@@ -20,7 +21,8 @@ import 'settings_page.dart';
 import 'ride_summary_dialog.dart';
 import '../core/background_service.dart';
 import '../logic/analytics_engine.dart';
-import 'package:intl/intl.dart';
+import 'expert_map_page.dart';
+
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -446,7 +448,15 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
       body: Stack(
         children: [
           // L'interface principale (Tes jauges)
-          _buildMainDashboard(),
+          OrientationBuilder(
+            builder: (context, orientation) {
+              if (orientation == Orientation.landscape) {
+                return _buildLandscapeDashboard();
+              } else {
+                return _buildMainDashboard();
+              }
+            },
+          ),
           
           // La Console de Debug (Style iPhone)
           if (showDebugConsole)
@@ -563,6 +573,15 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.splitscreen, color: Colors.blueAccent),
+                title: const Text('Vue Expert (Split Maps)', style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                subtitle: const Text('Carte + Satellite en simultané', style: TextStyle(color: Colors.white38, fontSize: 10)),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ExpertMapPage()));
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.receipt_long, color: Colors.greenAccent),
                 title: const Text('Bilan Journalier', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
                 onTap: () {
@@ -576,7 +595,10 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 subtitle: const Text('Plein essence + Crédit inDrive', style: TextStyle(color: Colors.white38, fontSize: 10)),
                 onTap: () {
                   Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ExpensesPage()));
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => ExpensesPage(
+                    isRideActive: isRideActive,
+                    onToggleRide: _toggleRide,
+                  )));
                 },
               ),
               ListTile(
@@ -630,11 +652,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.share, color: Colors.cyanAccent),
-                      onPressed: _shareLog,
-                      tooltip: "Partager les logs",
-                    ),
+                    const SizedBox(width: 40), // Espace pour équilibrer le menu à droite
                     Expanded(
                       child: _buildHudTransform(
                         child: Row(
@@ -731,31 +749,163 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildClock() {
+  Widget _buildLandscapeDashboard() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: RadialGradient(
+          center: Alignment.center,
+          radius: 1.5,
+          colors: [Color(0xFF0A0C18), Colors.black],
+        ),
+      ),
+      child: SafeArea(
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                // Top Row: Temp (L) | Clock (C) | Distance (R)
+                Expanded(
+                  flex: 3,
+                  child: Row(
+                    children: [
+                      Expanded(child: _buildTempGauge(isLandscape: true)),
+                      Expanded(
+                        flex: 2,
+                        child: Center(child: _buildClock(isLandscape: true)),
+                      ),
+                      Expanded(child: _buildDistanceGauge(isLandscape: true)),
+                    ],
+                  ),
+                ),
+                // Bottom Row: Fuel (L) | RPM/Bat (C) | Speed (R)
+                Expanded(
+                  flex: 4,
+                  child: Row(
+                    children: [
+                      Expanded(child: _buildFuelGauge(isLandscape: true)),
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          children: [
+                            Expanded(child: _buildRpmGauge(isLandscape: true)),
+                            _buildBatteryMini(isLandscape: true),
+                            const SizedBox(height: 10),
+                          ],
+                        ),
+                      ),
+                      Expanded(child: _buildSpeedGauge(isLandscape: true)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            // Floating Menu Button for Landscape
+            Positioned(
+              top: 10,
+              right: 10,
+              child: Builder(builder: (context) {
+                return IconButton(
+                  icon: const Icon(Icons.menu, color: Colors.cyanAccent, size: 30),
+                  onPressed: () => Scaffold.of(context).openEndDrawer(),
+                );
+              }),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClock({bool isLandscape = false}) {
     return StreamBuilder(
       stream: Stream.periodic(const Duration(seconds: 1)),
       builder: (context, snapshot) {
+        final timeStr = DateFormat('HH:mm').format(DateTime.now());
+        if (isLandscape) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+               Text(
+                timeStr,
+                style: TextStyle(
+                  color: Colors.white, 
+                  fontSize: 100, 
+                  fontWeight: FontWeight.w100, 
+                  letterSpacing: 8,
+                  shadows: [
+                    Shadow(color: Colors.cyanAccent.withOpacity(0.5), blurRadius: 30),
+                    Shadow(color: Colors.blueAccent.withOpacity(0.3), blurRadius: 60),
+                  ],
+                ),
+              ),
+              const Text("MIMO SPARK OS", style: TextStyle(color: Colors.cyanAccent, fontSize: 10, letterSpacing: 5, fontWeight: FontWeight.bold)),
+            ],
+          );
+        }
         return Text(
-          DateFormat('HH:mm').format(DateTime.now()),
+          timeStr,
           style: const TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.w300, letterSpacing: 2),
         );
       },
     );
   }
 
-  Widget _buildBatteryMini() {
+  Widget _buildBatteryMini({bool isLandscape = false}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: EdgeInsets.symmetric(horizontal: isLandscape ? 20 : 12, vertical: isLandscape ? 4 : 0),
+      decoration: isLandscape ? BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white10),
+      ) : null,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(tension > 13.5 ? Icons.battery_charging_full : Icons.battery_std, 
-               color: tension > 13.5 ? Colors.greenAccent : Colors.orangeAccent, size: 14),
-          const SizedBox(width: 4),
+               color: tension > 13.5 ? Colors.greenAccent : (tension < 12.0 ? Colors.redAccent : Colors.orangeAccent), 
+               size: isLandscape ? 18 : 14),
+          const SizedBox(width: 6),
           Text('${tension.toStringAsFixed(1)}V', 
-               style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+               style: TextStyle(color: Colors.white, fontSize: isLandscape ? 16 : 12, fontWeight: FontWeight.bold)),
         ],
       ),
+    );
+  }
+
+  Widget _buildDistanceGauge({bool isLandscape = false}) {
+    final kmStr = rideDistance.toStringAsFixed(1);
+    if (isLandscape) {
+      return Container(
+        margin: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: const Color(0xFF121212).withOpacity(0.7),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withOpacity(0.08)),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 15, offset: const Offset(0, 5))
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.straighten, color: Colors.purpleAccent, size: 18),
+            const SizedBox(height: 6),
+            Text(kmStr, style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold)),
+            const Text("KM", style: TextStyle(color: Colors.purpleAccent, fontSize: 10, letterSpacing: 3, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      );
+    }
+    return _buildGlassCard(
+      height: 180,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text("KM PARCOURUS", style: TextStyle(color: Colors.white54, fontSize: 12)),
+          const SizedBox(height: 10),
+          Text(kmStr, style: const TextStyle(color: Colors.white, fontSize: 42, fontWeight: FontWeight.bold)),
+        ],
+      )
     );
   }
 
@@ -816,12 +966,12 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildFuelGauge() {
+  Widget _buildFuelGauge({bool isLandscape = false}) {
     double fuelVal = _fuelCalculator.currentLiters;
     int kmRestants = (fuelVal / 9.5 * 100).toInt();
     
     return _buildGlassCard(
-      height: isHudMode ? 240 : 180, 
+      height: isLandscape ? 160 : (isHudMode ? 240 : 180), 
       child: SfRadialGauge(
         axes: <RadialAxis>[
           RadialAxis(
@@ -841,11 +991,13 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 widget: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.local_gas_station, color: Colors.white70, size: 20),
+                    Icon(Icons.local_gas_station, color: Colors.white70, size: isLandscape ? 16 : 20),
                     const SizedBox(height: 4),
-                    Text('$kmRestants KM', style: TextStyle(color: kmRestants <= 70 ? Colors.redAccent : (kmRestants <= 120 ? Colors.orangeAccent : Colors.greenAccent), fontSize: 26, fontWeight: FontWeight.w900)),
-                    const SizedBox(height: 4),
-                    Text('${fuelVal.toStringAsFixed(1)} L', style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
+                    Text('$kmRestants KM', style: TextStyle(color: kmRestants <= 70 ? Colors.redAccent : (kmRestants <= 120 ? Colors.orangeAccent : Colors.greenAccent), fontSize: isLandscape ? 20 : 26, fontWeight: FontWeight.w900)),
+                    if (!isLandscape) ...[
+                      const SizedBox(height: 4),
+                      Text('${fuelVal.toStringAsFixed(1)} L', style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
+                    ]
                   ],
                 ),
                 angle: 90, positionFactor: 0.1
@@ -857,9 +1009,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildTempGauge() {
+  Widget _buildTempGauge({bool isLandscape = false}) {
     return _buildGlassCard(
-      height: isHudMode ? 240 : 180, 
+      height: isLandscape ? 160 : (isHudMode ? 240 : 180), 
       child: SfRadialGauge(
         axes: <RadialAxis>[
           RadialAxis(
@@ -879,9 +1031,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 widget: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.thermostat, color: Colors.white70, size: 20),
+                    Icon(Icons.thermostat, color: Colors.white70, size: isLandscape ? 16 : 20),
                     const SizedBox(height: 4),
-                    Text('${temperature.toStringAsFixed(0)}°C', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                    Text('${temperature.toStringAsFixed(0)}°C', style: TextStyle(color: Colors.white, fontSize: isLandscape ? 18 : 22, fontWeight: FontWeight.bold)),
                   ],
                 ),
                 angle: 90, positionFactor: 0.1
@@ -893,9 +1045,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildRpmGauge() {
+  Widget _buildRpmGauge({bool isLandscape = false}) {
     return _buildGlassCard(
-      height: isHudMode ? 320 : 220, 
+      height: isLandscape ? 180 : (isHudMode ? 320 : 220), 
       child: SfRadialGauge(
         axes: <RadialAxis>[
           RadialAxis(
@@ -921,14 +1073,16 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 widget: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(currentGear, style: const TextStyle(color: Colors.redAccent, fontSize: 36, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
+                    Text(currentGear, style: TextStyle(color: Colors.redAccent, fontSize: isLandscape ? 28 : 36, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
                     const Text('GEAR', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
-                    const SizedBox(height: 10),
-                    Text('${rpm.toInt()}', style: const TextStyle(color: Colors.cyanAccent, fontSize: 22, fontWeight: FontWeight.bold)),
-                    const Text('RPM', style: TextStyle(color: Colors.white54, fontSize: 9, letterSpacing: 1)),
+                    if (!isLandscape) ...[
+                      const SizedBox(height: 10),
+                      Text('${rpm.toInt()}', style: const TextStyle(color: Colors.cyanAccent, fontSize: 22, fontWeight: FontWeight.bold)),
+                      const Text('RPM', style: TextStyle(color: Colors.white54, fontSize: 9, letterSpacing: 1)),
+                    ]
                   ],
                 ), 
-                angle: 90, positionFactor: 0.7
+                angle: 90, positionFactor: isLandscape ? 0.8 : 0.7
               )
             ]
           )
@@ -937,9 +1091,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildSpeedGauge() {
+  Widget _buildSpeedGauge({bool isLandscape = false}) {
     return _buildGlassCard(
-      height: isHudMode ? 320 : 220, 
+      height: isLandscape ? 180 : (isHudMode ? 320 : 220), 
       child: SfRadialGauge(
         axes: <RadialAxis>[
           RadialAxis(
@@ -965,11 +1119,11 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 widget: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('${speed.toInt()}', style: const TextStyle(color: Colors.white, fontSize: 46, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
+                    Text('${speed.toInt()}', style: TextStyle(color: Colors.white, fontSize: isLandscape ? 36 : 46, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
                     const Text('KM/H', style: TextStyle(color: Colors.purpleAccent, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2)),
                   ],
                 ), 
-                angle: 90, positionFactor: 0.7
+                angle: 90, positionFactor: isLandscape ? 0.8 : 0.7
               )
             ]
           )

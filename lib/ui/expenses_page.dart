@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
 import '../data/database_helper.dart';
+import '../data/ride_model.dart';
 import 'package:intl/intl.dart';
 
 class ExpensesPage extends StatefulWidget {
-  const ExpensesPage({super.key});
+  final bool isRideActive;
+  final VoidCallback onToggleRide;
+
+  const ExpensesPage({
+    super.key,
+    required this.isRideActive,
+    required this.onToggleRide,
+  });
 
   @override
   State<ExpensesPage> createState() => _ExpensesPageState();
@@ -12,7 +20,9 @@ class ExpensesPage extends StatefulWidget {
 class _ExpensesPageState extends State<ExpensesPage> {
   final TextEditingController _amountController = TextEditingController();
   List<Map<String, dynamic>> _expenses = [];
-  double _total = 0.0;
+  List<Ride> _rides = [];
+  double _totalExpenses = 0.0;
+  double _totalEarned = 0.0;
 
   @override
   void initState() {
@@ -22,14 +32,19 @@ class _ExpensesPageState extends State<ExpensesPage> {
 
   Future<void> _refresh() async {
     final date = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    final data = await DatabaseHelper().getExpensesForDate(date);
-    double t = 0;
-    for (var e in data) {
-      t += e['amount_da'];
-    }
+    final expenses = await DatabaseHelper().getExpensesForDate(date);
+    final rides = await DatabaseHelper().getRidesForDate(date);
+
+    double tExp = 0;
+    for (var e in expenses) tExp += e['amount_da'];
+    double tEarned = 0;
+    for (var r in rides) tEarned += r.earnedDa;
+
     setState(() {
-      _expenses = data;
-      _total = t;
+      _expenses = expenses;
+      _rides = rides;
+      _totalExpenses = tExp;
+      _totalEarned = tEarned;
     });
   }
 
@@ -43,32 +58,45 @@ class _ExpensesPageState extends State<ExpensesPage> {
     }
   }
 
-  void _showAddDialog() {
+  void _showAddExpenseDialog() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF151828),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
       builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, left: 20, right: 20, top: 20),
+        padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            left: 20,
+            right: 20,
+            top: 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text("NOUVELLE DÉPENSE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+            const Text("NOUVELLE DÉPENSE",
+                style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18)),
             const SizedBox(height: 20),
             TextField(
               controller: _amountController,
               keyboardType: TextInputType.number,
               autofocus: true,
-              style: const TextStyle(color: Colors.white, fontSize: 24),
+              style: const TextStyle(color: Colors.white, fontSize: 28),
               textAlign: TextAlign.center,
               decoration: const InputDecoration(
                 hintText: "0 DA",
                 hintStyle: TextStyle(color: Colors.white24),
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.cyanAccent)),
+                enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.cyanAccent)),
+                focusedBorder: UnderlineInputBorder(
+                    borderSide:
+                        BorderSide(color: Colors.cyanAccent, width: 2)),
               ),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 24),
             Row(
               children: [
                 Expanded(
@@ -76,7 +104,11 @@ class _ExpensesPageState extends State<ExpensesPage> {
                     onPressed: () => _addExpense('FUEL'),
                     icon: const Icon(Icons.local_gas_station),
                     label: const Text("PLEIN ESSENCE"),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent, foregroundColor: Colors.black),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orangeAccent,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -85,12 +117,16 @@ class _ExpensesPageState extends State<ExpensesPage> {
                     onPressed: () => _addExpense('CREDIT'),
                     icon: const Icon(Icons.account_balance_wallet),
                     label: const Text("CRÉDIT INDRIVE"),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent, foregroundColor: Colors.black),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.greenAccent,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -99,64 +135,319 @@ class _ExpensesPageState extends State<ExpensesPage> {
 
   @override
   Widget build(BuildContext context) {
+    final netProfit = _totalEarned - _totalExpenses;
+    final totalKm =
+        _rides.fold<double>(0, (sum, r) => sum + r.distanceKm);
+    final totalFuel =
+        _rides.fold<double>(0, (sum, r) => sum + r.fuelLiters);
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF050505),
       appBar: AppBar(
-        title: const Text("Dépenses du Jour"),
-        backgroundColor: const Color(0xFF151828),
+        title: const Text("Business du Jour",
+            style: TextStyle(color: Colors.white, fontSize: 16)),
+        backgroundColor: const Color(0xFF0F0F0F),
+        iconTheme: const IconThemeData(color: Colors.cyanAccent),
         actions: [
-          IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh))
+          IconButton(
+              onPressed: _refresh,
+              icon: const Icon(Icons.refresh, color: Colors.cyanAccent))
         ],
       ),
       body: Column(
         children: [
+          // ─── Bouton Course ───────────────────────────────────────────
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: ElevatedButton.icon(
+              onPressed: () {
+                widget.onToggleRide();
+                Navigator.pop(context);
+              },
+              icon: Icon(widget.isRideActive
+                  ? Icons.stop_circle_outlined
+                  : Icons.play_circle_fill),
+              label: Text(
+                widget.isRideActive
+                    ? "TERMINER LA COURSE"
+                    : "DÉMARRER UNE COURSE",
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, letterSpacing: 1),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                    widget.isRideActive ? Colors.redAccent : Colors.greenAccent,
+                foregroundColor: Colors.black,
+                minimumSize: const Size(double.infinity, 52),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+
+          // ─── Résumé Financier ────────────────────────────────────────
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(30),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(colors: [Color(0xFF151828), Colors.black], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF101520),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.greenAccent.withOpacity(0.2)),
             ),
             child: Column(
               children: [
-                const Text("TOTAL DÉPENSÉ", style: TextStyle(color: Colors.grey, letterSpacing: 2)),
-                const SizedBox(height: 10),
-                Text("${_total.toStringAsFixed(0)} DA", style: const TextStyle(color: Colors.redAccent, fontSize: 48, fontWeight: FontWeight.bold)),
+                const Text("BÉNÉFICE NET DU JOUR",
+                    style: TextStyle(
+                        color: Colors.grey, fontSize: 10, letterSpacing: 3)),
+                const SizedBox(height: 6),
+                Text(
+                  "${netProfit >= 0 ? '+' : ''}${netProfit.toStringAsFixed(0)} DA",
+                  style: TextStyle(
+                    color: netProfit >= 0 ? Colors.greenAccent : Colors.redAccent,
+                    fontSize: 40,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    _buildStat("ENCAISSÉ",
+                        "+${_totalEarned.toStringAsFixed(0)} DA", Colors.white),
+                    _buildDivider(),
+                    _buildStat("DÉPENSES",
+                        "-${_totalExpenses.toStringAsFixed(0)} DA",
+                        Colors.redAccent),
+                    _buildDivider(),
+                    _buildStat(
+                        "COURSES", "${_rides.length}", Colors.cyanAccent),
+                    _buildDivider(),
+                    _buildStat(
+                        "KM", totalKm.toStringAsFixed(1), Colors.purpleAccent),
+                    _buildDivider(),
+                    _buildStat("CARBURANT",
+                        "${totalFuel.toStringAsFixed(1)} L", Colors.orangeAccent),
+                  ],
+                ),
               ],
             ),
           ),
+          const SizedBox(height: 12),
+
+          // ─── Onglets Courses / Dépenses ──────────────────────────────
           Expanded(
-            child: _expenses.isEmpty 
-              ? const Center(child: Text("Aucune dépense aujourd'hui", style: TextStyle(color: Colors.white24)))
-              : ListView.builder(
-                  itemCount: _expenses.length,
-                  itemBuilder: (ctx, i) {
-                    final e = _expenses[i];
-                    final isFuel = e['type'] == 'FUEL';
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: isFuel ? Colors.orangeAccent.withOpacity(0.2) : Colors.greenAccent.withOpacity(0.2),
-                        child: Icon(isFuel ? Icons.local_gas_station : Icons.account_balance_wallet, color: isFuel ? Colors.orangeAccent : Colors.greenAccent),
-                      ),
-                      title: Text(isFuel ? "Plein d'essence" : "Recharge inDrive", style: const TextStyle(color: Colors.white)),
-                      subtitle: Text(DateFormat('HH:mm').format(DateTime.fromMillisecondsSinceEpoch(e['timestamp'])), style: const TextStyle(color: Colors.white38)),
-                      trailing: Text("- ${e['amount_da'].toStringAsFixed(0)} DA", style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 16)),
-                      onLongPress: () async {
-                        await DatabaseHelper().deleteExpense(e['id']);
-                        _refresh();
-                      },
-                    );
-                  },
-                ),
+            child: DefaultTabController(
+              length: 2,
+              child: Column(
+                children: [
+                  TabBar(
+                    labelColor: Colors.cyanAccent,
+                    unselectedLabelColor: Colors.grey,
+                    indicatorColor: Colors.cyanAccent,
+                    tabs: [
+                      Tab(text: "COURSES (${_rides.length})"),
+                      Tab(text: "DÉPENSES (${_expenses.length})"),
+                    ],
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        _buildRidesList(),
+                        _buildExpensesList(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showAddDialog,
+        onPressed: _showAddExpenseDialog,
         backgroundColor: Colors.cyanAccent,
         foregroundColor: Colors.black,
         icon: const Icon(Icons.add),
-        label: const Text("AJOUTER DÉPENSE", style: TextStyle(fontWeight: FontWeight.bold)),
+        label: const Text("DÉPENSE",
+            style: TextStyle(fontWeight: FontWeight.bold)),
       ),
+    );
+  }
+
+  Widget _buildStat(String label, String value, Color color) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  color: Colors.grey, fontSize: 8, letterSpacing: 1)),
+          const SizedBox(height: 3),
+          Text(value,
+              style: TextStyle(
+                  color: color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDivider() {
+    return Container(width: 1, height: 28, color: Colors.white10);
+  }
+
+  Widget _buildRidesList() {
+    if (_rides.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.directions_car_outlined,
+                color: Colors.white24, size: 48),
+            SizedBox(height: 12),
+            Text("Aucune course aujourd'hui",
+                style: TextStyle(color: Colors.white24)),
+          ],
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 90, top: 8),
+      itemCount: _rides.length,
+      itemBuilder: (ctx, i) {
+        final r = _rides[i];
+        final start = DateTime.fromMillisecondsSinceEpoch(r.startTime);
+        final end = DateTime.fromMillisecondsSinceEpoch(r.endTime);
+        final dur = end.difference(start).inMinutes;
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0E1220),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.greenAccent.withOpacity(0.12)),
+          ),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: Colors.greenAccent.withOpacity(0.1),
+              child: Text('${i + 1}',
+                  style: const TextStyle(
+                      color: Colors.greenAccent,
+                      fontWeight: FontWeight.bold)),
+            ),
+            title: Text(
+              '${DateFormat('HH:mm').format(start)} → ${DateFormat('HH:mm').format(end)}  ($dur min)',
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+            ),
+            subtitle: Text(
+              '${r.distanceKm.toStringAsFixed(1)} km  •  ${r.fuelLiters.toStringAsFixed(2)} L carburant',
+              style: const TextStyle(color: Colors.grey, fontSize: 11),
+            ),
+            trailing: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('+${r.earnedDa.toStringAsFixed(0)} DA',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15)),
+                Text(
+                    'Net: ${r.profitDa >= 0 ? '+' : ''}${r.profitDa.toStringAsFixed(0)} DA',
+                    style: TextStyle(
+                        color: r.profitDa >= 0
+                            ? Colors.greenAccent
+                            : Colors.redAccent,
+                        fontSize: 11)),
+              ],
+            ),
+            onLongPress: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: const Color(0xFF151828),
+                  title: const Text('Supprimer cette course ?',
+                      style: TextStyle(color: Colors.white)),
+                  content: const Text(
+                      'Appui long pour supprimer. Cette action est irréversible.',
+                      style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('ANNULER',
+                            style: TextStyle(color: Colors.grey))),
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('SUPPRIMER',
+                            style: TextStyle(color: Colors.redAccent))),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                await DatabaseHelper().deleteRide(r.id!);
+                _refresh();
+              }
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildExpensesList() {
+    if (_expenses.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.receipt_long_outlined,
+                color: Colors.white24, size: 48),
+            SizedBox(height: 12),
+            Text("Aucune dépense enregistrée",
+                style: TextStyle(color: Colors.white24)),
+          ],
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 90, top: 8),
+      itemCount: _expenses.length,
+      itemBuilder: (ctx, i) {
+        final e = _expenses[i];
+        final isFuel = e['type'] == 'FUEL';
+        return ListTile(
+          leading: CircleAvatar(
+            backgroundColor:
+                (isFuel ? Colors.orangeAccent : Colors.greenAccent)
+                    .withOpacity(0.15),
+            child: Icon(
+              isFuel
+                  ? Icons.local_gas_station
+                  : Icons.account_balance_wallet,
+              color:
+                  isFuel ? Colors.orangeAccent : Colors.greenAccent,
+              size: 20,
+            ),
+          ),
+          title: Text(isFuel ? "Plein d'essence" : "Recharge inDrive",
+              style: const TextStyle(color: Colors.white)),
+          subtitle: Text(
+            DateFormat('HH:mm').format(
+                DateTime.fromMillisecondsSinceEpoch(e['timestamp'])),
+            style: const TextStyle(color: Colors.white38, fontSize: 11),
+          ),
+          trailing: Text(
+            "- ${e['amount_da'].toStringAsFixed(0)} DA",
+            style: const TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+                fontSize: 16),
+          ),
+          onLongPress: () async {
+            await DatabaseHelper().deleteExpense(e['id']);
+            _refresh();
+          },
+        );
+      },
     );
   }
 }

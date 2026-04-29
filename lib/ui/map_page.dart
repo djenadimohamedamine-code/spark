@@ -33,9 +33,12 @@ class _MapPageState extends State<MapPage> {
     return current + diff * 0.08;
   }
 
+  double _currentZoom = 17.0;
+
   // --- Offset caméra pour garder la voiture en bas
   LatLng _getOffsetPosition(Position pos, double heading) {
-    const double distance = 0.00045;
+    // Ajustement de l'offset selon le zoom pour que la voiture reste bien placée
+    double distance = 0.00045 * math.pow(2, 17 - _currentZoom);
     double rad = heading * (math.pi / 180);
     double latOffset = distance * math.cos(rad);
     double lngOffset = distance * math.sin(rad);
@@ -109,8 +112,11 @@ class _MapPageState extends State<MapPage> {
       double speedKmh = pos.speed * 3.6;
       _smoothedSpeed = _smoothedSpeed + ((speedKmh - _smoothedSpeed) * 0.1);
 
-      double currentHeading = pos.heading;
-      if (currentHeading < 0) currentHeading = _lastHeading;
+      // On ne met à jour le cap (heading) que si la voiture roule (éviter qu'elle tourne sur elle-même au feu rouge)
+      double currentHeading = _lastHeading;
+      if (speedKmh > 3.0 && pos.heading >= 0) {
+        currentHeading = pos.heading;
+      }
 
       double diff = currentHeading - _lastHeading;
       if (diff > 180) diff -= 360;
@@ -212,10 +218,15 @@ class _MapPageState extends State<MapPage> {
             mapController: _mapController,
             options: MapOptions(
               initialCenter: centerPos,
-              initialZoom: 17.0,
+              initialZoom: _currentZoom,
               maxZoom: 19,
               minZoom: 3,
               onPositionChanged: (pos, hasGesture) {
+                if (pos.zoom != _currentZoom) {
+                  setState(() {
+                    _currentZoom = pos.zoom!;
+                  });
+                }
                 if (hasGesture && _isFollowing) setState(() => _isFollowing = false);
               },
             ),
@@ -224,8 +235,7 @@ class _MapPageState extends State<MapPage> {
                 urlTemplate: _satelliteMode ? _esriSatelliteUrl : _osmTileUrl,
                 userAgentPackageName: 'com.mimo.spark',
                 maxZoom: 19,
-                keepBuffer: 3,
-                tileDisplay: const TileDisplay.fadeIn(duration: Duration.zero),
+                keepBuffer: 5, // Augmenté pour un chargement plus fluide
               ),
               if (_satelliteMode)
                 TileLayer(
@@ -233,33 +243,43 @@ class _MapPageState extends State<MapPage> {
                       'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
                   userAgentPackageName: 'com.mimo.spark',
                   maxZoom: 19,
-                  keepBuffer: 1,
-                  tileDisplay: const TileDisplay.fadeIn(duration: Duration.zero),
+                  keepBuffer: 5,
                 ),
               if (_currentPosition != null)
                 MarkerLayer(
                   markers: [
                     Marker(
                       point: centerPos,
-                      width: 45,
-                      height: 45,
+                      width: 150, // On donne de la place pour la rotation
+                      height: 150,
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          Container(
-                            width: 18,
-                            height: 18,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: RadialGradient(
-                                colors: [Colors.black.withOpacity(0.5), Colors.transparent],
+                          // Ombre portée pour le réalisme
+                          Transform.rotate(
+                            angle: _lastHeading * (math.pi / 180),
+                            child: Container(
+                              width: (25 + (_currentZoom - 12) * 15).clamp(10, 100),
+                              height: (25 + (_currentZoom - 12) * 15).clamp(10, 100),
+                              decoration: BoxDecoration(
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.4),
+                                    blurRadius: 10,
+                                    spreadRadius: 2,
+                                  )
+                                ],
                               ),
                             ),
                           ),
                           Transform.rotate(
-                            angle: (_lastHeading + 45) * (math.pi / 180),
+                            angle: _lastHeading * (math.pi / 180),
                             child: Image.asset(
                               'assets/images/spark_marker.png',
+                              // Taille dynamique : plus on zoome, plus la Spark est GRANDE
+                              // À zoom 18-19, elle est impressionnante. À zoom 12, elle est petite.
+                              width: (30 + (_currentZoom - 12) * 20).clamp(15, 120),
+                              height: (30 + (_currentZoom - 12) * 20).clamp(15, 120),
                               fit: BoxFit.contain,
                               filterQuality: FilterQuality.high,
                             ),

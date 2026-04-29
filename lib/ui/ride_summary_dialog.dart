@@ -60,10 +60,10 @@ class _RideSummaryDialogState extends State<RideSummaryDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: const Color(0xFF151828),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.greenAccent.withOpacity(0.3))),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: Colors.greenAccent.withOpacity(0.3))),
       title: Column(
         children: [
-          const Icon(Icons.Check_circle, color: Colors.greenAccent, size: 40),
+          const Icon(Icons.check_circle, color: Colors.greenAccent, size: 40),
           const SizedBox(height: 10),
           const Text('Bilan de Course', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         ],
