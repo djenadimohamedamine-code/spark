@@ -14,6 +14,10 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "mimo.spark/shield"
 
+    // Singletons pour éviter les crashs si appelé plusieurs fois
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: WifiManager.WifiLock? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
@@ -29,19 +33,24 @@ class MainActivity: FlutterActivity() {
 
     private fun activateShield(): String {
         var log = "Shield: "
+
         try {
-            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-            val wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MimoSpark::WakeLock")
-            wakeLock.acquire(10*60*1000L)
+            if (wakeLock == null) {
+                val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MimoSpark::WakeLock")
+                wakeLock?.acquire() // Pas de limite de temps
+            }
             log += "WakeOK "
         } catch (e: Exception) {
             log += "WakeFail "
         }
 
         try {
-            val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-            val wifiLock = wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "MimoSpark::WifiLock")
-            wifiLock.acquire()
+            if (wifiLock == null) {
+                val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+                wifiLock = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "MimoSpark::WifiLock")
+                wifiLock?.acquire()
+            }
             log += "WifiOK "
         } catch (e: Exception) {
             log += "WifiFail "

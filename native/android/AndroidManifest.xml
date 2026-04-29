@@ -12,6 +12,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:label="Mimo Spark"
@@ -40,11 +41,6 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-
-        <service 
-            android:name="id.flutter.flutter_background_service.BackgroundService" 
-            android:foregroundServiceType="connectedDevice" 
-            android:exported="true" />
             
     </application>
 </manifest>
