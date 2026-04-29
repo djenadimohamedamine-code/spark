@@ -18,7 +18,7 @@ class DatabaseHelper {
     final path = join(await getDatabasesPath(), 'mimo_spark.db');
     return openDatabase(
       path,
-      version: 1,
+      version: 2, // Montée de version pour la table expenses
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE rides (
@@ -33,33 +33,74 @@ class DatabaseHelper {
             distance_km  REAL NOT NULL
           )
         ''');
+        await db.execute('''
+          CREATE TABLE expenses (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            date         TEXT NOT NULL,
+            type         TEXT NOT NULL, -- 'FUEL' ou 'CREDIT'
+            amount_da    REAL NOT NULL,
+            timestamp    INTEGER NOT NULL
+          )
+        ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute('''
+            CREATE TABLE expenses (
+              id           INTEGER PRIMARY KEY AUTOINCREMENT,
+              date         TEXT NOT NULL,
+              type         TEXT NOT NULL,
+              amount_da    REAL NOT NULL,
+              timestamp    INTEGER NOT NULL
+            )
+          ''');
+        }
       },
     );
   }
 
-  // ── Insérer une course ───────────────────────────────────────────────────
   Future<int> insertRide(Ride ride) async {
     final db = await database;
     return db.insert('rides', ride.toMap());
   }
 
-  // ── Courses d'un jour donné ──────────────────────────────────────────────
   Future<List<Ride>> getRidesForDate(String date) async {
     final db = await database;
     final maps = await db.query('rides', where: 'date = ?', whereArgs: [date], orderBy: 'start_time ASC');
     return maps.map((m) => Ride.fromMap(m)).toList();
   }
 
-  // ── Toutes les courses (pour historique) ────────────────────────────────
   Future<List<Ride>> getAllRides() async {
     final db = await database;
     final maps = await db.query('rides', orderBy: 'start_time DESC');
     return maps.map((m) => Ride.fromMap(m)).toList();
   }
 
-  // ── Supprimer une course ─────────────────────────────────────────────────
   Future<void> deleteRide(int id) async {
     final db = await database;
     await db.delete('rides', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ── Gestion des dépenses ────────────────────────────────────────────────
+  Future<int> insertExpense(String type, double amount) async {
+    final db = await database;
+    final now = DateTime.now();
+    final dateStr = '${now.year}-${now.month.toString().padLeft(2,'0')}-${now.day.toString().padLeft(2,'0')}';
+    return db.insert('expenses', {
+      'date': dateStr,
+      'type': type,
+      'amount_da': amount,
+      'timestamp': now.millisecondsSinceEpoch,
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getExpensesForDate(String date) async {
+    final db = await database;
+    return db.query('expenses', where: 'date = ?', whereArgs: [date]);
+  }
+
+  Future<void> deleteExpense(int id) async {
+    final db = await database;
+    await db.delete('expenses', where: 'id = ?', whereArgs: [id]);
   }
 }

@@ -522,6 +522,17 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 ),
               ),
               ListTile(
+                leading: Icon(isRideActive ? Icons.stop_circle : Icons.play_circle_fill, color: isRideActive ? Colors.redAccent : Colors.greenAccent),
+                title: Text(isRideActive ? 'Terminer la Course' : 'Démarrer une Course', style: TextStyle(color: isRideActive ? Colors.redAccent : Colors.greenAccent, fontWeight: FontWeight.bold)),
+                subtitle: isRideActive 
+                  ? Text('En cours depuis ${DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(rideStartTime!)).inMinutes} min', style: const TextStyle(color: Colors.white38, fontSize: 10))
+                  : const Text('Lancer le suivi de trajet', style: TextStyle(color: Colors.white38, fontSize: 10)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _toggleRide();
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.dashboard, color: Colors.white),
                 title: const Text('Dashboard', style: TextStyle(color: Colors.white)),
                 onTap: () => Navigator.pop(context),
@@ -557,6 +568,15 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const DailyReportPage()));
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.calculate, color: Colors.redAccent),
+                title: const Text('Dépenses & Recharges', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                subtitle: const Text('Plein essence + Crédit inDrive', style: TextStyle(color: Colors.white38, fontSize: 10)),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ExpensesPage()));
                 },
               ),
               ListTile(
@@ -620,23 +640,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            // Bouton Start/Stop discret
-                            GestureDetector(
-                              onTap: _toggleRide,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: isRideActive ? Colors.red.withOpacity(0.2) : Colors.green.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: isRideActive ? Colors.red : Colors.green, width: 1),
-                                ),
-                                child: Text(
-                                  isRideActive ? 'STOP' : 'START',
-                                  style: TextStyle(color: isRideActive ? Colors.red : Colors.green, fontSize: 10, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 15),
                             // Indicateur de statut
                             Container(
                               width: 8, height: 8,
@@ -770,6 +773,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
       // STOP
       final endTime = DateTime.now().millisecondsSinceEpoch;
       final fuelConsumed = startFuelLiters - _fuelCalculator.currentLiters;
+      final durationMin = DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(rideStartTime!)).inMinutes;
       
       showDialog(
         context: context,
@@ -777,6 +781,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
         builder: (ctx) => RideSummaryDialog(
           fuelLiters: fuelConsumed < 0 ? 0 : fuelConsumed,
           distanceKm: rideDistance,
+          durationMinutes: durationMin,
           onValidate: (amount) async {
             await AnalyticsEngine().saveRide(
               startTime: rideStartTime!,
