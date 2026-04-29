@@ -347,6 +347,11 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   void _parseObdData(String data) {
     if (data.trim().isEmpty || data.contains('SEARCHING') || data.contains('NO DATA') || data.contains('STOPPED')) return;
     
+    // Afficher les données brutes dans la petite console du bas (Mimo style)
+    setState(() {
+      rawLog = data;
+    });
+    
     // Version ELITE PRO : Parsing Séquentiel par Index pour éviter les confusions de trames
     List<String> parts = data.trim().toUpperCase().split(RegExp(r'\s+'));
 
