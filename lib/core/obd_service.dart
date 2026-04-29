@@ -426,8 +426,13 @@ class ObdService {
 
   void sendCommand(String command) {
     if (_socket != null) {
-      _log("SENT: $command");
-      _socket!.write('$command\r');
+      try {
+        _log("SENT: $command");
+        _socket!.write('$command\r');
+      } catch (e) {
+        _log("❌ Erreur Socket Write: $e. Déconnexion forcée.");
+        _handleDisconnect();
+      }
     } else {
       // Proxy via Background Service si socket local absent
       FlutterBackgroundService().invoke('sendCommand', {'command': command});
