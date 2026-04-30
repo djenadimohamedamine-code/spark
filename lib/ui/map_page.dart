@@ -273,7 +273,7 @@ class _MapPageState extends State<MapPage> {
                             ),
                           ),
                           Transform.rotate(
-                            angle: _lastHeading * (math.pi / 180),
+                            angle: (_lastHeading + 45) * (math.pi / 180), // Offset +45 pour la Spark 3/4 arrière
                             child: Image.asset(
                               'assets/images/spark_marker.png',
                               // Taille dynamique : plus on zoome, plus la Spark est GRANDE
@@ -290,6 +290,22 @@ class _MapPageState extends State<MapPage> {
                   ],
                 ),
             ],
+          ),
+          Positioned(
+            top: 40,
+            right: 16,
+            child: FloatingActionButton(
+              heroTag: 'fab_sat',
+              mini: true,
+              backgroundColor: Colors.black87,
+              onPressed: () {
+                setState(() => _satelliteMode = !_satelliteMode);
+              },
+              child: Icon(
+                _satelliteMode ? Icons.map : Icons.satellite_alt,
+                color: Colors.white,
+              ),
+            ),
           ),
           Positioned(
             bottom: 24,

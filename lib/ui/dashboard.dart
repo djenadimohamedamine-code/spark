@@ -21,7 +21,6 @@ import 'settings_page.dart';
 import 'ride_summary_dialog.dart';
 import '../core/background_service.dart';
 import '../logic/analytics_engine.dart';
-import 'expert_map_page.dart';
 
 
 class Dashboard extends StatefulWidget {
@@ -573,15 +572,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.splitscreen, color: Colors.blueAccent),
-                title: const Text('Vue Expert (Split Maps)', style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
-                subtitle: const Text('Carte + Satellite en simultané', style: TextStyle(color: Colors.white38, fontSize: 10)),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ExpertMapPage()));
-                },
-              ),
-              ListTile(
                 leading: const Icon(Icons.receipt_long, color: Colors.greenAccent),
                 title: const Text('Bilan Journalier', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
                 onTap: () {
@@ -773,7 +763,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                         flex: 2,
                         child: Center(child: _buildClock(isLandscape: true)),
                       ),
-                      Expanded(child: _buildDistanceGauge(isLandscape: true)),
+                      Expanded(child: _buildRpmGauge(isLandscape: true)), // Remplacé Distance par RPM
                     ],
                   ),
                 ),
@@ -786,10 +776,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                       Expanded(
                         flex: 2,
                         child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Expanded(child: _buildRpmGauge(isLandscape: true)),
                             _buildBatteryMini(isLandscape: true),
-                            const SizedBox(height: 10),
                           ],
                         ),
                       ),
