@@ -811,23 +811,26 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
       builder: (context, snapshot) {
         final timeStr = DateFormat('HH:mm').format(DateTime.now());
         if (isLandscape) {
-          return Column(
+              return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
                Text(
                 timeStr,
                 style: TextStyle(
                   color: Colors.white, 
-                  fontSize: 100, 
-                  fontWeight: FontWeight.w100, 
-                  letterSpacing: 8,
+                  fontSize: 110, 
+                  fontWeight: FontWeight.w900, // Plus épais pour le neon
+                  fontFamily: 'monospace', // Donne un aspect digital/technique
+                  letterSpacing: 4,
                   shadows: [
-                    Shadow(color: Colors.cyanAccent.withOpacity(0.5), blurRadius: 30),
-                    Shadow(color: Colors.blueAccent.withOpacity(0.3), blurRadius: 60),
+                    Shadow(color: Colors.cyanAccent, blurRadius: 10),
+                    Shadow(color: Colors.cyanAccent.withOpacity(0.8), blurRadius: 20),
+                    Shadow(color: Colors.blueAccent.withOpacity(0.6), blurRadius: 40),
+                    Shadow(color: Colors.blueAccent.withOpacity(0.4), blurRadius: 80),
                   ],
                 ),
               ),
-              const Text("MIMO SPARK OS", style: TextStyle(color: Colors.cyanAccent, fontSize: 10, letterSpacing: 5, fontWeight: FontWeight.bold)),
+              const Text("MIMO SPARK OS", style: TextStyle(color: Colors.cyanAccent, fontSize: 12, letterSpacing: 8, fontWeight: FontWeight.bold)),
             ],
           );
         }
@@ -1064,11 +1067,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                   children: [
                     Text(currentGear, style: TextStyle(color: Colors.redAccent, fontSize: isLandscape ? 28 : 36, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
                     const Text('GEAR', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
-                    if (!isLandscape) ...[
-                      const SizedBox(height: 10),
-                      Text('${rpm.toInt()}', style: const TextStyle(color: Colors.cyanAccent, fontSize: 22, fontWeight: FontWeight.bold)),
-                      const Text('RPM', style: TextStyle(color: Colors.white54, fontSize: 9, letterSpacing: 1)),
-                    ]
+                    const SizedBox(height: 10),
+                    Text('${rpm.toInt()}', style: TextStyle(color: Colors.cyanAccent, fontSize: isLandscape ? 28 : 22, fontWeight: FontWeight.bold)),
+                    const Text('RPM', style: TextStyle(color: Colors.white54, fontSize: 9, letterSpacing: 1)),
                   ],
                 ), 
                 angle: 90, positionFactor: isLandscape ? 0.8 : 0.7

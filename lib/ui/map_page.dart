@@ -22,7 +22,7 @@ class _MapPageState extends State<MapPage> {
   StreamSubscription<Position>? _positionStream;
   Timer? _moveTimer; 
   double _lastHeading = 0;
-  bool _rotateMap = false;
+  bool _rotateMap = true; // Waze Style: la carte tourne automatiquement !
   double _smoothedSpeed = 0;
 
   // --- Lissage angle (transition circulaire 359->0)
@@ -103,7 +103,7 @@ class _MapPageState extends State<MapPage> {
     _positionStream = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 5,
+        distanceFilter: 2, // Optimisation: mis à jour tous les 2 mètres (au lieu de 5) pour une grande fluidité
       ),
     ).listen((Position pos) {
       if (!mounted) return;
@@ -235,7 +235,7 @@ class _MapPageState extends State<MapPage> {
                 urlTemplate: _satelliteMode ? _esriSatelliteUrl : _osmTileUrl,
                 userAgentPackageName: 'com.mimo.spark',
                 maxZoom: 19,
-                keepBuffer: 5, // Augmenté pour un chargement plus fluide
+                keepBuffer: 2, // Réduit pour accélérer l'affichage et soulager la RAM
               ),
               if (_satelliteMode)
                 TileLayer(
@@ -243,7 +243,7 @@ class _MapPageState extends State<MapPage> {
                       'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
                   userAgentPackageName: 'com.mimo.spark',
                   maxZoom: 19,
-                  keepBuffer: 5,
+                  keepBuffer: 2,
                 ),
               if (_currentPosition != null)
                 MarkerLayer(
@@ -257,7 +257,7 @@ class _MapPageState extends State<MapPage> {
                         children: [
                           // Ombre portée pour le réalisme
                           Transform.rotate(
-                            angle: _lastHeading * (math.pi / 180),
+                            angle: (_rotateMap ? 0 : _lastHeading) * (math.pi / 180),
                             child: Container(
                               width: (25 + (_currentZoom - 12) * 15).clamp(10, 100),
                               height: (25 + (_currentZoom - 12) * 15).clamp(10, 100),
@@ -273,11 +273,10 @@ class _MapPageState extends State<MapPage> {
                             ),
                           ),
                           Transform.rotate(
-                            angle: (_lastHeading + 45) * (math.pi / 180), // Offset +45 pour la Spark 3/4 arrière
+                            angle: (_rotateMap ? 45 : (_lastHeading + 45)) * (math.pi / 180), // Offset +45 pour la Spark 3/4 arrière
                             child: Image.asset(
                               'assets/images/spark_marker.png',
                               // Taille dynamique : plus on zoome, plus la Spark est GRANDE
-                              // À zoom 18-19, elle est impressionnante. À zoom 12, elle est petite.
                               width: (30 + (_currentZoom - 12) * 20).clamp(15, 120),
                               height: (30 + (_currentZoom - 12) * 20).clamp(15, 120),
                               fit: BoxFit.contain,
