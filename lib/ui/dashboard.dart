@@ -836,13 +836,13 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
               children: [
                 // Top Row: Temp (L) | Clock (C) | Distance (R)
                 Expanded(
-                  flex: 3,
+                  flex: 4,
                   child: Row(
                     children: [
                       Expanded(child: _buildTempGauge(isLandscape: true)),
                       Expanded(
                         flex: 2,
-                        child: Center(child: _buildClock(isLandscape: true)),
+                        child: _buildClock(isLandscape: true),
                       ),
                       Expanded(child: _buildRpmGauge(isLandscape: true)), // Remplacé Distance par RPM
                     ],
@@ -850,7 +850,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 ),
                 // Bottom Row: Fuel (L) | RPM/Bat (C) | Speed (R)
                 Expanded(
-                  flex: 4,
+                  flex: 3,
                   child: Row(
                     children: [
                       Expanded(child: _buildFuelGauge(isLandscape: true)),
@@ -898,7 +898,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
           double secondValue = now.second / 5.0; // 60 secs = 12 steps
 
           return _buildGlassCard(
-            height: 180,
+            height: double.infinity,
             child: SfRadialGauge(
               axes: <RadialAxis>[
                 RadialAxis(
@@ -908,17 +908,17 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                   showTicks: true,
                   interval: 1,
                   minorTicksPerInterval: 4,
-                  axisLabelStyle: const GaugeTextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
-                  majorTickStyle: const MajorTickStyle(length: 8, thickness: 2, color: Colors.cyanAccent),
-                  minorTickStyle: const MinorTickStyle(length: 4, thickness: 1, color: Colors.white30),
+                  axisLabelStyle: GaugeTextStyle(color: Colors.white70, fontSize: isLandscape ? 14 : 10, fontWeight: FontWeight.bold),
+                  majorTickStyle: MajorTickStyle(length: isLandscape ? 12 : 8, thickness: 2, color: Colors.cyanAccent),
+                  minorTickStyle: MinorTickStyle(length: isLandscape ? 6 : 4, thickness: 1, color: Colors.white30),
                   axisLineStyle: const AxisLineStyle(thickness: 1, color: Colors.white10),
                   pointers: <GaugePointer>[
                     NeedlePointer(
                       value: hourValue,
                       needleColor: Colors.cyanAccent,
                       needleLength: 0.5,
-                      needleStartWidth: 2,
-                      needleEndWidth: 6,
+                      needleStartWidth: isLandscape ? 4 : 2,
+                      needleEndWidth: isLandscape ? 10 : 6,
                       knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.06),
                       enableAnimation: true, animationDuration: 300, animationType: AnimationType.ease
                     ),
@@ -926,8 +926,8 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                       value: minuteValue,
                       needleColor: Colors.blueAccent,
                       needleLength: 0.7,
-                      needleStartWidth: 1,
-                      needleEndWidth: 4,
+                      needleStartWidth: isLandscape ? 2 : 1,
+                      needleEndWidth: isLandscape ? 8 : 4,
                       knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.06),
                       enableAnimation: true, animationDuration: 300, animationType: AnimationType.ease
                     ),
@@ -945,7 +945,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                     GaugeAnnotation(
                       widget: Padding(
                         padding: const EdgeInsets.only(top: 40.0),
-                        child: Text(timeStr, style: const TextStyle(color: Colors.cyanAccent, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                        child: Text(timeStr, style: TextStyle(color: Colors.cyanAccent, fontSize: isLandscape ? 20 : 12, fontWeight: FontWeight.bold, letterSpacing: 2)),
                       ),
                       angle: 90,
                       positionFactor: 0.5,
