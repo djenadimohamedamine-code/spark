@@ -68,7 +68,7 @@ class _MapPageState extends State<MapPage> {
         _lastHeading = pos.heading >= 0 ? pos.heading : 0;
         _smoothedSpeed = pos.speed * 3.6;
       });
-      _moveSmooth(pos, _smoothedSpeed);
+      _followPosition(pos, _smoothedSpeed);
     } catch (_) {}
 
     _positionStream = Geolocator.getPositionStream(
@@ -198,7 +198,7 @@ class _MapPageState extends State<MapPage> {
               backgroundColor: _isFollowing ? Colors.cyanAccent : Colors.black87,
               onPressed: () {
                 setState(() => _isFollowing = true);
-                if (_currentPosition != null) _moveSmooth(_currentPosition!, _smoothedSpeed);
+                if (_currentPosition != null) _followPosition(_currentPosition!, _smoothedSpeed);
               },
               child: Icon(_isFollowing ? Icons.gps_fixed : Icons.gps_not_fixed, color: _isFollowing ? Colors.black : Colors.cyanAccent),
             ),

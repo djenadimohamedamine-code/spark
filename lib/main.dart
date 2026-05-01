@@ -15,7 +15,8 @@ Future<void> requestSparkPermissions() async {
   Map<Permission, PermissionStatus> statuses = await [
     Permission.location,
     Permission.nearbyWifiDevices,
-    Permission.notification, // Ajout de la permission notification pour Android 13+
+    Permission.notification,
+    Permission.microphone,
   ].request();
   
   if (statuses[Permission.location]!.isGranted) {

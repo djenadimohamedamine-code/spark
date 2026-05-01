@@ -21,6 +21,7 @@ import 'settings_page.dart';
 import 'ride_summary_dialog.dart';
 import '../core/background_service.dart';
 import '../logic/analytics_engine.dart';
+import '../vocal/voice_service.dart';
 
 
 class Dashboard extends StatefulWidget {
@@ -59,6 +60,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   final TtsService _ttsService = TtsService();
   final FuelCalculator _fuelCalculator = FuelCalculator();
   final ObdService _obdService = ObdService();
+  final VoiceService _voiceService = VoiceService();
   
   bool alert98Triggered = false;
   bool alert103Triggered = false;
@@ -118,6 +120,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     _fuelCalculator.init();
     _loadFuelCalibration();
     _startDataSync();
+    _voiceService.init(); // Initialisation de l'assistant vocal
     _addLog("🚀 Mimo Spark Démarrée");
     
     // On attend 2 secondes pour activer le bouclier
@@ -153,6 +156,55 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
           ],
         ),
       );
+    }
+  }
+
+  void _handleVoiceCommand(String cmd) {
+    if (!mounted) return;
+
+    switch (cmd) {
+      case 'START_RIDE':
+        if (!isRideActive) {
+          _toggleRide();
+          _ttsService.speak("C'est parti Mimo, course démarrée !");
+        } else {
+          _ttsService.speak("La course est déjà en cours.");
+        }
+        break;
+      case 'STOP_RIDE':
+        if (isRideActive) {
+          _toggleRide();
+          _ttsService.speak("Course terminée. Beau boulot Mimo !");
+        } else {
+          _ttsService.speak("Aucune course n'est active.");
+        }
+        break;
+      case 'MAP':
+        _ttsService.speak("Affichage de la carte.");
+        Navigator.push(
+            context, MaterialPageRoute(builder: (context) => const MapPage()));
+        break;
+      case 'EXPENSES':
+        _ttsService.speak("Ouverture des dépenses.");
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (context) => ExpensesPage(
+                      isRideActive: isRideActive,
+                      onToggleRide: _toggleRide,
+                    )));
+        break;
+      case 'DASHBOARD':
+        _ttsService.speak("Retour au tableau de bord.");
+        // Si on est déjà sur Dashboard, on ne fait rien
+        break;
+      case 'TOGGLE_SATELLITE':
+        _ttsService.speak("Mode satellite.");
+        // Note: La commande satellite est complexe car gérée dans MapPage.
+        // On pourrait passer un paramètre si on navigue vers MapPage.
+        Navigator.push(
+            context, MaterialPageRoute(builder: (context) => const MapPage()));
+        break;
     }
   }
 
@@ -507,6 +559,35 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 ),
               ),
             ),
+          // Assistant Vocal Button (Trigger)
+          Positioned(
+            bottom: 40,
+            left: MediaQuery.of(context).size.width / 2 - 28,
+            child: GestureDetector(
+              onTap: () {
+                HapticFeedback.mediumImpact();
+                _voiceService.startListening(_handleVoiceCommand);
+                setState(() {}); // Pour mettre à jour l'état de l'icône
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                width: 56, height: 56,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _voiceService.isListening ? Colors.redAccent : Colors.cyanAccent.withOpacity(0.1),
+                  boxShadow: [
+                    if (_voiceService.isListening)
+                      BoxShadow(color: Colors.redAccent.withOpacity(0.5), blurRadius: 20, spreadRadius: 5)
+                  ],
+                  border: Border.all(color: _voiceService.isListening ? Colors.white : Colors.cyanAccent.withOpacity(0.5), width: 2),
+                ),
+                child: Icon(
+                  _voiceService.isListening ? Icons.mic : Icons.mic_none,
+                  color: _voiceService.isListening ? Colors.white : Colors.cyanAccent,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
       endDrawer: Drawer(
