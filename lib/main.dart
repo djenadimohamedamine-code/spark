@@ -124,7 +124,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
           child: ScaleTransition(
             scale: _scaleAnimation,
             child: Image.asset(
-              'assets/images/spark2.png',
+              'assets/images/spark alpha.jpeg',
               fit: BoxFit.cover, // Remplit tout l'écran 9:16 (format tiktok/reel), aucune bande
               width: double.infinity,
               height: double.infinity,

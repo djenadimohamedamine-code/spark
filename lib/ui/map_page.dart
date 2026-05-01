@@ -105,7 +105,7 @@ class _MapPageState extends State<MapPage> {
   // Suit la position GPS instantanément (comme Google Maps)
   void _followPosition(Position pos, double speedKmh) {
     if (!mounted) return;
-    double targetZoom = (speedKmh > 80) ? 15.5 : (speedKmh > 40) ? 16.5 : 17.5;
+    double targetZoom = (speedKmh > 80) ? 14.5 : (speedKmh > 40) ? 15.5 : 16.5;
     _mapController.move(LatLng(pos.latitude, pos.longitude), targetZoom);
   }
 
@@ -129,7 +129,7 @@ class _MapPageState extends State<MapPage> {
             mapController: _mapController,
             options: MapOptions(
               initialCenter: centerPos,
-              initialZoom: 17.5,
+              initialZoom: 16.5,
               onPositionChanged: (pos, hasGesture) {
                 if (hasGesture && _isFollowing) setState(() => _isFollowing = false);
               },
@@ -147,25 +147,25 @@ class _MapPageState extends State<MapPage> {
                   markers: [
                     Marker(
                       point: centerPos,
-                      width: 44, height: 44,
+                      width: 100, height: 100,
                       child: Stack(
                         alignment: const Alignment(0, 0.3), // Voiture légèrement en bas = on voit plus la route devant (Google Maps style)
                         children: [
                           // Halo GPS bleu (style Google Maps / Uber)
                           Container(
-                            width: 44, height: 44,
+                            width: 100, height: 100,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: Colors.blue.withOpacity(0.15),
                             ),
                           ),
-                          // Voiture — 28px, discrète et précise
+                          // Voiture — plus grande pour bien la voir
                           Transform.rotate(
                             angle: _lastHeading * (math.pi / 180),
                             child: Image.asset(
-                              'assets/images/spark_marker.png',
-                              width: 28,
-                              height: 28,
+                              'assets/images/spark alpha.jpeg',
+                              width: 80,
+                              height: 80,
                               fit: BoxFit.contain,
                               filterQuality: FilterQuality.high,
                             ),

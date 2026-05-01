@@ -18,6 +18,7 @@ import 'mileage_page.dart';
 import 'map_page.dart';
 import 'daily_report_page.dart';
 import 'settings_page.dart';
+import 'standalone_clock_page.dart';
 import 'ride_summary_dialog.dart';
 import '../core/background_service.dart';
 import '../logic/analytics_engine.dart';
@@ -691,6 +692,15 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.access_time, color: Colors.purpleAccent),
+                title: const Text('Horloge (Plein Écran)', style: TextStyle(color: Colors.purpleAccent, fontWeight: FontWeight.bold)),
+                subtitle: const Text('Afficher l\'horloge seule pour le client', style: TextStyle(color: Colors.white38, fontSize: 10)),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const StandaloneClockPage()));
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.settings, color: Colors.grey),
                 title: const Text('Configuration', style: TextStyle(color: Colors.white)),
                 onTap: () {
@@ -887,75 +897,87 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   }
 
   Widget _buildClock({bool isLandscape = false}) {
+    // On force l'orientation landscape via MediaQuery pour plus de fiabilité
+    final bool landscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    
     return StreamBuilder(
       stream: Stream.periodic(const Duration(seconds: 1)),
       builder: (context, snapshot) {
         final timeStr = DateFormat('HH:mm').format(DateTime.now());
-        if (isLandscape) {
+        
+        if (landscape) {
           final now = DateTime.now();
           double hourValue = (now.hour % 12) + (now.minute / 60.0);
-          double minuteValue = now.minute / 5.0; // 60 mins = 12 steps
-          double secondValue = now.second / 5.0; // 60 secs = 12 steps
+          double minuteValue = now.minute / 5.0;
+          double secondValue = now.second / 5.0;
 
           return _buildGlassCard(
             height: double.infinity,
-            child: SfRadialGauge(
-              axes: <RadialAxis>[
-                RadialAxis(
-                  minimum: 0, maximum: 12,
-                  startAngle: 270, endAngle: 270,
-                  showLabels: true,
-                  showTicks: true,
-                  interval: 1,
-                  minorTicksPerInterval: 4,
-                  axisLabelStyle: GaugeTextStyle(color: Colors.white70, fontSize: isLandscape ? 14 : 10, fontWeight: FontWeight.bold),
-                  majorTickStyle: MajorTickStyle(length: isLandscape ? 12 : 8, thickness: 2, color: Colors.cyanAccent),
-                  minorTickStyle: MinorTickStyle(length: isLandscape ? 6 : 4, thickness: 1, color: Colors.white30),
-                  axisLineStyle: const AxisLineStyle(thickness: 1, color: Colors.white10),
-                  pointers: <GaugePointer>[
-                    NeedlePointer(
-                      value: hourValue,
-                      needleColor: Colors.cyanAccent,
-                      needleLength: 0.5,
-                      needleStartWidth: isLandscape ? 4 : 2,
-                      needleEndWidth: isLandscape ? 10 : 6,
-                      knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.06),
-                      enableAnimation: true, animationDuration: 300, animationType: AnimationType.ease
-                    ),
-                    NeedlePointer(
-                      value: minuteValue,
-                      needleColor: Colors.blueAccent,
-                      needleLength: 0.7,
-                      needleStartWidth: isLandscape ? 2 : 1,
-                      needleEndWidth: isLandscape ? 8 : 4,
-                      knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.06),
-                      enableAnimation: true, animationDuration: 300, animationType: AnimationType.ease
-                    ),
-                    NeedlePointer(
-                      value: secondValue,
-                      needleColor: Colors.redAccent,
-                      needleLength: 0.85,
-                      needleStartWidth: 1,
-                      needleEndWidth: 1,
-                      knobStyle: const KnobStyle(color: Colors.redAccent, knobRadius: 0.04),
-                      enableAnimation: true, animationDuration: 300, animationType: AnimationType.ease
-                    ),
-                  ],
-                  annotations: <GaugeAnnotation>[
-                    GaugeAnnotation(
-                      widget: Padding(
-                        padding: const EdgeInsets.only(top: 40.0),
-                        child: Text(timeStr, style: TextStyle(color: Colors.cyanAccent, fontSize: isLandscape ? 20 : 12, fontWeight: FontWeight.bold, letterSpacing: 2)),
-                      ),
-                      angle: 90,
-                      positionFactor: 0.5,
-                    )
-                  ]
-                )
-              ]
-            )
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              child: FittedBox(
+                fit: BoxFit.contain,
+                child: SizedBox(
+                  width: 250,
+                  height: 250,
+                  child: SfRadialGauge(
+                    axes: <RadialAxis>[
+                      RadialAxis(
+                        minimum: 0, maximum: 12,
+                        startAngle: 270, endAngle: 270,
+                        showLabels: true,
+                        showTicks: true,
+                        interval: 1,
+                        minorTicksPerInterval: 4,
+                        axisLabelStyle: const GaugeTextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+                        majorTickStyle: const MajorTickStyle(length: 14, thickness: 3, color: Colors.cyanAccent),
+                        minorTickStyle: const MinorTickStyle(length: 7, thickness: 1.5, color: Colors.white30),
+                        axisLineStyle: const AxisLineStyle(thickness: 2, color: Colors.white10),
+                        pointers: <GaugePointer>[
+                          NeedlePointer(
+                            value: hourValue,
+                            needleColor: Colors.cyanAccent,
+                            needleLength: 0.55,
+                            needleStartWidth: 5,
+                            needleEndWidth: 12,
+                            knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.07),
+                            enableAnimation: true, animationDuration: 300
+                          ),
+                          NeedlePointer(
+                            value: minuteValue,
+                            needleColor: Colors.blueAccent,
+                            needleLength: 0.75,
+                            needleStartWidth: 3,
+                            needleEndWidth: 9,
+                            knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.07),
+                            enableAnimation: true, animationDuration: 300
+                          ),
+                          NeedlePointer(
+                            value: secondValue,
+                            needleColor: Colors.redAccent,
+                            needleLength: 0.9,
+                            needleStartWidth: 1.5,
+                            needleEndWidth: 1.5,
+                            knobStyle: const KnobStyle(color: Colors.redAccent, knobRadius: 0.05),
+                            enableAnimation: true, animationDuration: 300
+                          ),
+                        ],
+                        annotations: <GaugeAnnotation>[
+                          GaugeAnnotation(
+                            widget: Text(timeStr, style: const TextStyle(color: Colors.cyanAccent, fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                            angle: 90,
+                            positionFactor: 0.5,
+                          )
+                        ]
+                      )
+                    ]
+                  ),
+                ),
+              ),
+            ),
           );
         }
+        
         return Text(
           timeStr,
           style: const TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.w300, letterSpacing: 2),

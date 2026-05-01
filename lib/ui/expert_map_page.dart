@@ -28,7 +28,7 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
   static const double _imageRotationOffset = 45.0;
 
   int _viewMode = 0; // 0 = Split, 1 = Map Full, 2 = Sat Full
-  double _zoomMap = 17.5;
+  double _zoomMap = 16.5;
   double _zoomSat = 14.0;
 
   StreamSubscription<Position>? _positionStream;
@@ -180,7 +180,7 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.asset('assets/images/spark2.png', height: 120, width: double.infinity, fit: BoxFit.cover),
+                    child: Image.asset('assets/images/spark alpha.jpeg', height: 120, width: double.infinity, fit: BoxFit.cover),
                   ),
                 ),
                 
@@ -366,17 +366,17 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
                     Transform.rotate(
                       angle: isMap1 ? 0 : _lastHeading * (math.pi / 180), // Map1 rotates the whole map, so car stays pointing up
                       child: Container(
-                        width: (25 + (zoom - 12) * 15).clamp(10, 100),
-                        height: (25 + (zoom - 12) * 15).clamp(10, 100),
+                        width: (40 + (zoom - 12) * 20).clamp(20, 150),
+                        height: (40 + (zoom - 12) * 20).clamp(20, 150),
                         decoration: BoxDecoration(boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 10, spreadRadius: 2)]),
                       ),
                     ),
                     Transform.rotate(
                       angle: (isMap1 ? _imageRotationOffset : (_lastHeading + _imageRotationOffset)) * (math.pi / 180),
                       child: Image.asset(
-                        'assets/images/spark_marker.png',
-                        width: (30 + (zoom - 12) * 20).clamp(15, 120),
-                        height: (30 + (zoom - 12) * 20).clamp(15, 120),
+                        'assets/images/spark alpha.jpeg',
+                        width: (80 + (zoom - 12) * 35).clamp(40, 250),
+                        height: (80 + (zoom - 12) * 35).clamp(40, 250),
                         fit: BoxFit.contain, filterQuality: FilterQuality.high,
                       ),
                     ),
