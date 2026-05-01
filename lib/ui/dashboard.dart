@@ -811,27 +811,68 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
       builder: (context, snapshot) {
         final timeStr = DateFormat('HH:mm').format(DateTime.now());
         if (isLandscape) {
-              return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-               Text(
-                timeStr,
-                style: TextStyle(
-                  color: Colors.white, 
-                  fontSize: 110, 
-                  fontWeight: FontWeight.w900, // Plus épais pour le neon
-                  fontFamily: 'monospace', // Donne un aspect digital/technique
-                  letterSpacing: 4,
-                  shadows: [
-                    Shadow(color: Colors.cyanAccent, blurRadius: 10),
-                    Shadow(color: Colors.cyanAccent.withOpacity(0.8), blurRadius: 20),
-                    Shadow(color: Colors.blueAccent.withOpacity(0.6), blurRadius: 40),
-                    Shadow(color: Colors.blueAccent.withOpacity(0.4), blurRadius: 80),
+          final now = DateTime.now();
+          double hourValue = (now.hour % 12) + (now.minute / 60.0);
+          double minuteValue = now.minute / 5.0; // 60 mins = 12 steps
+          double secondValue = now.second / 5.0; // 60 secs = 12 steps
+
+          return _buildGlassCard(
+            height: 180,
+            child: SfRadialGauge(
+              axes: <RadialAxis>[
+                RadialAxis(
+                  minimum: 0, maximum: 12,
+                  startAngle: 270, endAngle: 270,
+                  showLabels: true,
+                  showTicks: true,
+                  interval: 1,
+                  minorTicksPerInterval: 4,
+                  axisLabelStyle: const GaugeTextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
+                  majorTickStyle: const MajorTickStyle(length: 8, thickness: 2, color: Colors.cyanAccent),
+                  minorTickStyle: const MinorTickStyle(length: 4, thickness: 1, color: Colors.white30),
+                  axisLineStyle: const AxisLineStyle(thickness: 1, color: Colors.white10),
+                  pointers: <GaugePointer>[
+                    NeedlePointer(
+                      value: hourValue,
+                      needleColor: Colors.cyanAccent,
+                      needleLength: 0.5,
+                      needleStartWidth: 2,
+                      needleEndWidth: 6,
+                      knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.06),
+                      enableAnimation: true, animationDuration: 300, animationType: AnimationType.ease
+                    ),
+                    NeedlePointer(
+                      value: minuteValue,
+                      needleColor: Colors.blueAccent,
+                      needleLength: 0.7,
+                      needleStartWidth: 1,
+                      needleEndWidth: 4,
+                      knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.06),
+                      enableAnimation: true, animationDuration: 300, animationType: AnimationType.ease
+                    ),
+                    NeedlePointer(
+                      value: secondValue,
+                      needleColor: Colors.redAccent,
+                      needleLength: 0.85,
+                      needleStartWidth: 1,
+                      needleEndWidth: 1,
+                      knobStyle: const KnobStyle(color: Colors.redAccent, knobRadius: 0.04),
+                      enableAnimation: true, animationDuration: 300, animationType: AnimationType.ease
+                    ),
                   ],
-                ),
-              ),
-              const Text("MIMO SPARK OS", style: TextStyle(color: Colors.cyanAccent, fontSize: 12, letterSpacing: 8, fontWeight: FontWeight.bold)),
-            ],
+                  annotations: <GaugeAnnotation>[
+                    GaugeAnnotation(
+                      widget: Padding(
+                        padding: const EdgeInsets.only(top: 40.0),
+                        child: Text(timeStr, style: const TextStyle(color: Colors.cyanAccent, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                      ),
+                      angle: 90,
+                      positionFactor: 0.5,
+                    )
+                  ]
+                )
+              ]
+            )
           );
         }
         return Text(
@@ -1065,14 +1106,14 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 widget: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(currentGear, style: TextStyle(color: Colors.redAccent, fontSize: isLandscape ? 28 : 36, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
+                    Text(currentGear, style: TextStyle(color: Colors.redAccent, fontSize: isLandscape ? 24 : 36, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
                     const Text('GEAR', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
-                    const SizedBox(height: 10),
-                    Text('${rpm.toInt()}', style: TextStyle(color: Colors.cyanAccent, fontSize: isLandscape ? 28 : 22, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 2),
+                    Text('${rpm.toInt()}', style: TextStyle(color: Colors.cyanAccent, fontSize: 20, fontWeight: FontWeight.bold)),
                     const Text('RPM', style: TextStyle(color: Colors.white54, fontSize: 9, letterSpacing: 1)),
                   ],
                 ), 
-                angle: 90, positionFactor: isLandscape ? 0.8 : 0.7
+                angle: 90, positionFactor: isLandscape ? 0.6 : 0.7
               )
             ]
           )

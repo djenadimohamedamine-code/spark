@@ -1,9 +1,9 @@
-// MIMO SPARK V4.31 GOLD MASTER
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -16,16 +16,33 @@ class MapPage extends StatefulWidget {
 
 class _MapPageState extends State<MapPage> {
   final MapController _mapController = MapController();
-  Position? _currentPosition;
-  bool _isFollowing = true;
-  bool _satelliteMode = true;
-  StreamSubscription<Position>? _positionStream;
-  Timer? _moveTimer; 
-  double _lastHeading = 0;
-  bool _rotateMap = true; // Waze Style: la carte tourne automatiquement !
-  double _smoothedSpeed = 0;
 
-  // --- Lissage angle (transition circulaire 359->0)
+  Position? _currentPosition;
+  double _lastHeading = 0;
+  double _smoothedSpeed = 0;
+  double _distanceKm = 0.0;
+
+  bool _satelliteMode = false;
+  bool _isFollowing = true;
+
+  StreamSubscription<Position>? _positionStream;
+
+  static const String _googleTrafficUrl    = 'https://mt0.google.com/vt/lyrs=m,traffic&hl=fr&x={x}&y={y}&z={z}';
+  static const String _googleSatelliteUrl  = 'https://mt0.google.com/vt/lyrs=y&hl=fr&x={x}&y={y}&z={z}'; // Satellite Google (même proj. que Traffic)
+
+  @override
+  void initState() {
+    super.initState();
+    // Default to Google Maps Traffic.
+    _startLocationTracking();
+  }
+
+  @override
+  void dispose() {
+    _positionStream?.cancel();
+    super.dispose();
+  }
+
   double _smoothAngle(double current, double target) {
     double diff = target - current;
     while (diff > 180) diff -= 360;
@@ -33,64 +50,18 @@ class _MapPageState extends State<MapPage> {
     return current + diff * 0.08;
   }
 
-  double _currentZoom = 17.0;
-
-  // --- Offset caméra pour garder la voiture en bas
-  LatLng _getOffsetPosition(Position pos, double heading) {
-    // Ajustement de l'offset selon le zoom pour que la voiture reste bien placée
-    double distance = 0.00045 * math.pow(2, 17 - _currentZoom);
-    double rad = heading * (math.pi / 180);
-    double latOffset = distance * math.cos(rad);
-    double lngOffset = distance * math.sin(rad);
-    return LatLng(pos.latitude + latOffset, pos.longitude + lngOffset);
-  }
-
-  // --- Position par défaut : Alger
-  static const LatLng _defaultPosition = LatLng(36.7538, 3.0588);
-  static const String _osmTileUrl =
-      'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-  static const String _esriSatelliteUrl =
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-
-  @override
-  void initState() {
-    super.initState();
-    final hour = DateTime.now().hour;
-    if (hour < 6 || hour > 18) _satelliteMode = true; // mode nuit automatique
-    _startLocationTracking();
-  }
-
-  @override
-  void dispose() {
-    _positionStream?.cancel();
-    _moveTimer?.cancel();
-    super.dispose();
-  }
-
   Future<void> _startLocationTracking() async {
-    if (!await Geolocator.isLocationServiceEnabled()) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Activez la localisation GPS dans les paramètres'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-      return;
-    }
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
 
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) return;
     }
-    if (permission == LocationPermission.deniedForever) return;
 
     try {
-      Position pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
+      Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
       if (!mounted) return;
       setState(() {
         _currentPosition = pos;
@@ -101,184 +72,100 @@ class _MapPageState extends State<MapPage> {
     } catch (_) {}
 
     _positionStream = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 2, // Optimisation: mis à jour tous les 2 mètres (au lieu de 5) pour une grande fluidité
-      ),
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 1),
     ).listen((Position pos) {
       if (!mounted) return;
-      if (pos.accuracy > 25) return;
-
       double speedKmh = pos.speed * 3.6;
       _smoothedSpeed = _smoothedSpeed + ((speedKmh - _smoothedSpeed) * 0.1);
 
-      // On ne met à jour le cap (heading) que si la voiture roule (éviter qu'elle tourne sur elle-même au feu rouge)
       double currentHeading = _lastHeading;
       if (speedKmh > 3.0 && pos.heading >= 0) {
         currentHeading = pos.heading;
       }
-
-      double diff = currentHeading - _lastHeading;
-      if (diff > 180) diff -= 360;
-      if (diff < -180) diff += 360;
-      if (diff.abs() > 25) HapticFeedback.lightImpact();
-
+      
       double smoothed = _smoothAngle(_lastHeading, currentHeading);
 
       setState(() {
+        if (_currentPosition != null) {
+          _distanceKm += Geolocator.distanceBetween(
+            _currentPosition!.latitude, _currentPosition!.longitude,
+            pos.latitude, pos.longitude
+          ) / 1000.0;
+        }
         _currentPosition = pos;
         _lastHeading = smoothed;
       });
 
-      // 4. On ne glisse la CARTE que si on roule un peu (stabilité)
-      if (_isFollowing && _smoothedSpeed > 2) {
-        _moveSmooth(pos, _smoothedSpeed);
+      if (_isFollowing) {
+        _followPosition(pos, _smoothedSpeed);
       }
     });
   }
 
-  void _moveSmooth(Position pos, double speedKmh) {
-    _moveTimer?.cancel();
-    final target = _getOffsetPosition(pos, _lastHeading);
-    final double targetZoom = (speedKmh > 80)
-        ? 15.5
-        : (speedKmh > 40)
-            ? 16.5
-            : 17.5;
-
-    _moveTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
-      if (!mounted) { timer.cancel(); return; }
-      final current = _mapController.camera.center;
-      double lat = current.latitude + (target.latitude - current.latitude) * 0.1;
-      double lng = current.longitude + (target.longitude - current.longitude) * 0.1;
-
-      double rotation = _rotateMap ? -_lastHeading % 360 : 0;
-      if (rotation > 180) rotation -= 360;
-      if (rotation < -180) rotation += 360; // normalization supplementaire au cas ou
-
-      _mapController.moveAndRotate(LatLng(lat, lng), targetZoom, rotation);
-
-      if ((lat - target.latitude).abs() < 0.000001 &&
-          (lng - target.longitude).abs() < 0.000001) {
-        timer.cancel();
-      }
-    });
+  // Suit la position GPS instantanément (comme Google Maps)
+  void _followPosition(Position pos, double speedKmh) {
+    if (!mounted) return;
+    double targetZoom = (speedKmh > 80) ? 15.5 : (speedKmh > 40) ? 16.5 : 17.5;
+    _mapController.move(LatLng(pos.latitude, pos.longitude), targetZoom);
   }
 
   @override
   Widget build(BuildContext context) {
-    final LatLng centerPos = _currentPosition != null
+    String etaText = "--:--";
+    if (_smoothedSpeed > 10 && _distanceKm > 0) {
+      double hoursRemaining = _distanceKm / _smoothedSpeed;
+      DateTime eta = DateTime.now().add(Duration(minutes: (hoursRemaining * 60).toInt()));
+      etaText = DateFormat('HH:mm').format(eta);
+    }
+
+    final centerPos = _currentPosition != null
         ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
-        : _defaultPosition;
+        : const LatLng(36.8065, 10.1815);
 
     return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Navigation GPS',
-              style: TextStyle(
-                  color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900),
-            ),
-            if (_currentPosition != null)
-              Text(
-                '${_smoothedSpeed.toInt()} km/h  •  Cap: ${_lastHeading.toInt()}°  •  ±${_currentPosition!.accuracy.toInt()} m',
-                style: const TextStyle(color: Colors.greenAccent, fontSize: 10),
-              ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(
-              _rotateMap ? Icons.explore : Icons.explore_off,
-              color: _rotateMap ? Colors.greenAccent : Colors.white24,
-            ),
-            tooltip: 'Direction Lock (Tesla Mode)',
-            onPressed: () {
-              setState(() => _rotateMap = !_rotateMap);
-              HapticFeedback.mediumImpact();
-            },
-          ),
-          IconButton(
-            icon: Icon(
-              _satelliteMode ? Icons.map_outlined : Icons.satellite_alt,
-              color: Colors.cyanAccent,
-            ),
-            tooltip: _satelliteMode ? 'Mode Plan (OSM)' : 'Mode Satellite (ESRI)',
-            onPressed: () => setState(() => _satelliteMode = !_satelliteMode),
-          ),
-        ],
-      ),
       body: Stack(
         children: [
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
               initialCenter: centerPos,
-              initialZoom: _currentZoom,
-              maxZoom: 19,
-              minZoom: 3,
+              initialZoom: 17.5,
               onPositionChanged: (pos, hasGesture) {
-                if (pos.zoom != _currentZoom) {
-                  setState(() {
-                    _currentZoom = pos.zoom!;
-                  });
-                }
                 if (hasGesture && _isFollowing) setState(() => _isFollowing = false);
               },
             ),
             children: [
               TileLayer(
-                urlTemplate: _satelliteMode ? _esriSatelliteUrl : _osmTileUrl,
+                urlTemplate: _satelliteMode ? _googleSatelliteUrl : _googleTrafficUrl,
                 userAgentPackageName: 'com.mimo.spark',
-                maxZoom: 19,
-                keepBuffer: 2, // Réduit pour accélérer l'affichage et soulager la RAM
+                maxZoom: 20,
+                keepBuffer: 4,
               ),
-              if (_satelliteMode)
-                TileLayer(
-                  urlTemplate:
-                      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-                  userAgentPackageName: 'com.mimo.spark',
-                  maxZoom: 19,
-                  keepBuffer: 2,
-                ),
+              // Pas de layer labels séparé (Google Satellite 'y' inclut déjà les noms de rues)
               if (_currentPosition != null)
                 MarkerLayer(
                   markers: [
                     Marker(
                       point: centerPos,
-                      width: 150, // On donne de la place pour la rotation
-                      height: 150,
+                      width: 44, height: 44,
                       child: Stack(
-                        alignment: Alignment.center,
+                        alignment: const Alignment(0, 0.3), // Voiture légèrement en bas = on voit plus la route devant (Google Maps style)
                         children: [
-                          // Ombre portée pour le réalisme
-                          Transform.rotate(
-                            angle: (_rotateMap ? 0 : _lastHeading) * (math.pi / 180),
-                            child: Container(
-                              width: (25 + (_currentZoom - 12) * 15).clamp(10, 100),
-                              height: (25 + (_currentZoom - 12) * 15).clamp(10, 100),
-                              decoration: BoxDecoration(
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.4),
-                                    blurRadius: 10,
-                                    spreadRadius: 2,
-                                  )
-                                ],
-                              ),
+                          // Halo GPS bleu (style Google Maps / Uber)
+                          Container(
+                            width: 44, height: 44,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.blue.withOpacity(0.15),
                             ),
                           ),
+                          // Voiture — 28px, discrète et précise
                           Transform.rotate(
-                            angle: (_rotateMap ? 45 : (_lastHeading + 45)) * (math.pi / 180), // Offset +45 pour la Spark 3/4 arrière
+                            angle: _lastHeading * (math.pi / 180),
                             child: Image.asset(
                               'assets/images/spark_marker.png',
-                              // Taille dynamique : plus on zoome, plus la Spark est GRANDE
-                              width: (30 + (_currentZoom - 12) * 20).clamp(15, 120),
-                              height: (30 + (_currentZoom - 12) * 20).clamp(15, 120),
+                              width: 28,
+                              height: 28,
                               fit: BoxFit.contain,
                               filterQuality: FilterQuality.high,
                             ),
@@ -290,60 +177,57 @@ class _MapPageState extends State<MapPage> {
                 ),
             ],
           ),
+
+          // Bouton Satellite en haut à droite
           Positioned(
-            top: 40,
-            right: 16,
+            top: 40, right: 16,
             child: FloatingActionButton(
-              heroTag: 'fab_sat',
+              heroTag: 'sat',
               mini: true,
               backgroundColor: Colors.black87,
-              onPressed: () {
-                setState(() => _satelliteMode = !_satelliteMode);
-              },
-              child: Icon(
-                _satelliteMode ? Icons.map : Icons.satellite_alt,
-                color: Colors.white,
-              ),
+              onPressed: () => setState(() => _satelliteMode = !_satelliteMode),
+              child: Icon(_satelliteMode ? Icons.map : Icons.satellite_alt, color: Colors.white),
             ),
           ),
+          
+          // Bouton Recentrer
           Positioned(
-            bottom: 24,
-            left: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.black87,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${_smoothedSpeed.toInt()} km/h',
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900),
-                  ),
-                  const Text('GPS Satellite',
-                      style: TextStyle(color: Colors.white38, fontSize: 10)),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 24,
-            right: 16,
+            bottom: 100, right: 16,
             child: FloatingActionButton(
-              heroTag: 'fab_gps',
+              heroTag: 'center',
               backgroundColor: _isFollowing ? Colors.cyanAccent : Colors.black87,
               onPressed: () {
                 setState(() => _isFollowing = true);
                 if (_currentPosition != null) _moveSmooth(_currentPosition!, _smoothedSpeed);
               },
-              child: Icon(
-                _isFollowing ? Icons.gps_fixed : Icons.gps_not_fixed,
-                color: _isFollowing ? Colors.black : Colors.cyanAccent,
+              child: Icon(_isFollowing ? Icons.gps_fixed : Icons.gps_not_fixed, color: _isFollowing ? Colors.black : Colors.cyanAccent),
+            ),
+          ),
+
+          // Barre de bas "Distance & ETA"
+          Positioned(
+            bottom: 24, left: 20, right: 20,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.black87,
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: Colors.cyanAccent.withOpacity(0.5), width: 2),
+                  boxShadow: [BoxShadow(color: Colors.cyanAccent.withOpacity(0.2), blurRadius: 10)],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.route, color: Colors.cyanAccent, size: 24),
+                    const SizedBox(width: 8),
+                    Text('${_distanceKm.toStringAsFixed(1)} KM', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 24),
+                    const Icon(Icons.flag, color: Colors.greenAccent, size: 24),
+                    const SizedBox(width: 8),
+                    Text(etaText, style: const TextStyle(color: Colors.greenAccent, fontSize: 20, fontWeight: FontWeight.bold)),
+                  ],
+                ),
               ),
             ),
           ),

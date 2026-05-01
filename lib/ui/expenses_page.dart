@@ -21,6 +21,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
   final TextEditingController _amountController = TextEditingController();
   List<Map<String, dynamic>> _expenses = [];
   List<Ride> _rides = [];
+  List<Map<String, dynamic>> _sessions = [];
   double _totalExpenses = 0.0;
   double _totalEarned = 0.0;
 
@@ -31,9 +32,9 @@ class _ExpensesPageState extends State<ExpensesPage> {
   }
 
   Future<void> _refresh() async {
-    final date = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    final expenses = await DatabaseHelper().getExpensesForDate(date);
-    final rides = await DatabaseHelper().getRidesForDate(date);
+    final expenses = await DatabaseHelper().getActiveExpenses();
+    final rides = await DatabaseHelper().getActiveRides();
+    final sessions = await DatabaseHelper().getAllSessions();
 
     double tExp = 0;
     for (var e in expenses) tExp += e['amount_da'];
@@ -43,9 +44,39 @@ class _ExpensesPageState extends State<ExpensesPage> {
     setState(() {
       _expenses = expenses;
       _rides = rides;
+      _sessions = sessions;
       _totalExpenses = tExp;
       _totalEarned = tEarned;
     });
+  }
+
+  void _archiveSession() async {
+    if (_rides.isEmpty && _expenses.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Rien à sauvegarder pour l'instant")));
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF151828),
+        title: const Text("Clôturer la session ?", style: TextStyle(color: Colors.white)),
+        content: const Text("Toutes les données actuelles seront archivées dans l'historique et le compteur reviendra à zéro.", style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("ANNULER")),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text("CLÔTURER"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await DatabaseHelper().closeCurrentSession();
+      _refresh();
+    }
   }
 
   void _addExpense(String type) async {
@@ -149,6 +180,10 @@ class _ExpensesPageState extends State<ExpensesPage> {
         backgroundColor: const Color(0xFF0F0F0F),
         iconTheme: const IconThemeData(color: Colors.cyanAccent),
         actions: [
+          IconButton(
+              onPressed: _archiveSession,
+              icon: const Icon(Icons.save_alt, color: Colors.orangeAccent),
+              tooltip: "Clôturer et Archiver"),
           IconButton(
               onPressed: _refresh,
               icon: const Icon(Icons.refresh, color: Colors.cyanAccent))
@@ -261,6 +296,90 @@ class _ExpensesPageState extends State<ExpensesPage> {
               ),
             ),
           ),
+
+          // ─── Historique des Sessions ─────────────────────────────────
+          if (_sessions.isNotEmpty) ...[
+            const Divider(color: Colors.white10, height: 1),
+            Container(
+              height: 180,
+              color: Colors.black,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Text("SESSIONS ARCHIVÉES",
+                        style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 10,
+                            letterSpacing: 2,
+                            fontWeight: FontWeight.bold)),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: _sessions.length,
+                      itemBuilder: (context, index) {
+                        final s = _sessions[index];
+                        final start = DateTime.fromMillisecondsSinceEpoch(
+                            s['start_timestamp']);
+                        final end = DateTime.fromMillisecondsSinceEpoch(
+                            s['end_timestamp']);
+                        final profit = s['total_earned'] - s['total_spent'];
+
+                        return Container(
+                          margin: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 4),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F0F0F),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white10),
+                          ),
+                          child: Row(
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                      DateFormat('dd MMM HH:mm').format(start) +
+                                          " ➔ " +
+                                          DateFormat('HH:mm').format(end),
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold)),
+                                  Text(
+                                      "${s['total_km'].toStringAsFixed(1)} KM • ${s['total_fuel'].toStringAsFixed(1)} L",
+                                      style: const TextStyle(
+                                          color: Colors.white38, fontSize: 10)),
+                                ],
+                              ),
+                              const Spacer(),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text("${profit.toStringAsFixed(0)} DA",
+                                      style: TextStyle(
+                                          color: profit >= 0
+                                              ? Colors.greenAccent
+                                              : Colors.redAccent,
+                                          fontWeight: FontWeight.bold)),
+                                  Text(
+                                      "${s['total_earned'].toStringAsFixed(0)} DA encaissés",
+                                      style: const TextStyle(
+                                          color: Colors.white24, fontSize: 9)),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
