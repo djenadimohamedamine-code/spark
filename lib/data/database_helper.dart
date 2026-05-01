@@ -80,6 +80,12 @@ class DatabaseHelper {
     return maps.map((m) => Ride.fromMap(m)).toList();
   }
 
+  Future<List<Ride>> getRidesForDate(String date) async {
+    final db = await database;
+    final maps = await db.query('rides', where: 'date = ?', whereArgs: [date], orderBy: 'start_time ASC');
+    return maps.map((m) => Ride.fromMap(m)).toList();
+  }
+
   Future<List<Ride>> getAllRides() async {
     final db = await database;
     final maps = await db.query('rides', orderBy: 'start_time DESC');
@@ -107,6 +113,11 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> getActiveExpenses() async {
     final db = await database;
     return db.query('expenses', where: 'session_id IS NULL', orderBy: 'timestamp ASC');
+  }
+
+  Future<List<Map<String, dynamic>>> getExpensesForDate(String date) async {
+    final db = await database;
+    return db.query('expenses', where: 'date = ?', whereArgs: [date]);
   }
 
   // ── Session Archiving ───────────────────────────────────────────────────
