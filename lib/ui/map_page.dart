@@ -26,9 +26,11 @@ class _MapPageState extends State<MapPage> {
   bool _isFollowing = true;
 
   // Offset de rotation de l'image pour que le capot pointe vers le haut (Nord)
-  static const double _carRotationOffset = -45.0;
+  // Ajustement PRO : +135 pour corriger l'effet "à l'envers" signalé par Mimo
+  static const double _carRotationOffset = 135.0;
 
   StreamSubscription<Position>? _positionStream;
+  Timer? _recenterTimer;
 
   static const String _googleTrafficUrl    = 'https://mt0.google.com/vt/lyrs=m,traffic&hl=fr&x={x}&y={y}&z={z}';
   static const String _googleSatelliteUrl  = 'https://mt0.google.com/vt/lyrs=y&hl=fr&x={x}&y={y}&z={z}'; // Satellite Google (même proj. que Traffic)
@@ -43,6 +45,7 @@ class _MapPageState extends State<MapPage> {
   @override
   void dispose() {
     _positionStream?.cancel();
+    _recenterTimer?.cancel();
     super.dispose();
   }
 
@@ -114,6 +117,16 @@ class _MapPageState extends State<MapPage> {
     _mapController.move(LatLng(offsetLat, pos.longitude), targetZoom);
   }
 
+  void _startRecenterTimer() {
+    _recenterTimer?.cancel();
+    _recenterTimer = Timer(const Duration(seconds: 6), () {
+      if (mounted && !_isFollowing) {
+        setState(() => _isFollowing = true);
+        if (_currentPosition != null) _followPosition(_currentPosition!, _smoothedSpeed);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     String etaText = "--:--";
@@ -136,7 +149,10 @@ class _MapPageState extends State<MapPage> {
               initialCenter: centerPos,
               initialZoom: 18.2,
               onPositionChanged: (pos, hasGesture) {
-                if (hasGesture && _isFollowing) setState(() => _isFollowing = false);
+                if (hasGesture) {
+                  if (_isFollowing) setState(() => _isFollowing = false);
+                  _startRecenterTimer(); // Relance le timer de recentrage auto
+                }
               },
             ),
             children: [
@@ -152,25 +168,26 @@ class _MapPageState extends State<MapPage> {
                   markers: [
                     Marker(
                       point: centerPos,
-                      width: 120, height: 120,
+                      width: 150, height: 150, // Zone plus large pour l'icône
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          // Halo GPS bleu (plus discret, style Google Maps)
+                          // Halo GPS bleu (style Google Maps)
                           Container(
-                            width: 60, height: 60,
+                            width: 70, height: 70,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: Colors.blue.withOpacity(0.15),
-                              border: Border.all(color: Colors.blue.withOpacity(0.2), width: 1),
+                              color: Colors.blue.withOpacity(0.12),
+                              border: Border.all(color: Colors.blue.withOpacity(0.15), width: 1),
                             ),
                           ),
-                          // Voiture — taille proportionnelle au zoom (style Waze)
+                          // Voiture — taille PRO (bien grande comme demandé)
                           Transform.rotate(
                             angle: (_lastHeading + _carRotationOffset) * (math.pi / 180),
                             child: LayoutBuilder(builder: (context, constraints) {
                               final mapZoom = _mapController.camera.zoom;
-                              final carSize = (mapZoom * 2.8).clamp(28.0, 55.0);
+                              // Taille augmentée pour être bien visible (style Google Maps Pro)
+                              final carSize = (mapZoom * 4.2).clamp(50.0, 95.0);
                               return Image.asset(
                                 'assets/images/Adobe Express - file.png',
                                 width: carSize,
@@ -207,6 +224,7 @@ class _MapPageState extends State<MapPage> {
               heroTag: 'center',
               backgroundColor: _isFollowing ? Colors.cyanAccent : Colors.black87,
               onPressed: () {
+                _recenterTimer?.cancel();
                 setState(() => _isFollowing = true);
                 if (_currentPosition != null) _followPosition(_currentPosition!, _smoothedSpeed);
               },

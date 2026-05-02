@@ -1,6 +1,10 @@
 package com.mimo.spark
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.wifi.WifiManager
 import android.os.PowerManager
 import io.flutter.embedding.android.FlutterActivity
@@ -12,16 +16,51 @@ class MainActivity: FlutterActivity() {
 
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
+    
+    private var wifiNetwork: Network? = null
+    private var connectivityManager: ConnectivityManager? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        
+        connectivityManager = applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        
+        val networkRequest = NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            .build()
+            
+        connectivityManager?.requestNetwork(networkRequest, object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                wifiNetwork = network
+                android.util.Log.d("MIMO", "WiFi disponible !")
+            }
+            override fun onLost(network: Network) {
+                if (wifiNetwork == network) {
+                    wifiNetwork = null
+                    android.util.Log.d("MIMO", "WiFi perdu !")
+                }
+            }
+        })
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
-            if (call.method == "activateShield") {
-                val status = activateShield()
-                result.success(status)
-            } else {
-                result.notImplemented()
+            when (call.method) {
+                "activateShield" -> {
+                    val status = activateShield()
+                    result.success(status)
+                }
+                "bindToWifi" -> {
+                    if (wifiNetwork != null) {
+                        connectivityManager?.bindProcessToNetwork(wifiNetwork)
+                        result.success(true)
+                    } else {
+                        result.success(false)
+                    }
+                }
+                "unbindWifi" -> {
+                    connectivityManager?.bindProcessToNetwork(null)
+                    result.success(true)
+                }
+                else -> result.notImplemented()
             }
         }
     }
@@ -51,8 +90,7 @@ class MainActivity: FlutterActivity() {
             log += "WifiFail "
         }
 
-        // SUPPRESSION DU BIND RÉSEAU POUR LAISSER LA 4G ACTIVE
-        log += "NetFree"
+        log += "NetReady"
 
         return log
     }

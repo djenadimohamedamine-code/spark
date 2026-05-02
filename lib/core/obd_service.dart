@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import '../vocal/tts_service.dart';
@@ -11,6 +12,12 @@ class ObdService {
 
   final String ip = '192.168.0.10';
   final int port = 35000;
+  bool _isBoundToWifi = false;
+
+  // SWITCH DE SÉCURITÉ : 
+  // true = Dual-Network (OBD + 4G) - Standard
+  // false = Mode Forcé Wi-Fi (On perd la 4G mais connexion OBD blindée)
+  static const bool enableDualNetwork = true;
 
   Socket? _socket;
   Socket? get socket => _socket;
@@ -90,8 +97,8 @@ class ObdService {
 
       final secondsSinceLastData = DateTime.now().difference(_lastDataReceived).inSeconds;
       
-      // Si on n'a rien reçu depuis plus de 12 secondes et on n'est pas en diag long
-      if (secondsSinceLastData > 12 && !_isDiagnosticMode) {
+      // Si on n'a rien reçu depuis plus de 6 secondes et on n'est pas en diag long
+      if (secondsSinceLastData > 6 && !_isDiagnosticMode) {
         _log('WATCHDOG: Aucune donnée depuis \$secondsSinceLastData s → socket mort, reconnexion forcée');
         t.cancel();
         _handleDisconnect();
@@ -125,13 +132,47 @@ class ObdService {
     _noDataCount = 0;
   }
 
+  static const platform = MethodChannel('mimo.spark/shield');
+
   Future<bool> connect() async {
     await _initLogFile();
     _log("Mimo Spark: Tentative de connexion Wi-Fi...");
 
     try {
+      // BIND TEMPORAIRE AU WIFI POUR SÉCURISER LA CONNEXION OBD SANS PERDRE LA 4G
+      bool wifiReady = false;
+      for (int i = 0; i < 5; i++) {
+        try {
+          wifiReady = await platform.invokeMethod('bindToWifi');
+          if (wifiReady) break;
+        } catch (e) {
+          _log("Erreur bindToWifi: $e");
+        }
+        await Future.delayed(const Duration(seconds: 1));
+      }
+
+      if (!wifiReady) {
+        _log("WiFi OBD non prêt ! (bindToWifi a retourné false)");
+      }
+
       _socket =
           await Socket.connect(ip, port, timeout: const Duration(seconds: 10));
+
+      _isBoundToWifi = true;
+
+      // Sécurité : Si le mode Dual-Network est désactivé, on ne fait JAMAIS de unbind
+      if (!enableDualNetwork) {
+        _log("🛡️ Shield: Mode Wi-Fi Forcé (Dual-Network désactivé)");
+        return true;
+      }
+
+      // Sécurité : Si aucune donnée ne vient après 10s, on unbind quand même pour libérer la 4G
+      Future.delayed(const Duration(seconds: 10), () {
+        if (_isBoundToWifi) {
+          _log("Timeout bind : unbind forcé pour libérer la 4G");
+          _unbind();
+        }
+      });
 
       // ── Écoute TCP avec tampon "attend le '>'" ────────────────────────
       _tcpBuffer = '';
@@ -140,6 +181,12 @@ class ObdService {
           final String chunk = String.fromCharCodes(event);
           _log("BRUT: $chunk");
           _tcpBuffer += chunk;
+
+          // Version Pro : Dès qu'on reçoit le premier octet, on relâche le bind 
+          // pour que le reste de l'app (Maps/Voix) puisse utiliser la 4G.
+          if (_isBoundToWifi) {
+            _unbind();
+          }
 
           // On traite SEULEMENT quand on voit le marqueur de fin '>'
           while (_tcpBuffer.contains('>')) {
@@ -204,6 +251,11 @@ class ObdService {
       _startPolling();
       return true;
     } catch (e) {
+      // Toujours s'assurer qu'on unbind même en cas d'échec
+      try {
+        await platform.invokeMethod('unbindWifi');
+      } catch (_) {}
+
       _log("CONNECTION FAILED: $e");
       if (!_isReconnecting) {
         _ttsService.speak("Réseau de la Spark perdu. Recherche en cours...");
@@ -499,5 +551,15 @@ class ObdService {
 
   void disconnect() {
     _handleDisconnect(autoReconnect: false);
+  }
+
+  // Helper pour unbind proprement
+  Future<void> _unbind() async {
+    if (!_isBoundToWifi) return;
+    try {
+      await platform.invokeMethod('unbindWifi');
+      _log("🛡️ Shield: Processus délié du Wi-Fi (4G active)");
+    } catch (_) {}
+    _isBoundToWifi = false;
   }
 }
