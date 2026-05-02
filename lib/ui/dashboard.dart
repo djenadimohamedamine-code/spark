@@ -273,16 +273,24 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     await prefs.setDouble('fuel_calibration', val);
   }
 
+  bool _wasPaused = false;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      // On vérifie si la connexion a survécu au passage en arrière-plan
-      if (!_obdService.isConnected) {
-        print("Mimo Spark : Connexion perdue en arrière-plan. Reconnexion...");
-        _connectObd();
-      } else {
-        print("Mimo Spark : Connexion maintenue. Reprise directe.");
-      }
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _wasPaused = true;
+    }
+    if (state == AppLifecycleState.resumed && _wasPaused) {
+      _wasPaused = false;
+      // Android tue les sockets TCP en arrière-plan même si Flutter croit qu'ils sont vivants.
+      // On force un disconnect propre puis reconnexion immédiate.
+      _obdService.disconnect();
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (mounted) {
+          _addLog("🔄 Reconnexion après retour app...");
+          _connectObd();
+        }
+      });
     }
   }
 
@@ -911,49 +919,41 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
           double minuteValue = now.minute / 5.0;
           double secondValue = now.second / 5.0;
 
-          return _buildGlassCard(
-            height: double.infinity,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(6.0),
-                    child: FittedBox(
-                      fit: BoxFit.contain,
-                      child: SizedBox(
-                        width: 220, height: 220,
-                        child: SfRadialGauge(
-                          axes: <RadialAxis>[
-                            RadialAxis(
-                              minimum: 0, maximum: 12,
-                              startAngle: 270, endAngle: 270,
-                              showLabels: true, showTicks: true,
-                              interval: 1, minorTicksPerInterval: 4,
-                              axisLabelStyle: const GaugeTextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
-                              majorTickStyle: const MajorTickStyle(length: 14, thickness: 3, color: Colors.cyanAccent),
-                              minorTickStyle: const MinorTickStyle(length: 7, thickness: 1.5, color: Colors.white30),
-                              axisLineStyle: const AxisLineStyle(thickness: 2, color: Colors.white10),
-                              annotations: <GaugeAnnotation>[],
-                              pointers: <GaugePointer>[
-                                NeedlePointer(value: hourValue, needleColor: Colors.cyanAccent, needleLength: 0.55, needleStartWidth: 5, needleEndWidth: 12, knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.07), enableAnimation: true, animationDuration: 300),
-                                NeedlePointer(value: minuteValue, needleColor: Colors.blueAccent, needleLength: 0.75, needleStartWidth: 3, needleEndWidth: 9, knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.07), enableAnimation: true, animationDuration: 300),
-                                NeedlePointer(value: secondValue, needleColor: Colors.redAccent, needleLength: 0.9, needleStartWidth: 1.5, needleEndWidth: 1.5, knobStyle: const KnobStyle(color: Colors.redAccent, knobRadius: 0.05), enableAnimation: true, animationDuration: 300),
-                              ],
-                            )
-                          ],
-                        ),
-                      ),
-                    ),
+          // Horloge sans boite noire — remplit tout l'espace disponible
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+                  child: SfRadialGauge(
+                    axes: <RadialAxis>[
+                      RadialAxis(
+                        minimum: 0, maximum: 12,
+                        startAngle: 270, endAngle: 270,
+                        showLabels: true, showTicks: true,
+                        interval: 1, minorTicksPerInterval: 4,
+                        axisLabelStyle: const GaugeTextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+                        majorTickStyle: const MajorTickStyle(length: 14, thickness: 3, color: Colors.cyanAccent),
+                        minorTickStyle: const MinorTickStyle(length: 7, thickness: 1.5, color: Colors.white30),
+                        axisLineStyle: const AxisLineStyle(thickness: 2, color: Colors.white10),
+                        annotations: <GaugeAnnotation>[],
+                        pointers: <GaugePointer>[
+                          NeedlePointer(value: hourValue, needleColor: Colors.cyanAccent, needleLength: 0.55, needleStartWidth: 5, needleEndWidth: 12, knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.07), enableAnimation: true, animationDuration: 300),
+                          NeedlePointer(value: minuteValue, needleColor: Colors.blueAccent, needleLength: 0.75, needleStartWidth: 3, needleEndWidth: 9, knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.07), enableAnimation: true, animationDuration: 300),
+                          NeedlePointer(value: secondValue, needleColor: Colors.redAccent, needleLength: 0.9, needleStartWidth: 1.5, needleEndWidth: 1.5, knobStyle: const KnobStyle(color: Colors.redAccent, knobRadius: 0.05), enableAnimation: true, animationDuration: 300),
+                        ],
+                      )
+                    ],
                   ),
                 ),
-                // Heure numérique EN DESSOUS — ne gêne plus les aiguilles
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Text(timeStr, style: const TextStyle(color: Colors.cyanAccent, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 3)),
-                ),
-              ],
-            ),
+              ),
+              // Heure numérique EN DESSOUS — propre et lisible
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(timeStr, style: const TextStyle(color: Colors.cyanAccent, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 3)),
+              ),
+            ],
           );
         }
         

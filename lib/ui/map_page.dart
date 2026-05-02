@@ -25,6 +25,9 @@ class _MapPageState extends State<MapPage> {
   bool _satelliteMode = false;
   bool _isFollowing = true;
 
+  // Offset de rotation de l'image (ajustable selon orientation du PNG)
+  static const double _carRotationOffset = -90.0;
+
   StreamSubscription<Position>? _positionStream;
 
   static const String _googleTrafficUrl    = 'https://mt0.google.com/vt/lyrs=m,traffic&hl=fr&x={x}&y={y}&z={z}';
@@ -105,8 +108,10 @@ class _MapPageState extends State<MapPage> {
   // Suit la position GPS instantanément (comme Google Maps)
   void _followPosition(Position pos, double speedKmh) {
     if (!mounted) return;
-    double targetZoom = (speedKmh > 80) ? 14.5 : (speedKmh > 40) ? 15.5 : 16.5;
-    _mapController.move(LatLng(pos.latitude, pos.longitude), targetZoom);
+    double targetZoom = (speedKmh > 80) ? 16.0 : (speedKmh > 40) ? 17.0 : 18.2;
+    // Décalage vers le haut pour voir la route devant (style Waze)
+    final offsetLat = pos.latitude + 0.0003;
+    _mapController.move(LatLng(offsetLat, pos.longitude), targetZoom);
   }
 
   @override
@@ -129,7 +134,7 @@ class _MapPageState extends State<MapPage> {
             mapController: _mapController,
             options: MapOptions(
               initialCenter: centerPos,
-              initialZoom: 16.5,
+              initialZoom: 18.2,
               onPositionChanged: (pos, hasGesture) {
                 if (hasGesture && _isFollowing) setState(() => _isFollowing = false);
               },
@@ -159,15 +164,12 @@ class _MapPageState extends State<MapPage> {
                               color: Colors.blue.withOpacity(0.15),
                             ),
                           ),
-                          // Voiture — taille proportionnelle au zoom (comme Google Maps)
+                          // Voiture — taille proportionnelle au zoom (style Waze)
                           Transform.rotate(
-                            // L'image spark alpha pointe vers le haut-droit de l'image.
-                            // On soustrait 45° pour qu'elle soit Nord quand heading=0
-                            angle: (_lastHeading - 45) * (math.pi / 180),
+                            angle: (_lastHeading + _carRotationOffset) * (math.pi / 180),
                             child: LayoutBuilder(builder: (context, constraints) {
-                              // Taille relative au zoom : plus on zoome, plus la voiture est grande
                               final mapZoom = _mapController.camera.zoom;
-                              final carSize = (10.0 * math.pow(2, mapZoom - 14)).clamp(20.0, 100.0);
+                              final carSize = (mapZoom * 2.8).clamp(28.0, 55.0);
                               return Image.asset(
                                 'assets/images/Adobe Express - file.png',
                                 width: carSize,

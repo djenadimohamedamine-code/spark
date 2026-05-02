@@ -76,6 +76,44 @@ class ObdService {
 
   bool _isReconnecting = false;
   int _noDataCount = 0;
+  Timer? _heartbeatTimer;
+
+  DateTime _lastDataReceived = DateTime.now();
+
+  // ─── Watchdog : détecte les sockets silencieusement morts ────
+  // TCP a un défaut : `write()` peut réussir même si la connexion est cassée (Android).
+  // La seule vraie solution est de vérifier l'heure de la dernière réponse reçue.
+  void _startWatchdog() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 4), (t) {
+      if (_socket == null) { t.cancel(); return; }
+
+      final secondsSinceLastData = DateTime.now().difference(_lastDataReceived).inSeconds;
+      
+      // Si on n'a rien reçu depuis plus de 12 secondes et on n'est pas en diag long
+      if (secondsSinceLastData > 12 && !_isDiagnosticMode) {
+        _log('WATCHDOG: Aucune donnée depuis \$secondsSinceLastData s → socket mort, reconnexion forcée');
+        t.cancel();
+        _handleDisconnect();
+        return;
+      }
+      
+      // Heartbeat léger si on a peur que le module s'endorme
+      try {
+        _socket!.write('0100\r'); // sonde OBD simple
+      } catch (e) {
+        _log('WATCHDOG WRITE FAIL: \$e');
+        t.cancel();
+        _handleDisconnect();
+      }
+    });
+  }
+
+  /// Reconnexion forcée (appelée par le Dashboard au lifecycle resume)
+  void forceReconnect() {
+    _log("Mimo Spark: Reconnexion forcée demandée (Watchdog/Resume)");
+    _handleDisconnect(autoReconnect: true);
+  }
 
   Future<void> _wakeUpEcu() async {
     _isDiagnosticMode = true;
@@ -123,7 +161,8 @@ class ObdService {
                   _wakeUpEcu();
                 }
               } else if (telegram.length >= 4) {
-                _noDataCount = 0; // Remise à zéro dès qu'on capte des vraies données
+                _noDataCount = 0;
+                _lastDataReceived = DateTime.now(); // Socket vivant ✓
               }
 
               _log("CLEAN: $telegram");
@@ -159,7 +198,9 @@ class ObdService {
       await sendCommandWait('ATSTFF', delay: 500); // Timeout max pour stabilité
 
       _ttsService.speak("Scanner Mimo Spark prêt.");
-      _isReconnecting = false; // Reset d'état car succès
+      _isReconnecting = false;
+      _lastDataReceived = DateTime.now(); // Reset chrono
+      _startWatchdog(); // Surveillance watchdog TCP strict
       _startPolling();
       return true;
     } catch (e) {
@@ -322,7 +363,9 @@ class ObdService {
   }
 
   void _handleDisconnect({bool autoReconnect = true}) {
-    _socket?.destroy();
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+    try { _socket?.destroy(); } catch (_) {}
     _socket = null;
     _isPolling = false;
     _tcpBuffer = '';
@@ -339,7 +382,7 @@ class ObdService {
         }
       });
     } else {
-      _isReconnecting = false; // Force quit
+      _isReconnecting = false;
     }
   }
 
@@ -447,7 +490,8 @@ class ObdService {
   }
 
   void dispose() {
-    _handleDisconnect();
+    _heartbeatTimer?.cancel();
+    _handleDisconnect(autoReconnect: false);
     if (!_dataStreamController.isClosed) _dataStreamController.close();
     if (!_dtcStreamController.isClosed) _dtcStreamController.close();
     if (!_mileageStreamController.isClosed) _mileageStreamController.close();
