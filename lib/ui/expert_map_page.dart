@@ -23,9 +23,9 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
   double _smoothedSpeed = 0;
   double _distanceKm = 0.0; // Distance placeholder or calculated
   
-  // L'image de la Spark (vue 3/4 arrière) pointe vers le haut-gauche (-45°).
-  // On ajoute 45° pour qu'elle pointe droit devant (Nord).
-  static const double _imageRotationOffset = 45.0;
+  // L'image spark alpha pointe vers le haut-droit (-45° de l'axe Nord).
+  // On soustrait 45° pour qu'elle pointe Nord quand heading=0
+  static const double _imageRotationOffset = -45.0;
 
   int _viewMode = 0; // 0 = Split, 1 = Map Full, 2 = Sat Full
   double _zoomMap = 16.5;
@@ -374,7 +374,7 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
                     Transform.rotate(
                       angle: (isMap1 ? _imageRotationOffset : (_lastHeading + _imageRotationOffset)) * (math.pi / 180),
                       child: Image.asset(
-                        'assets/images/spark alpha.jpeg',
+                        'assets/images/Adobe Express - file.png',
                         width: (80 + (zoom - 12) * 35).clamp(40, 250),
                         height: (80 + (zoom - 12) * 35).clamp(40, 250),
                         fit: BoxFit.contain, filterQuality: FilterQuality.high,

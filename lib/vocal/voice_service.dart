@@ -28,16 +28,27 @@ class VoiceService {
       return;
     }
     
+    // Si déjà en écoute, on arrête
+    if (_speech.isListening) {
+      await _speech.stop();
+      return;
+    }
+    
     await _speech.listen(
       onResult: (result) {
-        if (result.finalResult) {
-          String text = result.recognizedWords.toLowerCase();
-          print("VOCAL: $text");
-          _processCommand(text, onCommand);
+        // On traite dès qu'on a un résultat (final ou intermédiaire suffisamment long)
+        if (result.finalResult || result.recognizedWords.length > 3) {
+          String text = result.recognizedWords.toLowerCase().trim();
+          print("VOCAL: '$text'");
+          if (text.isNotEmpty) {
+            _processCommand(text, onCommand);
+          }
         }
       },
       localeId: 'fr_FR',
-      listenFor: const Duration(seconds: 5),
+      listenFor: const Duration(seconds: 8),
+      pauseFor: const Duration(seconds: 3),
+      partialResults: true,
     );
   }
 
@@ -48,25 +59,38 @@ class VoiceService {
   void _processCommand(String text, Function(String command) onCommand) {
     if (text.isEmpty) return;
 
-    if (text.contains('dashboard') || text.contains('tableau de bord')) {
+    // DASHBOARD
+    if (text.contains('dashboard') || text.contains('tableau') || text.contains('bord') || text.contains('accueil')) {
       onCommand('DASHBOARD');
-    } else if (text.contains('démarrer') || text.contains('course')) {
-      // "Démarrer la course" ou "Démarrer"
-      if (text.contains('arrêter') || text.contains('terminer')) {
-         onCommand('STOP_RIDE');
-      } else {
-         onCommand('START_RIDE');
-      }
-    } else if (text.contains('arrêter') || text.contains('terminer') || text.contains('stop')) {
+    }
+    // STOP RIDE
+    else if (text.contains('arrêt') || text.contains('arreter') || text.contains('terminer') || 
+             text.contains('stop') || text.contains('finir') || text.contains('fin')) {
       onCommand('STOP_RIDE');
-    } else if (text.contains('carte') || text.contains('map')) {
+    }
+    // START RIDE
+    else if (text.contains('démarre') || text.contains('démarrer') || text.contains('demarr') ||
+             text.contains('course') || text.contains('start') || text.contains('partir') ||
+             text.contains('commenc') || text.contains('lancer') || text.contains('go')) {
+      onCommand('START_RIDE');
+    }
+    // MAP
+    else if (text.contains('carte') || text.contains('map') || text.contains('gps') || 
+             text.contains('navigation') || text.contains('itinéraire')) {
       onCommand('MAP');
-    } else if (text.contains('dépense') || text.contains('argent')) {
+    }
+    // EXPENSES
+    else if (text.contains('dépense') || text.contains('depense') || text.contains('argent') || 
+             text.contains('recharge') || text.contains('plein') || text.contains('essence')) {
       onCommand('EXPENSES');
-    } else if (text.contains('satellite')) {
+    }
+    // SATELLITE
+    else if (text.contains('satellite') || text.contains('vue') || text.contains('aérien')) {
       onCommand('TOGGLE_SATELLITE');
-    } else {
-      _tts.speak("Je n'ai pas compris, redis s'il te plaît.");
+    }
+    // Pas de réponse "je n'ai pas compris" si le mot est trop court (bruit ambiant)
+    else if (text.length > 4) {
+      _tts.speak("Commande non reconnue.");
     }
   }
 }

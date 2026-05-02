@@ -560,9 +560,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 ),
               ),
             ),
-          // Assistant Vocal Button (Trigger)
+          // Assistant Vocal Button (Trigger) — déplacé en haut pour éviter chevauchement avec batterie
           Positioned(
-            bottom: 40,
+            bottom: 100,
             left: MediaQuery.of(context).size.width / 2 - 28,
             child: GestureDetector(
               onTap: () {
@@ -913,67 +913,46 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
           return _buildGlassCard(
             height: double.infinity,
-            child: Container(
-              padding: const EdgeInsets.all(10),
-              child: FittedBox(
-                fit: BoxFit.contain,
-                child: SizedBox(
-                  width: 250,
-                  height: 250,
-                  child: SfRadialGauge(
-                    axes: <RadialAxis>[
-                      RadialAxis(
-                        minimum: 0, maximum: 12,
-                        startAngle: 270, endAngle: 270,
-                        showLabels: true,
-                        showTicks: true,
-                        interval: 1,
-                        minorTicksPerInterval: 4,
-                        axisLabelStyle: const GaugeTextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
-                        majorTickStyle: const MajorTickStyle(length: 14, thickness: 3, color: Colors.cyanAccent),
-                        minorTickStyle: const MinorTickStyle(length: 7, thickness: 1.5, color: Colors.white30),
-                        axisLineStyle: const AxisLineStyle(thickness: 2, color: Colors.white10),
-                        pointers: <GaugePointer>[
-                          NeedlePointer(
-                            value: hourValue,
-                            needleColor: Colors.cyanAccent,
-                            needleLength: 0.55,
-                            needleStartWidth: 5,
-                            needleEndWidth: 12,
-                            knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.07),
-                            enableAnimation: true, animationDuration: 300
-                          ),
-                          NeedlePointer(
-                            value: minuteValue,
-                            needleColor: Colors.blueAccent,
-                            needleLength: 0.75,
-                            needleStartWidth: 3,
-                            needleEndWidth: 9,
-                            knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.07),
-                            enableAnimation: true, animationDuration: 300
-                          ),
-                          NeedlePointer(
-                            value: secondValue,
-                            needleColor: Colors.redAccent,
-                            needleLength: 0.9,
-                            needleStartWidth: 1.5,
-                            needleEndWidth: 1.5,
-                            knobStyle: const KnobStyle(color: Colors.redAccent, knobRadius: 0.05),
-                            enableAnimation: true, animationDuration: 300
-                          ),
-                        ],
-                        annotations: <GaugeAnnotation>[
-                          GaugeAnnotation(
-                            widget: Text(timeStr, style: const TextStyle(color: Colors.cyanAccent, fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 2)),
-                            angle: 90,
-                            positionFactor: 0.5,
-                          )
-                        ]
-                      )
-                    ]
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(6.0),
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      child: SizedBox(
+                        width: 220, height: 220,
+                        child: SfRadialGauge(
+                          axes: <RadialAxis>[
+                            RadialAxis(
+                              minimum: 0, maximum: 12,
+                              startAngle: 270, endAngle: 270,
+                              showLabels: true, showTicks: true,
+                              interval: 1, minorTicksPerInterval: 4,
+                              axisLabelStyle: const GaugeTextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+                              majorTickStyle: const MajorTickStyle(length: 14, thickness: 3, color: Colors.cyanAccent),
+                              minorTickStyle: const MinorTickStyle(length: 7, thickness: 1.5, color: Colors.white30),
+                              axisLineStyle: const AxisLineStyle(thickness: 2, color: Colors.white10),
+                              annotations: <GaugeAnnotation>[],
+                              pointers: <GaugePointer>[
+                                NeedlePointer(value: hourValue, needleColor: Colors.cyanAccent, needleLength: 0.55, needleStartWidth: 5, needleEndWidth: 12, knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.07), enableAnimation: true, animationDuration: 300),
+                                NeedlePointer(value: minuteValue, needleColor: Colors.blueAccent, needleLength: 0.75, needleStartWidth: 3, needleEndWidth: 9, knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.07), enableAnimation: true, animationDuration: 300),
+                                NeedlePointer(value: secondValue, needleColor: Colors.redAccent, needleLength: 0.9, needleStartWidth: 1.5, needleEndWidth: 1.5, knobStyle: const KnobStyle(color: Colors.redAccent, knobRadius: 0.05), enableAnimation: true, animationDuration: 300),
+                              ],
+                            )
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                // Heure numérique EN DESSOUS — ne gêne plus les aiguilles
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(timeStr, style: const TextStyle(color: Colors.cyanAccent, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 3)),
+                ),
+              ],
             ),
           );
         }

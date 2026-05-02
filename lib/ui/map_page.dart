@@ -147,28 +147,35 @@ class _MapPageState extends State<MapPage> {
                   markers: [
                     Marker(
                       point: centerPos,
-                      width: 100, height: 100,
+                      width: 120, height: 120,
                       child: Stack(
-                        alignment: const Alignment(0, 0.3), // Voiture légèrement en bas = on voit plus la route devant (Google Maps style)
+                        alignment: const Alignment(0, 0.3),
                         children: [
                           // Halo GPS bleu (style Google Maps / Uber)
                           Container(
-                            width: 100, height: 100,
+                            width: 120, height: 120,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: Colors.blue.withOpacity(0.15),
                             ),
                           ),
-                          // Voiture — plus grande pour bien la voir
+                          // Voiture — taille proportionnelle au zoom (comme Google Maps)
                           Transform.rotate(
-                            angle: _lastHeading * (math.pi / 180),
-                            child: Image.asset(
-                              'assets/images/spark alpha.jpeg',
-                              width: 80,
-                              height: 80,
-                              fit: BoxFit.contain,
-                              filterQuality: FilterQuality.high,
-                            ),
+                            // L'image spark alpha pointe vers le haut-droit de l'image.
+                            // On soustrait 45° pour qu'elle soit Nord quand heading=0
+                            angle: (_lastHeading - 45) * (math.pi / 180),
+                            child: LayoutBuilder(builder: (context, constraints) {
+                              // Taille relative au zoom : plus on zoome, plus la voiture est grande
+                              final mapZoom = _mapController.camera.zoom;
+                              final carSize = (10.0 * math.pow(2, mapZoom - 14)).clamp(20.0, 100.0);
+                              return Image.asset(
+                                'assets/images/Adobe Express - file.png',
+                                width: carSize,
+                                height: carSize,
+                                fit: BoxFit.contain,
+                                filterQuality: FilterQuality.high,
+                              );
+                            }),
                           ),
                         ],
                       ),
