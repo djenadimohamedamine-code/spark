@@ -28,19 +28,15 @@ class MainActivity: FlutterActivity() {
             
             val networkRequest = NetworkRequest.Builder()
                 .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                // On demande explicitement un réseau qui n'a PAS besoin d'internet
                 .removeCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                 .build()
                 
-            // On écoute uniquement. On ne "demande" pas au système de changer sa route globale.
+            // registerNetworkCallback : On écoute les changements
             connectivityManager?.registerNetworkCallback(networkRequest, object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
                     wifiNetwork = network
-                    android.util.Log.d("MIMO", "Shield: WiFi détecté (Local Only)")
-                }
-                override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-                    if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
-                        wifiNetwork = network
-                    }
+                    android.util.Log.d("MIMO", "Shield: WiFi détecté")
                 }
                 override fun onLost(network: Network) {
                     if (wifiNetwork == network) wifiNetwork = null
@@ -48,8 +44,21 @@ class MainActivity: FlutterActivity() {
                 }
             })
 
+            // requestNetwork : C'est le "Bouclier". Il force Android à garder le Wi-Fi actif 
+            // même si la 4G est là. On le met en "passive" ou local pour ne pas gêner le système.
+            try {
+                connectivityManager?.requestNetwork(networkRequest, object : ConnectivityManager.NetworkCallback() {
+                    override fun onAvailable(network: Network) {
+                        wifiNetwork = network
+                        android.util.Log.d("MIMO", "Shield: Connexion WiFi verrouillée par le bouclier")
+                    }
+                }, 5000) // Timeout de 5s pour la recherche initiale
+            } catch (e: Exception) {
+                android.util.Log.e("MIMO", "Shield: Erreur requestNetwork: ${e.message}")
+            }
+
         } catch (e: Exception) {
-            android.util.Log.e("MIMO", "Shield: Erreur init Connectivity: ${e.message}")
+            android.util.Log.e("MIMO", "Shield: Erreur globale Connectivity: ${e.message}")
         }
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
