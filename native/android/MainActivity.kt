@@ -26,35 +26,25 @@ class MainActivity: FlutterActivity() {
         try {
             connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             
-            // On définit une requête qui NE demande PAS forcément l'internet
             val networkRequest = NetworkRequest.Builder()
                 .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
                 .removeCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                 .build()
                 
-            // registerNetworkCallback : On écoute passivement
+            // On écoute uniquement. On ne "demande" pas au système de changer sa route globale.
             connectivityManager?.registerNetworkCallback(networkRequest, object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
                     wifiNetwork = network
-                    android.util.Log.d("MIMO", "Shield: WiFi détecté (onAvailable)")
+                    android.util.Log.d("MIMO", "Shield: WiFi détecté (Local Only)")
                 }
                 override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
                     if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
                         wifiNetwork = network
-                        android.util.Log.d("MIMO", "Shield: WiFi mis à jour (CapabilitiesChanged)")
                     }
                 }
                 override fun onLost(network: Network) {
                     if (wifiNetwork == network) wifiNetwork = null
                     android.util.Log.d("MIMO", "Shield: WiFi perdu")
-                }
-            })
-
-            // requestNetwork : On demande activement au système de garder la connexion même sans internet
-            connectivityManager?.requestNetwork(networkRequest, object : ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: Network) {
-                    wifiNetwork = network
-                    android.util.Log.d("MIMO", "Shield: WiFi forcé (requestNetwork)")
                 }
             })
 
