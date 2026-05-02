@@ -25,8 +25,8 @@ class _MapPageState extends State<MapPage> {
   bool _satelliteMode = false;
   bool _isFollowing = true;
 
-  // Offset de rotation de l'image (ajustable selon orientation du PNG)
-  static const double _carRotationOffset = -90.0;
+  // Offset de rotation de l'image pour que le capot pointe vers le haut (Nord)
+  static const double _carRotationOffset = -45.0;
 
   StreamSubscription<Position>? _positionStream;
 
@@ -154,14 +154,15 @@ class _MapPageState extends State<MapPage> {
                       point: centerPos,
                       width: 120, height: 120,
                       child: Stack(
-                        alignment: const Alignment(0, 0.3),
+                        alignment: Alignment.center,
                         children: [
-                          // Halo GPS bleu (style Google Maps / Uber)
+                          // Halo GPS bleu (plus discret, style Google Maps)
                           Container(
-                            width: 120, height: 120,
+                            width: 60, height: 60,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: Colors.blue.withOpacity(0.15),
+                              border: Border.all(color: Colors.blue.withOpacity(0.2), width: 1),
                             ),
                           ),
                           // Voiture — taille proportionnelle au zoom (style Waze)

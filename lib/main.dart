@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:intl/date_symbol_data_local.dart';
 // MIMO SPARK V3.4 - RESTART DUAL BUILD APK & IPA
 import 'ui/dashboard.dart';
 import 'vocal/tts_service.dart';
@@ -32,6 +33,7 @@ void main() async {
     
     final ttsService = TtsService();
     await ttsService.init();
+    await initializeDateFormatting('fr_FR', null);
     
     // 1. Demander les permissions
     await requestSparkPermissions();

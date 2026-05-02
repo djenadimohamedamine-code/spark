@@ -568,9 +568,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 ),
               ),
             ),
-          // Assistant Vocal Button (Trigger) — déplacé en haut pour éviter chevauchement avec batterie
+          // Assistant Vocal Button (Trigger) — Position ajustée en paysage pour éviter de cacher l'horloge
           Positioned(
-            bottom: 100,
+            bottom: MediaQuery.of(context).orientation == Orientation.landscape ? 65 : 100,
             left: MediaQuery.of(context).size.width / 2 - 28,
             child: GestureDetector(
               onTap: () {
@@ -875,9 +875,10 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                       Expanded(
                         flex: 2,
                         child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             _buildBatteryMini(isLandscape: true),
+                            const SizedBox(height: 12),
                           ],
                         ),
                       ),
@@ -957,9 +958,37 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
           );
         }
         
-        return Text(
-          timeStr,
-          style: const TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.w300, letterSpacing: 2),
+        final parts = timeStr.split(':');
+        return Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(parts[0], style: const TextStyle(color: Colors.white, fontSize: 64, fontWeight: FontWeight.bold, letterSpacing: -2, shadows: [Shadow(color: Colors.cyanAccent, blurRadius: 10)])),
+                Text(':', style: TextStyle(color: Colors.cyanAccent.withOpacity(0.5), fontSize: 50, fontWeight: FontWeight.w200)),
+                Text(parts[1], style: const TextStyle(color: Colors.white, fontSize: 64, fontWeight: FontWeight.w300, letterSpacing: -2)),
+                const SizedBox(width: 8),
+                Text(DateFormat('ss').format(DateTime.now()), style: TextStyle(color: Colors.cyanAccent.withOpacity(0.4), fontSize: 18, fontWeight: FontWeight.w400)),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(width: 40, height: 1, decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.transparent, Colors.cyanAccent.withOpacity(0.3)]))),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    DateFormat('EEEE d MMMM', 'fr_FR').format(DateTime.now()).toUpperCase(),
+                    style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2),
+                  ),
+                ),
+                Container(width: 40, height: 1, decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.cyanAccent.withOpacity(0.3), Colors.transparent]))),
+              ],
+            ),
+          ],
         );
       },
     );
