@@ -33,6 +33,15 @@ class _MapPageState extends State<MapPage> {
   List<LatLng> _routePoints = [];
   String? _destinationName;
 
+  // --- ÉLÉMENTS NAVIGATION AVANCÉS (WAZE STYLE) ---
+  List<dynamic> _navigationSteps = [];
+  int _currentStepIndex = 0;
+  int _routeProgressIndex = 0;
+  String _nextInstruction = "Suivez la route";
+  double _distanceToNextStep = 0;
+  IconData _nextManeuverIcon = Icons.navigation;
+  DateTime? _lastRecalculateTime;
+
   // Offset de rotation de l'image
   static const double _carRotationOffset = 135.0;
 
@@ -109,6 +118,10 @@ class _MapPageState extends State<MapPage> {
         _lastHeading = smoothed;
       });
 
+      if (_destination != null && _routePoints.isNotEmpty) {
+        _updateNavigation(pos);
+      }
+
       if (_isFollowing) {
         _followPosition(pos, _smoothedSpeed);
       }
@@ -118,7 +131,7 @@ class _MapPageState extends State<MapPage> {
   void _followPosition(Position pos, double speedKmh) {
     if (!mounted) return;
     double targetZoom = (speedKmh > 80) ? 16.0 : (speedKmh > 40) ? 17.0 : 18.2;
-    final offsetLat = pos.latitude + 0.0003;
+    final offsetLat = pos.latitude + 0.0004;
     _mapController.move(LatLng(offsetLat, pos.longitude), targetZoom);
   }
 
@@ -139,7 +152,6 @@ class _MapPageState extends State<MapPage> {
     setState(() => _isSearching = true);
 
     try {
-      // Geocoding via Nominatim (Free)
       final url = Uri.parse('https://nominatim.openstreetmap.org/search?format=json&q=$query&limit=1');
       final response = await http.get(url, headers: {'User-Agent': 'MimoSparkApp'});
 
@@ -154,6 +166,9 @@ class _MapPageState extends State<MapPage> {
             _destination = LatLng(lat, lon);
             _destinationName = name;
             _isFollowing = false;
+            _navigationSteps = [];
+            _currentStepIndex = 0;
+            _routeProgressIndex = 0;
           });
 
           _mapController.move(_destination!, 15.0);
@@ -169,18 +184,22 @@ class _MapPageState extends State<MapPage> {
 
   Future<void> _getRoute(LatLng start, LatLng end) async {
     try {
-      // Routing via OSRM (Free)
-      final url = Uri.parse('https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=polyline');
+      final url = Uri.parse('https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=polyline&steps=true&languages=fr');
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['routes'] != null && data['routes'].isNotEmpty) {
-          final geometry = data['routes'][0]['geometry'];
+          final route = data['routes'][0];
+          final geometry = route['geometry'];
           final points = _decodePolyline(geometry);
           
           setState(() {
             _routePoints = points;
+            _navigationSteps = route['legs'][0]['steps'];
+            _currentStepIndex = 0;
+            _routeProgressIndex = 0;
+            _updateManeuverInfo();
           });
         }
       }
@@ -189,12 +208,102 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
-  // Décodage Polyline OSRM (Standard Google Algorithm)
+  // 🔥 PROJECTION SUR ROUTE (WAZE STYLE)
+  LatLng _projectOnRoute(LatLng current, List<LatLng> route) {
+    if (route.isEmpty) return current;
+    LatLng closest = route.first;
+    double minDist = double.infinity;
+    for (final p in route) {
+      final d = Geolocator.distanceBetween(current.latitude, current.longitude, p.latitude, p.longitude);
+      if (d < minDist) {
+        minDist = d;
+        closest = p;
+      }
+    }
+    return closest;
+  }
+
+  void _updateNavigation(Position currentPos) {
+    if (_navigationSteps.isEmpty || _routePoints.isEmpty) return;
+
+    final currentPoint = LatLng(currentPos.latitude, currentPos.longitude);
+
+    // 1. PROJECTION SUR ROUTE
+    final projected = _projectOnRoute(currentPoint, _routePoints);
+    _routeProgressIndex = _routePoints.indexOf(projected);
+    if (_routeProgressIndex < 0) _routeProgressIndex = 0;
+
+    // 2. DÉTECTION HORS ROUTE AMÉLIORÉE
+    double distanceToRoute = Geolocator.distanceBetween(
+      currentPoint.latitude, currentPoint.longitude,
+      projected.latitude, projected.longitude
+    );
+
+    if (distanceToRoute > 60) {
+      final now = DateTime.now();
+      if (_lastRecalculateTime == null || now.difference(_lastRecalculateTime!).inSeconds > 10) {
+        _lastRecalculateTime = now;
+        print("Mimo: Hors route réel détecté, recalcul...");
+        _getRoute(currentPoint, _destination!);
+        return;
+      }
+    }
+
+    // 3. MISE À JOUR ÉTAPE (Vérification sécurité index)
+    if (_currentStepIndex >= _navigationSteps.length) {
+      _currentStepIndex = _navigationSteps.length - 1;
+    }
+
+    var currentStep = _navigationSteps[_currentStepIndex];
+    var stepLocation = currentStep['maneuver']['location'];
+    double distToStep = Geolocator.distanceBetween(
+      currentPoint.latitude, currentPoint.longitude,
+      stepLocation[1], stepLocation[0]
+    );
+
+    setState(() {
+      _distanceToNextStep = distToStep;
+    });
+
+    if (distToStep < 25 && _currentStepIndex < _navigationSteps.length - 1) {
+      setState(() {
+        _currentStepIndex++;
+        _updateManeuverInfo();
+      });
+    }
+  }
+
+  void _updateManeuverInfo() {
+    if (_navigationSteps.isEmpty) return;
+    var step = _navigationSteps[_currentStepIndex];
+    var instruction = step['maneuver']['instruction'] ?? "Continuez";
+    var type = step['maneuver']['type'];
+    var modifier = step['maneuver']['modifier'] ?? "";
+
+    setState(() {
+      _nextInstruction = instruction;
+      _nextManeuverIcon = _getManeuverIcon(type, modifier);
+    });
+
+    // Option guidage vocal (désactivé par défaut pour stabilité, voir logs)
+    print("MIMO NAV: $instruction");
+  }
+
+  IconData _getManeuverIcon(String type, String modifier) {
+    if (type.contains('turn')) {
+      if (modifier.contains('left')) return Icons.turn_left;
+      if (modifier.contains('right')) return Icons.turn_right;
+    }
+    if (type.contains('roundabout')) return Icons.rotate_right;
+    if (type.contains('depart')) return Icons.play_arrow;
+    if (type.contains('arrive')) return Icons.flag;
+    return Icons.navigation;
+  }
+
   List<LatLng> _decodePolyline(String encoded) {
     List<LatLng> points = [];
     int index = 0, len = encoded.length;
     int lat = 0, lng = 0;
-
     while (index < len) {
       int b, shift = 0, result = 0;
       do {
@@ -204,7 +313,6 @@ class _MapPageState extends State<MapPage> {
       } while (b >= 0x20);
       int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
       lat += dlat;
-
       shift = 0;
       result = 0;
       do {
@@ -214,7 +322,6 @@ class _MapPageState extends State<MapPage> {
       } while (b >= 0x20);
       int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
       lng += dlng;
-
       points.add(LatLng(lat / 1E5, lng / 1E5));
     }
     return points;
@@ -222,12 +329,7 @@ class _MapPageState extends State<MapPage> {
 
   @override
   Widget build(BuildContext context) {
-    String etaText = "--:--";
-    if (_smoothedSpeed > 5 && _distanceKm > 0) {
-       // Estimation basée sur la distance restante à vol d'oiseau si pas de route, ou sur la route si dispo
-       // Pour faire simple ici on garde ton calcul original
-    }
-
+    // On utilise la projection pour l'affichage si on suit la route
     final centerPos = _currentPosition != null
         ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
         : const LatLng(36.8065, 10.1815);
@@ -254,27 +356,25 @@ class _MapPageState extends State<MapPage> {
                 userAgentPackageName: 'com.mimo.spark',
                 maxZoom: 20,
               ),
-              // TRACÉ DE LA ROUTE (Ligne bleue épaisse style Google)
               if (_routePoints.isNotEmpty)
                 PolylineLayer(
                   polylines: [
                     Polyline(
                       points: _routePoints,
-                      strokeWidth: 8.0,
-                      color: Colors.blue.withOpacity(0.8),
+                      strokeWidth: 10.0,
+                      color: Colors.blue.withOpacity(0.85),
                       borderColor: Colors.blue[900]!,
                       borderStrokeWidth: 2.0,
                     ),
                   ],
                 ),
-              // MARQUEURS (VOITURE + DESTINATION)
               MarkerLayer(
                 markers: [
                   if (_destination != null)
                     Marker(
                       point: _destination!,
-                      width: 50, height: 50,
-                      child: const Icon(Icons.location_on, color: Colors.red, size: 45),
+                      width: 60, height: 60,
+                      child: const Icon(Icons.location_on, color: Colors.red, size: 55),
                     ),
                   if (_currentPosition != null)
                     Marker(
@@ -285,21 +385,14 @@ class _MapPageState extends State<MapPage> {
                         children: [
                           Container(
                             width: 70, height: 70,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.blue.withOpacity(0.12),
-                            ),
+                            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.blue.withOpacity(0.12)),
                           ),
                           Transform.rotate(
                             angle: (_lastHeading + _carRotationOffset) * (math.pi / 180),
                             child: LayoutBuilder(builder: (context, constraints) {
                               final mapZoom = _mapController.camera.zoom;
                               final carSize = (mapZoom * 4.2).clamp(50.0, 95.0);
-                              return Image.asset(
-                                'assets/images/Adobe Express - file.png',
-                                width: carSize, height: carSize,
-                                fit: BoxFit.contain,
-                              );
+                              return Image.asset('assets/images/Adobe Express - file.png', width: carSize, height: carSize);
                             }),
                           ),
                         ],
@@ -310,72 +403,65 @@ class _MapPageState extends State<MapPage> {
             ],
           ),
 
-          // BARRE DE RECHERCHE STYLE GOOGLE MAPS
-          Positioned(
-            top: 50, left: 16, right: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              decoration: BoxDecoration(
-                color: Colors.black87,
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: Colors.white12),
-                boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 10)],
-              ),
-              child: Row(
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.all(8.0),
-                    child: Icon(Icons.search, color: Colors.cyanAccent),
-                  ),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
-                        hintText: "Où allons-nous Mimo ?",
-                        hintStyle: TextStyle(color: Colors.white38),
-                        border: InputBorder.none,
-                      ),
-                      onSubmitted: _searchDestination,
-                    ),
-                  ),
-                  if (_destination != null)
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.redAccent),
-                      onPressed: () {
-                        setState(() {
-                          _destination = null;
-                          _routePoints = [];
-                          _searchController.clear();
-                        });
-                      },
-                    ),
-                ],
-              ),
-            ),
-          ),
-
-          // INFOS DESTINATION (ETA / DISTANCE RESTANTE)
-          if (_destination != null)
+          // BANDEAU DE NAVIGATION WAZE STYLE
+          if (_destination != null && _navigationSteps.isNotEmpty)
             Positioned(
-              top: 110, left: 16, right: 16,
+              top: 40, left: 10, right: 10,
               child: Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.blue[900]!.withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(15),
+                  color: const Color(0xFF1B5E20).withOpacity(0.95),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 15)],
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.navigation, color: Colors.white),
-                    const SizedBox(width: 10),
+                    Icon(_nextManeuverIcon, color: Colors.white, size: 50),
+                    const SizedBox(width: 15),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(_destinationName ?? "Destination", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                          const Text("Suivre le tracé bleu", style: TextStyle(color: Colors.white70, fontSize: 11)),
+                          Text(
+                            _distanceToNextStep > 1000 
+                              ? "${(_distanceToNextStep/1000).toStringAsFixed(1)} km" 
+                              : "${_distanceToNextStep.toInt()} m",
+                            style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w900),
+                          ),
+                          Text(
+                            _nextInstruction,
+                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // BARRE DE RECHERCHE
+          if (_destination == null)
+            Positioned(
+              top: 50, left: 16, right: 16,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black87,
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: Row(
+                  children: [
+                    const Padding(padding: EdgeInsets.all(8.0), child: Icon(Icons.search, color: Colors.cyanAccent)),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: const InputDecoration(hintText: "Où allons-nous Mimo ?", hintStyle: TextStyle(color: Colors.white38), border: InputBorder.none),
+                        onSubmitted: _searchDestination,
                       ),
                     ),
                   ],
@@ -385,16 +471,24 @@ class _MapPageState extends State<MapPage> {
 
           // BOUTONS LATERAUX
           Positioned(
-            top: 170, right: 16,
+            bottom: 30, right: 16,
             child: Column(
               children: [
+                if (_destination != null)
+                  FloatingActionButton(
+                    heroTag: 'stop_nav', mini: true,
+                    backgroundColor: Colors.redAccent,
+                    onPressed: () => setState(() { _destination = null; _routePoints = []; _navigationSteps = []; }),
+                    child: const Icon(Icons.close, color: Colors.white),
+                  ),
+                const SizedBox(height: 10),
                 FloatingActionButton(
                   heroTag: 'sat', mini: true,
                   backgroundColor: Colors.black87,
                   onPressed: () => setState(() => _satelliteMode = !_satelliteMode),
                   child: Icon(_satelliteMode ? Icons.map : Icons.satellite_alt, color: Colors.white),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 FloatingActionButton(
                   heroTag: 'center',
                   backgroundColor: _isFollowing ? Colors.cyanAccent : Colors.black87,
@@ -408,22 +502,22 @@ class _MapPageState extends State<MapPage> {
             ),
           ),
 
-          // INDICATEUR DE VITESSE EN BAS À GAUCHE
+          // COMPTEUR DE VITESSE
           Positioned(
-            bottom: 100, left: 16,
+            bottom: 30, left: 16,
             child: Container(
-              width: 60, height: 60,
+              width: 70, height: 70,
               decoration: BoxDecoration(
                 color: Colors.black87,
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.cyanAccent, width: 2),
+                border: Border.all(color: _smoothedSpeed > 80 ? Colors.red : Colors.cyanAccent, width: 3),
               ),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text("${_smoothedSpeed.toInt()}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-                    const Text("km/h", style: TextStyle(color: Colors.cyanAccent, fontSize: 8)),
+                    Text("${_smoothedSpeed.toInt()}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22)),
+                    const Text("km/h", style: TextStyle(color: Colors.cyanAccent, fontSize: 9)),
                   ],
                 ),
               ),
