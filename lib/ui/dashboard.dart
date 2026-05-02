@@ -9,7 +9,6 @@ import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 
 import 'expenses_page.dart';
-import '../vocal/tts_service.dart';
 import '../logic/fuel_calculator.dart';
 import '../core/obd_service.dart';
 import '../core/gear_calculator.dart';
@@ -58,7 +57,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     print(msg);
   }
   
-  final TtsService _ttsService = TtsService();
   final FuelCalculator _fuelCalculator = FuelCalculator();
   final ObdService _obdService = ObdService();
   final VoiceService _voiceService = VoiceService();
@@ -167,26 +165,26 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
       case 'START_RIDE':
         if (!isRideActive) {
           _toggleRide();
-          _ttsService.speak("C'est parti Mimo, course démarrée !");
+          _addLog("Course démarrée !");
         } else {
-          _ttsService.speak("La course est déjà en cours.");
+          _addLog("La course est déjà en cours.");
         }
         break;
       case 'STOP_RIDE':
         if (isRideActive) {
           _toggleRide();
-          _ttsService.speak("Course terminée. Beau boulot Mimo !");
+          _addLog("Course terminée.");
         } else {
-          _ttsService.speak("Aucune course n'est active.");
+          _addLog("Aucune course n'est active.");
         }
         break;
       case 'MAP':
-        _ttsService.speak("Affichage de la carte.");
+        _addLog("Affichage de la carte.");
         Navigator.push(
             context, MaterialPageRoute(builder: (context) => const MapPage()));
         break;
       case 'EXPENSES':
-        _ttsService.speak("Ouverture des dépenses.");
+        _addLog("Ouverture des dépenses.");
         Navigator.push(
             context,
             MaterialPageRoute(
@@ -196,11 +194,11 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                     )));
         break;
       case 'DASHBOARD':
-        _ttsService.speak("Retour au tableau de bord.");
+        _addLog("Retour au tableau de bord.");
         // Si on est déjà sur Dashboard, on ne fait rien
         break;
       case 'TOGGLE_SATELLITE':
-        _ttsService.speak("Mode satellite.");
+        _addLog("Mode satellite.");
         // Note: La commande satellite est complexe car gérée dans MapPage.
         // On pourrait passer un paramètre si on navigue vers MapPage.
         Navigator.push(
@@ -366,7 +364,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 _fuelCalculator.calibrate(tempFuel);
                 await _saveFuelCalibration(tempFuel); // Sauvegarde persistante
                 setState(() {}); 
-                _ttsService.speak("Calibrage du carburant enregistré.");
+                _addLog("Calibrage du carburant enregistré.");
               },
               child: const Text('CALER AIGUILLE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
             ),
@@ -401,7 +399,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     final lastTime = _alertCooldowns[label] ?? now.subtract(const Duration(hours: 1));
 
     if (value >= threshold && now.difference(lastTime).inSeconds > cooldownSec) {
-      _ttsService.speakAlert(message);
+      _addLog("ALERTE : $message");
       _alertCooldowns[label] = now;
     }
   }
@@ -687,7 +685,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 onTap: () {
                   setState(() => isHudMode = !isHudMode);
                   Navigator.pop(context);
-                  _ttsService.speak(isHudMode ? "Mode miroir activé" : "Mode normal");
+                  _addLog(isHudMode ? "Mode miroir activé" : "Mode normal");
                 },
               ),
               ListTile(
@@ -1062,7 +1060,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
         startFuelLiters = _fuelCalculator.currentLiters;
         rideDistance = 0.0;
       });
-      _ttsService.speak("Course démarrée. Bonne route Mimo.");
+      _addLog("Course démarrée. Bonne route Mimo.");
     } else {
       // STOP
       final endTime = DateTime.now().millisecondsSinceEpoch;
@@ -1085,7 +1083,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
               distanceKm: rideDistance,
             );
             setState(() => isRideActive = false);
-            _ttsService.speak("Course enregistrée. Bénéfice calculé.");
+            _addLog("Course enregistrée. Bénéfice calculé.");
           },
         ),
       );

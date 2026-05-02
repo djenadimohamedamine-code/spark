@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:io';
 import '../core/dtc_database.dart';
-import '../vocal/tts_service.dart';
 import '../core/obd_service.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -16,7 +15,6 @@ class DiagnosticPage extends StatefulWidget {
 }
 
 class _DiagnosticPageState extends State<DiagnosticPage> {
-  final TtsService _ttsService = TtsService();
   // Utilise l'obdService partagé via widget.obdService (déjà connecté)
   ObdService get _obdService => widget.obdService;
   List<String> _currentErrors = [];
@@ -52,7 +50,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
       _currentErrors.clear();
       _resolvedErrors.clear();
     });
-    _ttsService.speak("Lancement du diagnostic expert Mimo Spark.");
+    _log("Lancement du diagnostic expert Mimo Spark.");
     
     // Attente dynamique du scan (Plus rapide et précis)
     await _obdService.scanTroubleCodes();
@@ -67,7 +65,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
       });
       
       if (_resolvedErrors.isEmpty) {
-        _ttsService.speak("Diagnostic terminé. Aucun code d'erreur trouvé.");
+        _log("Diagnostic terminé. Aucun code d'erreur trouvé.");
       } else {
         _showClearConfirmDialog();
       }
@@ -75,7 +73,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
   }
 
   void _showClearConfirmDialog() {
-    _ttsService.speak("Mimo, j'ai trouvé des pannes. Veux-tu les effacer ?");
+    _log("Mimo, j'ai trouvé des pannes.");
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -163,7 +161,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
           _currentErrors = _currentErrors.toSet().toList(); // Unique
           _isLoading = false;
         });
-        _ttsService.speak("Mimo, j'ai trouvé ${codesTrouves.length} pannes.");
+        _log("Mimo, j'ai trouvé ${codesTrouves.length} pannes.");
       }
     } catch (e) {
       _log("Parser Error: $e");
@@ -177,9 +175,9 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
     bool success = await _obdService.clearCodes();
     if (success) {
       setState(() => _currentErrors.clear());
-      _ttsService.speak("Effacement réussi Mimo. Le voyant devrait s'éteindre.");
+      _log("Effacement réussi Mimo. Le voyant devrait s'éteindre.");
     } else {
-      _ttsService.speak("Échec de l'effacement. Vérifie ton contact.");
+      _log("Échec de l'effacement. Vérifie ton contact.");
     }
   }
 
@@ -212,7 +210,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
           );
         }
       } else {
-        _ttsService.speak('Mimo, le journal est vide.');
+        _log('Mimo, le journal est vide.');
       }
     } catch (e) {
       print('Erreur lecture log: $e');
@@ -224,7 +222,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
     if (logFile != null) {
       await Share.shareXFiles([XFile(logFile.path)], text: 'Journal de bord Mimo Spark OBD2');
     } else {
-      _ttsService.speak('Aucun journal de bord disponible.');
+      _log('Aucun journal de bord disponible.');
     }
   }
 

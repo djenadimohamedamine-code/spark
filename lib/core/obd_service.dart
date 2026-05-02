@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
-import '../vocal/tts_service.dart';
 
 class ObdService {
   static final ObdService _instance = ObdService._internal();
@@ -38,8 +37,6 @@ class ObdService {
   final StreamController<String> _mileageStreamController =
       StreamController<String>.broadcast();
   Stream<String> get mileageStream => _mileageStreamController.stream;
-
-  final TtsService _ttsService = TtsService();
 
   // ─── Valeurs temps réel exposées (lues par background_service.dart) ─────────
   double lastRpm     = 0.0;
@@ -99,7 +96,7 @@ class ObdService {
       
       // Si on n'a rien reçu depuis plus de 6 secondes et on n'est pas en diag long
       if (secondsSinceLastData > 6 && !_isDiagnosticMode) {
-        _log('WATCHDOG: Aucune donnée depuis \$secondsSinceLastData s → socket mort, reconnexion forcée');
+        _log('WATCHDOG: Aucune donnée depuis $secondsSinceLastData s → socket mort, reconnexion forcée');
         t.cancel();
         _handleDisconnect();
         return;
@@ -109,7 +106,7 @@ class ObdService {
       try {
         _socket!.write('0100\r'); // sonde OBD simple
       } catch (e) {
-        _log('WATCHDOG WRITE FAIL: \$e');
+        _log('WATCHDOG WRITE FAIL: $e');
         t.cancel();
         _handleDisconnect();
       }
@@ -244,7 +241,7 @@ class ObdService {
       await sendCommandWait('0100', delay: 1000);   // Sync avec l'ECU
       await sendCommandWait('ATSTFF', delay: 500); // Timeout max pour stabilité
 
-      _ttsService.speak("Scanner Mimo Spark prêt.");
+      _log("Scanner Mimo Spark prêt.");
       _isReconnecting = false;
       _lastDataReceived = DateTime.now(); // Reset chrono
       _startWatchdog(); // Surveillance watchdog TCP strict
@@ -258,7 +255,7 @@ class ObdService {
 
       _log("CONNECTION FAILED: $e");
       if (!_isReconnecting) {
-        _ttsService.speak("Réseau de la Spark perdu. Recherche en cours...");
+        _log("Réseau de la Spark perdu. Recherche en cours...");
         _isReconnecting = true;
       }
       
@@ -427,7 +424,7 @@ class ObdService {
         if (_socket == null) {
           _log("Mimo Spark : Tentative de reconnexion automatique...");
           if (!_isReconnecting) {
-            _ttsService.speak("Réseau de la Spark perdu. Recherche en cours...");
+            _log("Réseau de la Spark perdu. Recherche en cours...");
             _isReconnecting = true;
           }
           connect();
@@ -512,7 +509,7 @@ class ObdService {
     sendCommand('04');
     await Future.delayed(const Duration(seconds: 2));
     if (_tcpBuffer.toUpperCase().contains('OK') || _tcpBuffer.contains('44')) {
-      _ttsService.speak("Codes erreurs effacés.");
+      _log("Codes erreurs effacés.");
       return true;
     }
     // Si on a envoyé la commande, on considère que c'est OK pour la Spark

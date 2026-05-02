@@ -1,5 +1,4 @@
 import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'tts_service.dart';
 
 class VoiceService {
   static final VoiceService _instance = VoiceService._internal();
@@ -8,7 +7,6 @@ class VoiceService {
 
   final stt.SpeechToText _speech = stt.SpeechToText();
   bool _isAvailable = false;
-  final TtsService _tts = TtsService();
 
   Future<bool> init() async {
     if (_isAvailable) return true;
@@ -24,7 +22,7 @@ class VoiceService {
   void startListening(Function(String command) onCommand) async {
     bool ready = await init();
     if (!ready) {
-      _tts.speak("Le micro n'est pas disponible.");
+      print("Le micro n'est pas disponible.");
       return;
     }
     
@@ -90,7 +88,7 @@ class VoiceService {
     }
     // Pas de réponse "je n'ai pas compris" si le mot est trop court (bruit ambiant)
     else if (text.length > 4) {
-      _tts.speak("Commande non reconnue.");
+      print("Commande non reconnue.");
     }
   }
 }

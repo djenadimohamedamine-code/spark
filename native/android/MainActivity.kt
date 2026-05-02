@@ -23,42 +23,75 @@ class MainActivity: FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         
-        connectivityManager = applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        
-        val networkRequest = NetworkRequest.Builder()
-            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-            .build()
+        try {
+            connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             
-        connectivityManager?.requestNetwork(networkRequest, object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                wifiNetwork = network
-                android.util.Log.d("MIMO", "WiFi disponible !")
-            }
-            override fun onLost(network: Network) {
-                if (wifiNetwork == network) {
-                    wifiNetwork = null
-                    android.util.Log.d("MIMO", "WiFi perdu !")
+            // On définit une requête qui NE demande PAS forcément l'internet
+            val networkRequest = NetworkRequest.Builder()
+                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .removeCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+                
+            // registerNetworkCallback : On écoute passivement
+            connectivityManager?.registerNetworkCallback(networkRequest, object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    wifiNetwork = network
+                    android.util.Log.d("MIMO", "Shield: WiFi détecté (onAvailable)")
                 }
-            }
-        })
+                override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                    if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                        wifiNetwork = network
+                        android.util.Log.d("MIMO", "Shield: WiFi mis à jour (CapabilitiesChanged)")
+                    }
+                }
+                override fun onLost(network: Network) {
+                    if (wifiNetwork == network) wifiNetwork = null
+                    android.util.Log.d("MIMO", "Shield: WiFi perdu")
+                }
+            })
+
+            // requestNetwork : On demande activement au système de garder la connexion même sans internet
+            connectivityManager?.requestNetwork(networkRequest, object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    wifiNetwork = network
+                    android.util.Log.d("MIMO", "Shield: WiFi forcé (requestNetwork)")
+                }
+            })
+
+        } catch (e: Exception) {
+            android.util.Log.e("MIMO", "Shield: Erreur init Connectivity: ${e.message}")
+        }
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "activateShield" -> {
-                    val status = activateShield()
-                    result.success(status)
+                    result.success(activateShield())
                 }
                 "bindToWifi" -> {
-                    if (wifiNetwork != null) {
-                        connectivityManager?.bindProcessToNetwork(wifiNetwork)
-                        result.success(true)
-                    } else {
+                    try {
+                        val net = wifiNetwork
+                        if (net != null) {
+                            // C'est ici que la magie opère pour DHCP + 4G
+                            connectivityManager?.bindProcessToNetwork(net)
+                            android.util.Log.d("MIMO", "Shield: Processus lié au WiFi avec succès")
+                            result.success(true)
+                        } else {
+                            android.util.Log.d("MIMO", "Shield: Échec bind (wifiNetwork est null)")
+                            result.success(false)
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("MIMO", "Shield: Exception pendant le bind: ${e.message}")
                         result.success(false)
                     }
                 }
                 "unbindWifi" -> {
-                    connectivityManager?.bindProcessToNetwork(null)
-                    result.success(true)
+                    try {
+                        connectivityManager?.bindProcessToNetwork(null)
+                        android.util.Log.d("MIMO", "Shield: Processus délié (Retour 4G globale)")
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.success(false)
+                    }
                 }
                 else -> result.notImplemented()
             }

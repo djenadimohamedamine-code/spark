@@ -1,9 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
-import '../vocal/tts_service.dart';
 
 class FuelCalculator {
   double currentLiters = 35.0;
-  final TtsService _ttsService = TtsService();
   bool lowFuelAlerted = false;
   int _lastAlertedKm = -1;
 
@@ -32,7 +30,7 @@ class FuelCalculator {
     lowFuelAlerted = false;
     _lastAlertedKm = -1;
     await _save();
-    _ttsService.speak("Niveau essence calé à ${liters.toStringAsFixed(1)} litres.");
+    print("Niveau essence calé à ${liters.toStringAsFixed(1)} litres.");
   }
 
   // Mise à jour par la consommation calculée (MAF ou MAP)
@@ -44,7 +42,7 @@ class FuelCalculator {
 
     // Alerte originale si 0 L
     if (currentLiters <= 5.0 && !lowFuelAlerted) {
-      _ttsService.speakAlert('Critique, carburant très bas !');
+      print('Critique, carburant très bas !');
       lowFuelAlerted = true;
     } else if (currentLiters > 5.0) {
       lowFuelAlerted = false;
@@ -55,7 +53,7 @@ class FuelCalculator {
     if (km <= 100 && km > 0) {
       int alertDecade = (km / 10).floor() * 10;
       if (_lastAlertedKm == -1 || alertDecade < _lastAlertedKm) {
-        _ttsService.speakAlert('Mimo, autonomie basse à $alertDecade kilomètres.');
+        print('Mimo, autonomie basse à $alertDecade kilomètres.');
         _lastAlertedKm = alertDecade;
       }
     } else if (km > 110) {

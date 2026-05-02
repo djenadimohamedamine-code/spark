@@ -1,9 +1,6 @@
-import '../vocal/tts_service.dart';
-
 import 'dtc_database.dart';
 
 class DtcScanner {
-  final TtsService _ttsService = TtsService();
 
   // ─── Décodage trame brute OBD Mode 03 ───────────────────────────────────
   // Exemple : "43 01 33 00 00 00 00" -> P0133
@@ -53,10 +50,10 @@ class DtcScanner {
     return codes;
   }
 
-  // ─── Lecture et annonce vocale par sévérité ─────────────────────────────
+  // ─── Lecture et annonce par sévérité (Log Console) ──────────────────────
   Future<void> announceCodes(List<String> codes) async {
     if (codes.isEmpty) {
-      _ttsService.speak('Mimo, aucun code erreur détecté. Tout est propre.');
+      print('Mimo, aucun code erreur détecté. Tout est propre.');
       return;
     }
 
@@ -70,15 +67,14 @@ class DtcScanner {
 
     for (var item in resolved) {
       String prefix = item['sev'] == 'critique' ? 'Alerte critique Mimo ! ' : 'Mimo, ';
-      _ttsService.speak('$prefix${item['msg']}');
-      await Future.delayed(const Duration(seconds: 4)); // Attendre que TTS parle
+      print('$prefix\${item['msg']}');
     }
   }
 
   // API Legacy
   void scanDtc(String dtcCode) async {
     String msg = await DtcDatabase.getDescription(dtcCode);
-    _ttsService.speak(msg);
+    print(msg);
   }
 }
 

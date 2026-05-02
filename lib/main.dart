@@ -3,13 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:intl/date_symbol_data_local.dart';
-// MIMO SPARK V3.4 - RESTART DUAL BUILD APK & IPA
 import 'ui/dashboard.dart';
-import 'vocal/tts_service.dart';
 import 'core/background_service.dart';
-
 import 'package:permission_handler/permission_handler.dart';
-
 import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> requestSparkPermissions() async {
@@ -31,21 +27,21 @@ void main() async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
     
-    final ttsService = TtsService();
-    await ttsService.init();
+    // Capture les erreurs de Flutter (UI, etc.)
+    FlutterError.onError = (FlutterErrorDetails details) async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('last_crash', "FLUTTER ERROR: ${details.exception}\n${details.stack}");
+      FlutterError.presentError(details);
+    };
+
     await initializeDateFormatting('fr_FR', null);
-    
-    // 1. Demander les permissions
     await requestSparkPermissions();
     
-    // On ne lance RIEN d'autre ici pour éviter le crash au démarrage.
-    // Tout sera lancé depuis le Dashboard après 2 secondes.
-
     runApp(const MimoSmartCarApp());
   }, (error, stack) async {
-    // Si ça crashe, on enregistre l'erreur pour la lire après
+    // Capture les erreurs asynchrones
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('last_crash', "CRASH: $error \nSTACK: $stack");
+    await prefs.setString('last_crash', "ASYNC ERROR: $error\n$stack");
     print("CRASH CAPTURÉ: $error");
   });
 }
@@ -103,7 +99,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     try {
       await _audioPlayer.play(AssetSource('sounds/dragon-studio-car-engine-372477.mp3'));
       await Future.delayed(const Duration(milliseconds: 1500));
-      TtsService().speak('Salut Mimo. Système Mimo Spark prêt.');
+      print('Salut Mimo. Système Mimo Spark prêt.');
     } catch (e) {
       print('Erreur Audio: $e');
     }
@@ -127,7 +123,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             scale: _scaleAnimation,
             child: Image.asset(
               'assets/images/spark alpha.jpeg',
-              fit: BoxFit.cover, // Remplit tout l'écran 9:16 (format tiktok/reel), aucune bande
+              fit: BoxFit.cover,
               width: double.infinity,
               height: double.infinity,
             ),
@@ -137,5 +133,3 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     );
   }
 }
-
-

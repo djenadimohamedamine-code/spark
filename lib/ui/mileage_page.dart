@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import '../vocal/tts_service.dart';
 import '../core/obd_service.dart';
 
 class MileagePage extends StatefulWidget {
@@ -12,7 +11,6 @@ class MileagePage extends StatefulWidget {
 }
 
 class _MileagePageState extends State<MileagePage> {
-  final TtsService _ttsService = TtsService();
   final List<String> _results = [];
   bool _isLoading = false;
   StreamSubscription? _mileageSub;
@@ -37,7 +35,7 @@ class _MileagePageState extends State<MileagePage> {
       _results.clear();
       _results.add("Début de l'audit kilométrage (Mode 22)...");
     });
-    _ttsService.speak("Lancement de l'audit kilométrage approfondi.");
+    _log("Lancement de l'audit kilométrage approfondi.");
     
     await widget.obdService.scanMileage();
 
@@ -49,7 +47,7 @@ class _MileagePageState extends State<MileagePage> {
         }
         _results.add("▶ Audit terminé.");
       });
-      _ttsService.speak("Audit terminé. Vérifiez l'écran pour les résultats.");
+      _log("Audit terminé. Vérifiez l'écran pour les résultats.");
     }
   }
 
@@ -169,4 +167,6 @@ class _MileagePageState extends State<MileagePage> {
       ),
     );
   }
+
+  void _log(String msg) => print(msg);
 }
