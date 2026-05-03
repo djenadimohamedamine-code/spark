@@ -97,9 +97,19 @@ class _MapPageState extends State<MapPage> {
       _smoothedSpeed = _smoothedSpeed + ((speedKmh - _smoothedSpeed) * 0.1);
 
       double currentHeading = _lastHeading;
-      // On baisse la limite à 1.5 km/h pour que la voiture tourne même à très faible allure (ex: dans les montées)
-      if (speedKmh > 1.5 && pos.heading >= 0) {
-        currentHeading = pos.heading;
+      // On baisse la limite à 1.5 km/h pour que la voiture tourne même à très faible allure
+      if (speedKmh > 1.5) {
+        if (pos.heading > 0.0) {
+          currentHeading = pos.heading;
+        } else if (_currentPosition != null) {
+          // CALCUL MANUEL : Certains téléphones Android renvoient 0.0 pour le cap.
+          // On le calcule nous-mêmes grâce à l'ancienne et la nouvelle position GPS.
+          currentHeading = Geolocator.bearingBetween(
+            _currentPosition!.latitude, _currentPosition!.longitude,
+            pos.latitude, pos.longitude
+          );
+          if (currentHeading < 0) currentHeading += 360;
+        }
       }
       
       double smoothed = _smoothAngle(_lastHeading, currentHeading);
@@ -351,9 +361,9 @@ class _MapPageState extends State<MapPage> {
                             decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.blue.withOpacity(0.15)),
                           ),
                           Transform.rotate(
-                            // L'offset est de 0 car l'image d'origine pointe bien vers l'avant. 
+                            // +45.0 : Corrige le fait que l'image d'origine (PNG) est dessinée en diagonale (en haut à gauche)
                             // - rotation.camera garde la voiture sur la route même si on tourne la map
-                            angle: (_lastHeading - _mapController.camera.rotation) * (math.pi / 180),
+                            angle: (_lastHeading - _mapController.camera.rotation + 45.0) * (math.pi / 180),
                             child: LayoutBuilder(builder: (context, constraints) {
                               final mapZoom = _mapController.camera.zoom;
                               final carSize = (mapZoom * 4.5).clamp(55.0, 100.0);

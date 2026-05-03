@@ -77,16 +77,16 @@ class ObdService {
 
       final secondsSinceLastData = DateTime.now().difference(_lastDataReceived).inSeconds;
       
-      // Sécurité 1 : Reconnexion si mort depuis 10 secondes
-      if (secondsSinceLastData > 10 && !_isDiagnosticMode) {
-        _log('WATCHDOG: Silence radio (10s) -> Reconnexion');
+      // Sécurité 1 : Reconnexion si mort depuis 20 secondes
+      if (secondsSinceLastData > 20 && !_isDiagnosticMode && _isPolling) {
+        _log('WATCHDOG: Silence radio (20s) -> Reconnexion');
         t.cancel();
         _handleDisconnect();
         return;
       }
       
-      // Sécurité 2 : Heartbeat léger (seulement si silence > 3s)
-      if (secondsSinceLastData > 3 && !_isDiagnosticMode) {
+      // Sécurité 2 : Heartbeat léger (seulement si silence > 5s)
+      if (secondsSinceLastData > 5 && !_isDiagnosticMode) {
         try {
           _socket!.write('0100\r'); 
         } catch (e) {
@@ -119,6 +119,7 @@ class ObdService {
       _log("Mimo Spark: Connexion Socket directe (IP Statique conseillée)...");
       
       _socket = await Socket.connect(ip, port, timeout: const Duration(seconds: 10));
+      _socket!.setOption(SocketOption.tcpNoDelay, true); // Réduit la latence réseau (Important pour ELM327)
 
       _tcpBuffer = '';
       _socket!.listen(
@@ -260,6 +261,8 @@ class ObdService {
     try { _socket?.destroy(); } catch (_) {}
     _socket = null;
     _isPolling = false;
+    _tcpBuffer = '';
+    _noDataCount = 0;
     if (autoReconnect) {
       Future.delayed(const Duration(seconds: 5), () {
         if (_socket == null) connect();
