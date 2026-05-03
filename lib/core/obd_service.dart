@@ -133,70 +133,20 @@ class ObdService {
 
   Future<bool> connect() async {
     await _initLogFile();
-    _log("Mimo Spark: Tentative de connexion Wi-Fi...");
-
     try {
-      // PHASE 0 : RESET RÉSEAU (Nettoyage des anciens états Android)
-      await platform.invokeMethod('resetNetwork');
-      await Future.delayed(const Duration(milliseconds: 600));
-
-      // PHASE 1 : ATTENTE WIFI ET IP DHCP (Le secret de la stabilité)
-      bool networkReady = false;
-      _log("🛡️ Shield: Recherche du Wi-Fi et attente IP DHCP...");
-      
-      for (int i = 0; i < 12; i++) { // Jusqu'à 12 secondes pour les DHCP lents
-        try {
-          networkReady = await platform.invokeMethod('bindToWifi');
-          if (networkReady) {
-            _log("🛡️ Shield: Wi-Fi + IP validés à la tentative $i");
-            break;
-          }
-        } catch (e) {
-          _log("Erreur bindToWifi: $e");
-        }
-        await Future.delayed(const Duration(seconds: 1));
-      }
-
-      if (!networkReady) {
-        _log("⚠️ Shield: IP DHCP non reçue après 12s. Tentative directe...");
-      }
-
-      // PHASE 2 : DÉLAI DE STABILISATION (Waze Style)
-      // On attend que les tables de routage Android soient bien écrites
-      await Future.delayed(const Duration(milliseconds: 800));
-
+      _log("Mimo Spark: Lancement connexion Socket directe (Statique/Naturel)...");
       _socket =
           await Socket.connect(ip, port, timeout: const Duration(seconds: 10));
 
       _isBoundToWifi = true;
 
-      // Sécurité : Si le mode Dual-Network est désactivé, on ne fait JAMAIS de unbind
-      if (!enableDualNetwork) {
-        _log("🛡️ Shield: Mode Wi-Fi Forcé (Dual-Network désactivé)");
-        return true;
-      }
-
-      // Sécurité : Si aucune donnée ne vient après 10s, on unbind quand même pour libérer la 4G
-      Future.delayed(const Duration(seconds: 10), () {
-        if (_isBoundToWifi) {
-          _log("Timeout bind : unbind forcé pour libérer la 4G");
-          _unbind();
-        }
-      });
-
-      // ── Écoute TCP avec tampon "attend le '>'" ────────────────────────
+      // Sécurité : Mode "Naturel" Android. On laisse l'OS gérer le routing.
       _tcpBuffer = '';
       _socket!.listen(
         (List<int> event) {
           final String chunk = String.fromCharCodes(event);
           _log("BRUT: $chunk");
           _tcpBuffer += chunk;
-
-          // Version Pro : Dès qu'on reçoit le premier octet, on relâche le bind 
-          // pour que le reste de l'app (Maps/Voix) puisse utiliser la 4G.
-          if (_isBoundToWifi) {
-            _unbind();
-          }
 
           // On traite SEULEMENT quand on voit le marqueur de fin '>'
           while (_tcpBuffer.contains('>')) {
