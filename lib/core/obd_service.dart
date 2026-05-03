@@ -295,6 +295,41 @@ class ObdService {
     }
   }
 
+  void disconnect() {
+    _log("Mimo Spark: Déconnexion manuelle demandée");
+    _handleDisconnect(autoReconnect: false);
+  }
+
+  Future<File?> getLogFile() async {
+    return _logFile;
+  }
+
+  Future<bool> clearCodes() async {
+    _isDiagnosticMode = true;
+    try {
+      await Future.delayed(const Duration(milliseconds: 500));
+      sendCommand("04"); // Effacer les codes défaut
+      await Future.delayed(const Duration(seconds: 2));
+      return true;
+    } catch (e) {
+      return false;
+    } finally {
+      _isDiagnosticMode = false;
+    }
+  }
+
+  Future<void> scanMileage() async {
+    _isDiagnosticMode = true;
+    try {
+      await Future.delayed(const Duration(milliseconds: 500));
+      // Mode 01 PID A6 pour Odometer (ou autre requête spécifique selon le véhicule)
+      sendCommand("01A6"); 
+      await Future.delayed(const Duration(seconds: 2));
+    } finally {
+      _isDiagnosticMode = false;
+    }
+  }
+
   void dispose() {
     _heartbeatTimer?.cancel();
     _handleDisconnect(autoReconnect: false);
