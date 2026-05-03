@@ -68,18 +68,31 @@ class MainActivity: FlutterActivity() {
                 }
                 "bindToWifi" -> {
                     try {
+                        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                        val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
                         val net = wifiNetwork
-                        if (net != null) {
-                            // C'est ici que la magie opère pour DHCP + 4G
+                        
+                        // CONDITION CRUCIALE : On vérifie si l'IP DHCP est bien reçue (non nulle)
+                        val ip = wifiManager?.connectionInfo?.ipAddress ?: 0
+                        
+                        if (net != null && ip != 0) {
                             connectivityManager?.bindProcessToNetwork(net)
-                            android.util.Log.d("MIMO", "Shield: Processus lié au WiFi avec succès")
+                            android.util.Log.d("MIMO", "Shield: WiFi lié avec IP DHCP validée: $ip")
                             result.success(true)
                         } else {
-                            android.util.Log.d("MIMO", "Shield: Échec bind (wifiNetwork est null)")
+                            // Si net est là mais IP est 0, le DHCP n'a pas fini
                             result.success(false)
                         }
                     } catch (e: Exception) {
-                        android.util.Log.e("MIMO", "Shield: Exception pendant le bind: ${e.message}")
+                        result.success(false)
+                    }
+                }
+                "resetNetwork" -> {
+                    try {
+                        connectivityManager?.bindProcessToNetwork(null)
+                        android.util.Log.d("MIMO", "Shield: Reset réseau complet")
+                        result.success(true)
+                    } catch (e: Exception) {
                         result.success(false)
                     }
                 }

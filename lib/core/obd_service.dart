@@ -136,21 +136,34 @@ class ObdService {
     _log("Mimo Spark: Tentative de connexion Wi-Fi...");
 
     try {
-      // BIND TEMPORAIRE AU WIFI POUR SÉCURISER LA CONNEXION OBD SANS PERDRE LA 4G
-      bool wifiReady = false;
-      for (int i = 0; i < 5; i++) {
+      // PHASE 0 : RESET RÉSEAU (Nettoyage des anciens états Android)
+      await platform.invokeMethod('resetNetwork');
+      await Future.delayed(const Duration(milliseconds: 600));
+
+      // PHASE 1 : ATTENTE WIFI ET IP DHCP (Le secret de la stabilité)
+      bool networkReady = false;
+      _log("🛡️ Shield: Recherche du Wi-Fi et attente IP DHCP...");
+      
+      for (int i = 0; i < 12; i++) { // Jusqu'à 12 secondes pour les DHCP lents
         try {
-          wifiReady = await platform.invokeMethod('bindToWifi');
-          if (wifiReady) break;
+          networkReady = await platform.invokeMethod('bindToWifi');
+          if (networkReady) {
+            _log("🛡️ Shield: Wi-Fi + IP validés à la tentative $i");
+            break;
+          }
         } catch (e) {
           _log("Erreur bindToWifi: $e");
         }
         await Future.delayed(const Duration(seconds: 1));
       }
 
-      if (!wifiReady) {
-        _log("WiFi OBD non prêt ! (bindToWifi a retourné false)");
+      if (!networkReady) {
+        _log("⚠️ Shield: IP DHCP non reçue après 12s. Tentative directe...");
       }
+
+      // PHASE 2 : DÉLAI DE STABILISATION (Waze Style)
+      // On attend que les tables de routage Android soient bien écrites
+      await Future.delayed(const Duration(milliseconds: 800));
 
       _socket =
           await Socket.connect(ip, port, timeout: const Duration(seconds: 10));
