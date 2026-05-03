@@ -33,20 +33,18 @@ class _MapPageState extends State<MapPage> {
   List<LatLng> _routePoints = [];
   String? _destinationName;
 
-  // --- ÉLÉMENTS NAVIGATION AVANCÉS (WAZE STYLE) ---
+  // --- ÉLÉMENTS NAVIGATION AVANCÉS ---
   List<dynamic> _navigationSteps = [];
   int _currentStepIndex = 0;
-  int _routeProgressIndex = 0;
   String _nextInstruction = "Suivez la route";
   double _distanceToNextStep = 0;
   IconData _nextManeuverIcon = Icons.navigation;
   DateTime? _lastRecalculateTime;
 
-  // Offset de rotation de l'image
-  static const double _carRotationOffset = 135.0;
+  // AJUSTEMENT ROTATION VOITURE
+  static const double _carRotationOffset = 180.0; 
 
   StreamSubscription<Position>? _positionStream;
-  Timer? _recenterTimer;
 
   static const String _googleTrafficUrl    = 'https://mt0.google.com/vt/lyrs=m,traffic&hl=fr&x={x}&y={y}&z={z}';
   static const String _googleSatelliteUrl  = 'https://mt0.google.com/vt/lyrs=y&hl=fr&x={x}&y={y}&z={z}';
@@ -60,7 +58,6 @@ class _MapPageState extends State<MapPage> {
   @override
   void dispose() {
     _positionStream?.cancel();
-    _recenterTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -90,7 +87,7 @@ class _MapPageState extends State<MapPage> {
         _lastHeading = pos.heading >= 0 ? pos.heading : 0;
         _smoothedSpeed = pos.speed * 3.6;
       });
-      _followPosition(pos, _smoothedSpeed);
+      if (_isFollowing) _followPosition(pos, _smoothedSpeed);
     } catch (_) {}
 
     _positionStream = Geolocator.getPositionStream(
@@ -135,20 +132,11 @@ class _MapPageState extends State<MapPage> {
     _mapController.move(LatLng(offsetLat, pos.longitude), targetZoom);
   }
 
-  void _startRecenterTimer() {
-    _recenterTimer?.cancel();
-    _recenterTimer = Timer(const Duration(seconds: 6), () {
-      if (mounted && !_isFollowing) {
-        setState(() => _isFollowing = true);
-        if (_currentPosition != null) _followPosition(_currentPosition!, _smoothedSpeed);
-      }
-    });
-  }
-
   // --- RECHERCHE ET NAVIGATION ---
 
   Future<void> _searchDestination(String query) async {
     if (query.isEmpty) return;
+    FocusScope.of(context).unfocus();
     setState(() => _isSearching = true);
 
     try {
@@ -166,13 +154,10 @@ class _MapPageState extends State<MapPage> {
             _destination = LatLng(lat, lon);
             _destinationName = name;
             _isFollowing = false;
-            _navigationSteps = [];
-            _currentStepIndex = 0;
-            _routeProgressIndex = 0;
           });
 
-          _mapController.move(_destination!, 15.0);
-          _getRoute(LatLng(_currentPosition!.latitude, _currentPosition!.longitude), _destination!);
+          await _getRoute(LatLng(_currentPosition!.latitude, _currentPosition!.longitude), _destination!);
+          _mapController.move(_destination!, 14.0);
         }
       }
     } catch (e) {
@@ -198,8 +183,8 @@ class _MapPageState extends State<MapPage> {
             _routePoints = points;
             _navigationSteps = route['legs'][0]['steps'];
             _currentStepIndex = 0;
-            _routeProgressIndex = 0;
             _updateManeuverInfo();
+            _isFollowing = true; 
           });
         }
       }
@@ -208,17 +193,13 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
-  // 🔥 PROJECTION SUR ROUTE (WAZE STYLE)
   LatLng _projectOnRoute(LatLng current, List<LatLng> route) {
     if (route.isEmpty) return current;
     LatLng closest = route.first;
     double minDist = double.infinity;
     for (final p in route) {
       final d = Geolocator.distanceBetween(current.latitude, current.longitude, p.latitude, p.longitude);
-      if (d < minDist) {
-        minDist = d;
-        closest = p;
-      }
+      if (d < minDist) { minDist = d; closest = p; }
     }
     return closest;
   }
@@ -227,32 +208,23 @@ class _MapPageState extends State<MapPage> {
     if (_navigationSteps.isEmpty || _routePoints.isEmpty) return;
 
     final currentPoint = LatLng(currentPos.latitude, currentPos.longitude);
-
-    // 1. PROJECTION SUR ROUTE
     final projected = _projectOnRoute(currentPoint, _routePoints);
-    _routeProgressIndex = _routePoints.indexOf(projected);
-    if (_routeProgressIndex < 0) _routeProgressIndex = 0;
 
-    // 2. DÉTECTION HORS ROUTE AMÉLIORÉE
     double distanceToRoute = Geolocator.distanceBetween(
       currentPoint.latitude, currentPoint.longitude,
       projected.latitude, projected.longitude
     );
 
-    if (distanceToRoute > 60) {
+    if (distanceToRoute > 70) {
       final now = DateTime.now();
-      if (_lastRecalculateTime == null || now.difference(_lastRecalculateTime!).inSeconds > 10) {
+      if (_lastRecalculateTime == null || now.difference(_lastRecalculateTime!).inSeconds > 12) {
         _lastRecalculateTime = now;
-        print("Mimo: Hors route réel détecté, recalcul...");
         _getRoute(currentPoint, _destination!);
         return;
       }
     }
 
-    // 3. MISE À JOUR ÉTAPE (Vérification sécurité index)
-    if (_currentStepIndex >= _navigationSteps.length) {
-      _currentStepIndex = _navigationSteps.length - 1;
-    }
+    if (_currentStepIndex >= _navigationSteps.length) _currentStepIndex = _navigationSteps.length - 1;
 
     var currentStep = _navigationSteps[_currentStepIndex];
     var stepLocation = currentStep['maneuver']['location'];
@@ -276,17 +248,10 @@ class _MapPageState extends State<MapPage> {
   void _updateManeuverInfo() {
     if (_navigationSteps.isEmpty) return;
     var step = _navigationSteps[_currentStepIndex];
-    var instruction = step['maneuver']['instruction'] ?? "Continuez";
-    var type = step['maneuver']['type'];
-    var modifier = step['maneuver']['modifier'] ?? "";
-
     setState(() {
-      _nextInstruction = instruction;
-      _nextManeuverIcon = _getManeuverIcon(type, modifier);
+      _nextInstruction = step['maneuver']['instruction'] ?? "Continuez";
+      _nextManeuverIcon = _getManeuverIcon(step['maneuver']['type'], step['maneuver']['modifier'] ?? "");
     });
-
-    // Option guidage vocal (désactivé par défaut pour stabilité, voir logs)
-    print("MIMO NAV: $instruction");
   }
 
   IconData _getManeuverIcon(String type, String modifier) {
@@ -313,8 +278,7 @@ class _MapPageState extends State<MapPage> {
       } while (b >= 0x20);
       int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
       lat += dlat;
-      shift = 0;
-      result = 0;
+      shift = 0; result = 0;
       do {
         b = encoded.codeUnitAt(index++) - 63;
         result |= (b & 0x1f) << shift;
@@ -329,7 +293,6 @@ class _MapPageState extends State<MapPage> {
 
   @override
   Widget build(BuildContext context) {
-    // On utilise la projection pour l'affichage si on suit la route
     final centerPos = _currentPosition != null
         ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
         : const LatLng(36.8065, 10.1815);
@@ -344,9 +307,9 @@ class _MapPageState extends State<MapPage> {
               initialCenter: centerPos,
               initialZoom: 18.2,
               onPositionChanged: (pos, hasGesture) {
-                if (hasGesture) {
-                  if (_isFollowing) setState(() => _isFollowing = false);
-                  _startRecenterTimer();
+                // Dès que l'utilisateur touche la carte, on arrête le suivi auto définitivement
+                if (hasGesture && _isFollowing) {
+                  setState(() => _isFollowing = false);
                 }
               },
             ),
@@ -361,10 +324,10 @@ class _MapPageState extends State<MapPage> {
                   polylines: [
                     Polyline(
                       points: _routePoints,
-                      strokeWidth: 10.0,
-                      color: Colors.blue.withOpacity(0.85),
+                      strokeWidth: 12.0,
+                      color: Colors.blue.withOpacity(0.9),
                       borderColor: Colors.blue[900]!,
-                      borderStrokeWidth: 2.0,
+                      borderStrokeWidth: 3.0,
                     ),
                   ],
                 ),
@@ -384,14 +347,14 @@ class _MapPageState extends State<MapPage> {
                         alignment: Alignment.center,
                         children: [
                           Container(
-                            width: 70, height: 70,
-                            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.blue.withOpacity(0.12)),
+                            width: 75, height: 75,
+                            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.blue.withOpacity(0.15)),
                           ),
                           Transform.rotate(
                             angle: (_lastHeading + _carRotationOffset) * (math.pi / 180),
                             child: LayoutBuilder(builder: (context, constraints) {
                               final mapZoom = _mapController.camera.zoom;
-                              final carSize = (mapZoom * 4.2).clamp(50.0, 95.0);
+                              final carSize = (mapZoom * 4.5).clamp(55.0, 100.0);
                               return Image.asset('assets/images/Adobe Express - file.png', width: carSize, height: carSize);
                             }),
                           ),
@@ -403,14 +366,14 @@ class _MapPageState extends State<MapPage> {
             ],
           ),
 
-          // BANDEAU DE NAVIGATION WAZE STYLE
+          // BANDEAU DE NAVIGATION
           if (_destination != null && _navigationSteps.isNotEmpty)
             Positioned(
               top: 40, left: 10, right: 10,
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1B5E20).withOpacity(0.95),
+                  color: const Color(0xFF1B5E20),
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 15)],
                 ),
@@ -428,12 +391,7 @@ class _MapPageState extends State<MapPage> {
                               : "${_distanceToNextStep.toInt()} m",
                             style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w900),
                           ),
-                          Text(
-                            _nextInstruction,
-                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                          Text(_nextInstruction, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500), maxLines: 2),
                         ],
                       ),
                     ),
@@ -447,19 +405,20 @@ class _MapPageState extends State<MapPage> {
             Positioned(
               top: 50, left: 16, right: 16,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: Colors.black87,
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: Colors.white12),
+                  color: Colors.black.withOpacity(0.8),
+                  borderRadius: BorderRadius.circular(35),
+                  border: Border.all(color: Colors.cyanAccent.withOpacity(0.3), width: 2),
                 ),
                 child: Row(
                   children: [
-                    const Padding(padding: EdgeInsets.all(8.0), child: Icon(Icons.search, color: Colors.cyanAccent)),
+                    const Icon(Icons.search, color: Colors.cyanAccent),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: TextField(
                         controller: _searchController,
-                        style: const TextStyle(color: Colors.white),
+                        style: const TextStyle(color: Colors.white, fontSize: 18),
                         decoration: const InputDecoration(hintText: "Où allons-nous Mimo ?", hintStyle: TextStyle(color: Colors.white38), border: InputBorder.none),
                         onSubmitted: _searchDestination,
                       ),
@@ -476,25 +435,22 @@ class _MapPageState extends State<MapPage> {
               children: [
                 if (_destination != null)
                   FloatingActionButton(
-                    heroTag: 'stop_nav', mini: true,
-                    backgroundColor: Colors.redAccent,
+                    heroTag: 'stop', mini: true, backgroundColor: Colors.redAccent,
                     onPressed: () => setState(() { _destination = null; _routePoints = []; _navigationSteps = []; }),
                     child: const Icon(Icons.close, color: Colors.white),
                   ),
                 const SizedBox(height: 10),
                 FloatingActionButton(
-                  heroTag: 'sat', mini: true,
-                  backgroundColor: Colors.black87,
+                  heroTag: 'sat', mini: true, backgroundColor: Colors.black87,
                   onPressed: () => setState(() => _satelliteMode = !_satelliteMode),
                   child: Icon(_satelliteMode ? Icons.map : Icons.satellite_alt, color: Colors.white),
                 ),
                 const SizedBox(height: 10),
                 FloatingActionButton(
-                  heroTag: 'center',
-                  backgroundColor: _isFollowing ? Colors.cyanAccent : Colors.black87,
-                  onPressed: () {
-                    setState(() => _isFollowing = true);
-                    if (_currentPosition != null) _followPosition(_currentPosition!, _smoothedSpeed);
+                  heroTag: 'center', backgroundColor: _isFollowing ? Colors.cyanAccent : Colors.black87,
+                  onPressed: () { 
+                    setState(() => _isFollowing = true); 
+                    if (_currentPosition != null) _followPosition(_currentPosition!, _smoothedSpeed); 
                   },
                   child: Icon(_isFollowing ? Icons.gps_fixed : Icons.gps_not_fixed, color: _isFollowing ? Colors.black : Colors.cyanAccent),
                 ),
@@ -506,18 +462,14 @@ class _MapPageState extends State<MapPage> {
           Positioned(
             bottom: 30, left: 16,
             child: Container(
-              width: 70, height: 70,
-              decoration: BoxDecoration(
-                color: Colors.black87,
-                shape: BoxShape.circle,
-                border: Border.all(color: _smoothedSpeed > 80 ? Colors.red : Colors.cyanAccent, width: 3),
-              ),
+              width: 75, height: 75,
+              decoration: BoxDecoration(color: Colors.black87, shape: BoxShape.circle, border: Border.all(color: Colors.cyanAccent, width: 3)),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text("${_smoothedSpeed.toInt()}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22)),
-                    const Text("km/h", style: TextStyle(color: Colors.cyanAccent, fontSize: 9)),
+                    Text("${_smoothedSpeed.toInt()}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24)),
+                    const Text("km/h", style: TextStyle(color: Colors.cyanAccent, fontSize: 10)),
                   ],
                 ),
               ),
