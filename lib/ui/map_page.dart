@@ -41,8 +41,7 @@ class _MapPageState extends State<MapPage> {
   IconData _nextManeuverIcon = Icons.navigation;
   DateTime? _lastRecalculateTime;
 
-  // AJUSTEMENT ROTATION VOITURE
-  static const double _carRotationOffset = 180.0; 
+  // --- ÉLÉMENTS NAVIGATION AVANCÉS --- 
 
   StreamSubscription<Position>? _positionStream;
 
@@ -98,7 +97,8 @@ class _MapPageState extends State<MapPage> {
       _smoothedSpeed = _smoothedSpeed + ((speedKmh - _smoothedSpeed) * 0.1);
 
       double currentHeading = _lastHeading;
-      if (speedKmh > 3.0 && pos.heading >= 0) {
+      // On baisse la limite à 1.5 km/h pour que la voiture tourne même à très faible allure (ex: dans les montées)
+      if (speedKmh > 1.5 && pos.heading >= 0) {
         currentHeading = pos.heading;
       }
       
@@ -351,7 +351,9 @@ class _MapPageState extends State<MapPage> {
                             decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.blue.withOpacity(0.15)),
                           ),
                           Transform.rotate(
-                            angle: (_lastHeading + _carRotationOffset) * (math.pi / 180),
+                            // L'offset est de 0 car l'image d'origine pointe bien vers l'avant. 
+                            // - rotation.camera garde la voiture sur la route même si on tourne la map
+                            angle: (_lastHeading - _mapController.camera.rotation) * (math.pi / 180),
                             child: LayoutBuilder(builder: (context, constraints) {
                               final mapZoom = _mapController.camera.zoom;
                               final carSize = (mapZoom * 4.5).clamp(55.0, 100.0);
