@@ -5,6 +5,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'ui/dashboard.dart';
 import 'core/background_service.dart';
+import 'core/spark_theme.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -54,10 +55,7 @@ class MimoSmartCarApp extends StatelessWidget {
     return MaterialApp(
       title: 'MIMO_SPARK',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        primarySwatch: Colors.blue,
-      ),
+      theme: SparkTheme.theme,
       home: const SplashScreen(),
     );
   }

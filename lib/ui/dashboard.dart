@@ -530,14 +530,14 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                   decoration: BoxDecoration(
                     color: Colors.black.withOpacity(0.9),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.cyanAccent.withOpacity(0.5)),
+                    border: Border.all(color: const Color(0xFFE50000).withOpacity(0.5)),
                   ),
                   child: Column(
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text("CONSOLE MIMO SPARK", style: TextStyle(color: Colors.cyanAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                          const Text("CONSOLE MIMO SPARK", style: TextStyle(color: const Color(0xFFE50000), fontSize: 10, fontWeight: FontWeight.bold)),
                           Row(
                             children: [
                               IconButton(
@@ -581,16 +581,16 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 width: 56, height: 56,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _voiceService.isListening ? Colors.redAccent : Colors.cyanAccent.withOpacity(0.1),
+                  color: _voiceService.isListening ? Colors.redAccent : const Color(0xFFE50000).withOpacity(0.1),
                   boxShadow: [
                     if (_voiceService.isListening)
                       BoxShadow(color: Colors.redAccent.withOpacity(0.5), blurRadius: 20, spreadRadius: 5)
                   ],
-                  border: Border.all(color: _voiceService.isListening ? Colors.white : Colors.cyanAccent.withOpacity(0.5), width: 2),
+                  border: Border.all(color: _voiceService.isListening ? Colors.white : const Color(0xFFE50000).withOpacity(0.5), width: 2),
                 ),
                 child: Icon(
                   _voiceService.isListening ? Icons.mic : Icons.mic_none,
-                  color: _voiceService.isListening ? Colors.white : Colors.cyanAccent,
+                  color: _voiceService.isListening ? Colors.white : const Color(0xFFE50000),
                 ),
               ),
             ),
@@ -605,12 +605,12 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
             children: [
               UserAccountsDrawerHeader(
                 accountName: const Text('Mimo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                accountEmail: const Text('Directeur Technique', style: TextStyle(color: Colors.cyanAccent)),
+                accountEmail: const Text('Directeur Technique', style: TextStyle(color: const Color(0xFFE50000))),
                 currentAccountPicture: Container(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.cyanAccent, width: 2),
-                    boxShadow: [BoxShadow(color: Colors.cyanAccent.withOpacity(0.5), blurRadius: 10)],
+                    border: Border.all(color: const Color(0xFFE50000), width: 2),
+                    boxShadow: [BoxShadow(color: const Color(0xFFE50000).withOpacity(0.5), blurRadius: 10)],
                   ),
                   child: const CircleAvatar(backgroundImage: AssetImage('assets/images/IMG_0730.JPG')),
                 ),
@@ -680,8 +680,8 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 },
               ),
               ListTile(
-                leading: Icon(isHudMode ? Icons.flip_to_front : Icons.flip_to_back, color: Colors.cyanAccent),
-                title: Text(isHudMode ? 'Mode Normal' : 'Mode HUD (Miroir)', style: const TextStyle(color: Colors.cyanAccent)),
+                leading: Icon(isHudMode ? Icons.flip_to_front : Icons.flip_to_back, color: const Color(0xFFE50000)),
+                title: Text(isHudMode ? 'Mode Normal' : 'Mode HUD (Miroir)', style: const TextStyle(color: const Color(0xFFE50000))),
                 onTap: () {
                   setState(() => isHudMode = !isHudMode);
                   Navigator.pop(context);
@@ -760,7 +760,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                     ),
                     Builder(builder: (context) {
                       return IconButton(
-                        icon: const Icon(Icons.menu, color: Colors.cyanAccent),
+                        icon: const Icon(Icons.menu, color: const Color(0xFFE50000)),
                         onPressed: () => Scaffold.of(context).openEndDrawer(),
                       );
                     }),
@@ -892,7 +892,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
               right: 10,
               child: Builder(builder: (context) {
                 return IconButton(
-                  icon: const Icon(Icons.menu, color: Colors.cyanAccent, size: 30),
+                  icon: const Icon(Icons.menu, color: const Color(0xFFE50000), size: 30),
                   onPressed: () => Scaffold.of(context).openEndDrawer(),
                 );
               }),
@@ -933,12 +933,12 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                         showLabels: true, showTicks: true,
                         interval: 1, minorTicksPerInterval: 4,
                         axisLabelStyle: const GaugeTextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
-                        majorTickStyle: const MajorTickStyle(length: 14, thickness: 3, color: Colors.cyanAccent),
+                        majorTickStyle: const MajorTickStyle(length: 14, thickness: 3, color: const Color(0xFFE50000)),
                         minorTickStyle: const MinorTickStyle(length: 7, thickness: 1.5, color: Colors.white30),
                         axisLineStyle: const AxisLineStyle(thickness: 2, color: Colors.white10),
                         annotations: <GaugeAnnotation>[],
                         pointers: <GaugePointer>[
-                          NeedlePointer(value: hourValue, needleColor: Colors.cyanAccent, needleLength: 0.55, needleStartWidth: 5, needleEndWidth: 12, knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.07), enableAnimation: true, animationDuration: 300),
+                          NeedlePointer(value: hourValue, needleColor: const Color(0xFFE50000), needleLength: 0.55, needleStartWidth: 5, needleEndWidth: 12, knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.07), enableAnimation: true, animationDuration: 300),
                           NeedlePointer(value: minuteValue, needleColor: Colors.blueAccent, needleLength: 0.75, needleStartWidth: 3, needleEndWidth: 9, knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.07), enableAnimation: true, animationDuration: 300),
                           NeedlePointer(value: secondValue, needleColor: Colors.redAccent, needleLength: 0.9, needleStartWidth: 1.5, needleEndWidth: 1.5, knobStyle: const KnobStyle(color: Colors.redAccent, knobRadius: 0.05), enableAnimation: true, animationDuration: 300),
                         ],
@@ -950,7 +950,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
               // Heure numérique EN DESSOUS — propre et lisible
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
-                child: Text(timeStr, style: const TextStyle(color: Colors.cyanAccent, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 3)),
+                child: Text(timeStr, style: const TextStyle(color: const Color(0xFFE50000), fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 3)),
               ),
             ],
           );
@@ -964,18 +964,18 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
-                Text(parts[0], style: const TextStyle(color: Colors.white, fontSize: 64, fontWeight: FontWeight.bold, letterSpacing: -2, shadows: [Shadow(color: Colors.cyanAccent, blurRadius: 10)])),
-                Text(':', style: TextStyle(color: Colors.cyanAccent.withOpacity(0.5), fontSize: 50, fontWeight: FontWeight.w200)),
+                Text(parts[0], style: const TextStyle(color: Colors.white, fontSize: 64, fontWeight: FontWeight.bold, letterSpacing: -2, shadows: [Shadow(color: const Color(0xFFE50000), blurRadius: 10)])),
+                Text(':', style: TextStyle(color: const Color(0xFFE50000).withOpacity(0.5), fontSize: 50, fontWeight: FontWeight.w200)),
                 Text(parts[1], style: const TextStyle(color: Colors.white, fontSize: 64, fontWeight: FontWeight.w300, letterSpacing: -2)),
                 const SizedBox(width: 8),
-                Text(DateFormat('ss').format(DateTime.now()), style: TextStyle(color: Colors.cyanAccent.withOpacity(0.4), fontSize: 18, fontWeight: FontWeight.w400)),
+                Text(DateFormat('ss').format(DateTime.now()), style: TextStyle(color: const Color(0xFFE50000).withOpacity(0.4), fontSize: 18, fontWeight: FontWeight.w400)),
               ],
             ),
             const SizedBox(height: 2),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(width: 40, height: 1, decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.transparent, Colors.cyanAccent.withOpacity(0.3)]))),
+                Container(width: 40, height: 1, decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.transparent, const Color(0xFFE50000).withOpacity(0.3)]))),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Text(
@@ -983,7 +983,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                     style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2),
                   ),
                 ),
-                Container(width: 40, height: 1, decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.cyanAccent.withOpacity(0.3), Colors.transparent]))),
+                Container(width: 40, height: 1, decoration: BoxDecoration(gradient: LinearGradient(colors: [const Color(0xFFE50000).withOpacity(0.3), Colors.transparent]))),
               ],
             ),
           ],
@@ -1200,12 +1200,12 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
             minorTickStyle: const MinorTickStyle(length: 6, thickness: 1, color: Colors.white54),
             axisLabelStyle: const GaugeTextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
             ranges: <GaugeRange>[
-              GaugeRange(startValue: 0, endValue: 6000, color: Colors.cyanAccent.withOpacity(0.3), startWidth: 10, endWidth: 10), 
+              GaugeRange(startValue: 0, endValue: 6000, color: const Color(0xFFE50000).withOpacity(0.3), startWidth: 10, endWidth: 10), 
               GaugeRange(startValue: 6000, endValue: 8000, color: Colors.redAccent.withOpacity(0.6), startWidth: 10, endWidth: 15)
             ], 
             pointers: <GaugePointer>[
               NeedlePointer(
-                value: rpm, needleColor: Colors.cyanAccent, tailStyle: const TailStyle(width: 8, color: Colors.cyanAccent),
+                value: rpm, needleColor: const Color(0xFFE50000), tailStyle: const TailStyle(width: 8, color: const Color(0xFFE50000)),
                 needleStartWidth: 1, needleEndWidth: 5, knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.08),
                 enableAnimation: true, animationDuration: 300, animationType: AnimationType.ease
               )
@@ -1218,7 +1218,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                     Text(currentGear, style: TextStyle(color: Colors.redAccent, fontSize: isLandscape ? 24 : 36, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
                     const Text('GEAR', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
                     const SizedBox(height: 2),
-                    Text('${rpm.toInt()}', style: TextStyle(color: Colors.cyanAccent, fontSize: 20, fontWeight: FontWeight.bold)),
+                    Text('${rpm.toInt()}', style: TextStyle(color: const Color(0xFFE50000), fontSize: 20, fontWeight: FontWeight.bold)),
                     const Text('RPM', style: TextStyle(color: Colors.white54, fontSize: 9, letterSpacing: 1)),
                   ],
                 ), 

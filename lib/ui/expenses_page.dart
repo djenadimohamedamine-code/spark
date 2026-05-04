@@ -121,10 +121,10 @@ class _ExpensesPageState extends State<ExpensesPage> {
                 hintText: "0 DA",
                 hintStyle: TextStyle(color: Colors.white24),
                 enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Colors.cyanAccent)),
+                    borderSide: BorderSide(color: const Color(0xFFE50000))),
                 focusedBorder: UnderlineInputBorder(
                     borderSide:
-                        BorderSide(color: Colors.cyanAccent, width: 2)),
+                        BorderSide(color: const Color(0xFFE50000), width: 2)),
               ),
             ),
             const SizedBox(height: 24),
@@ -178,7 +178,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
         title: const Text("Business du Jour",
             style: TextStyle(color: Colors.white, fontSize: 16)),
         backgroundColor: const Color(0xFF0F0F0F),
-        iconTheme: const IconThemeData(color: Colors.cyanAccent),
+        iconTheme: const IconThemeData(color: const Color(0xFFE50000)),
         actions: [
           IconButton(
               onPressed: _archiveSession,
@@ -186,7 +186,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
               tooltip: "Clôturer et Archiver"),
           IconButton(
               onPressed: _refresh,
-              icon: const Icon(Icons.refresh, color: Colors.cyanAccent))
+              icon: const Icon(Icons.refresh, color: const Color(0xFFE50000)))
         ],
       ),
       body: Column(
@@ -255,7 +255,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                         Colors.redAccent),
                     _buildDivider(),
                     _buildStat(
-                        "COURSES", "${_rides.length}", Colors.cyanAccent),
+                        "COURSES", "${_rides.length}", const Color(0xFFE50000)),
                     _buildDivider(),
                     _buildStat(
                         "KM", totalKm.toStringAsFixed(1), Colors.purpleAccent),
@@ -276,9 +276,9 @@ class _ExpensesPageState extends State<ExpensesPage> {
               child: Column(
                 children: [
                   TabBar(
-                    labelColor: Colors.cyanAccent,
+                    labelColor: const Color(0xFFE50000),
                     unselectedLabelColor: Colors.grey,
-                    indicatorColor: Colors.cyanAccent,
+                    indicatorColor: const Color(0xFFE50000),
                     tabs: [
                       Tab(text: "COURSES (${_rides.length})"),
                       Tab(text: "DÉPENSES (${_expenses.length})"),
@@ -384,7 +384,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddExpenseDialog,
-        backgroundColor: Colors.cyanAccent,
+        backgroundColor: const Color(0xFFE50000),
         foregroundColor: Colors.black,
         icon: const Icon(Icons.add),
         label: const Text("DÉPENSE",

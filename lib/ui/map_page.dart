@@ -363,7 +363,7 @@ class _MapPageState extends State<MapPage> {
                           Transform.rotate(
                             // +45.0 : Corrige le fait que l'image d'origine (PNG) est dessinée en diagonale (en haut à gauche)
                             // - rotation.camera garde la voiture sur la route même si on tourne la map
-                            angle: (_lastHeading - _mapController.camera.rotation + 45.0) * (math.pi / 180),
+                            angle: (_lastHeading - _mapController.camera.rotation + 180.0) * (math.pi / 180),
                             child: LayoutBuilder(builder: (context, constraints) {
                               final mapZoom = _mapController.camera.zoom;
                               final carSize = (mapZoom * 4.5).clamp(55.0, 100.0);
@@ -421,11 +421,11 @@ class _MapPageState extends State<MapPage> {
                 decoration: BoxDecoration(
                   color: Colors.black.withOpacity(0.8),
                   borderRadius: BorderRadius.circular(35),
-                  border: Border.all(color: Colors.cyanAccent.withOpacity(0.3), width: 2),
+                  border: Border.all(color: const Color(0xFFE50000).withOpacity(0.3), width: 2),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.search, color: Colors.cyanAccent),
+                    const Icon(Icons.search, color: const Color(0xFFE50000)),
                     const SizedBox(width: 10),
                     Expanded(
                       child: TextField(
@@ -440,48 +440,29 @@ class _MapPageState extends State<MapPage> {
               ),
             ),
 
-          // BOUTONS LATERAUX
-          Positioned(
-            bottom: 30, right: 16,
-            child: Column(
-              children: [
-                if (_destination != null)
-                  FloatingActionButton(
-                    heroTag: 'stop', mini: true, backgroundColor: Colors.redAccent,
-                    onPressed: () => setState(() { _destination = null; _routePoints = []; _navigationSteps = []; }),
-                    child: const Icon(Icons.close, color: Colors.white),
-                  ),
-                const SizedBox(height: 10),
-                FloatingActionButton(
-                  heroTag: 'sat', mini: true, backgroundColor: Colors.black87,
-                  onPressed: () => setState(() => _satelliteMode = !_satelliteMode),
-                  child: Icon(_satelliteMode ? Icons.map : Icons.satellite_alt, color: Colors.white),
-                ),
-                const SizedBox(height: 10),
-                FloatingActionButton(
-                  heroTag: 'center', backgroundColor: _isFollowing ? Colors.cyanAccent : Colors.black87,
-                  onPressed: () { 
-                    setState(() => _isFollowing = true); 
-                    if (_currentPosition != null) _followPosition(_currentPosition!, _smoothedSpeed); 
-                  },
-                  child: Icon(_isFollowing ? Icons.gps_fixed : Icons.gps_not_fixed, color: _isFollowing ? Colors.black : Colors.cyanAccent),
-                ),
-              ],
+          // BOUTON STOP NAVIGATION (uniquement quand une route est active)
+          if (_destination != null)
+            Positioned(
+              bottom: 30, right: 16,
+              child: FloatingActionButton(
+                heroTag: 'stop', mini: true, backgroundColor: Colors.redAccent,
+                onPressed: () => setState(() { _destination = null; _routePoints = []; _navigationSteps = []; }),
+                child: const Icon(Icons.close, color: Colors.white),
+              ),
             ),
-          ),
 
           // COMPTEUR DE VITESSE
           Positioned(
             bottom: 30, left: 16,
             child: Container(
               width: 75, height: 75,
-              decoration: BoxDecoration(color: Colors.black87, shape: BoxShape.circle, border: Border.all(color: Colors.cyanAccent, width: 3)),
+              decoration: BoxDecoration(color: Colors.black87, shape: BoxShape.circle, border: Border.all(color: const Color(0xFFE50000), width: 3)),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text("${_smoothedSpeed.toInt()}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24)),
-                    const Text("km/h", style: TextStyle(color: Colors.cyanAccent, fontSize: 10)),
+                    const Text("km/h", style: TextStyle(color: const Color(0xFFE50000), fontSize: 10)),
                   ],
                 ),
               ),
