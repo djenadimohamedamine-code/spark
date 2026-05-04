@@ -77,9 +77,9 @@ class ObdService {
 
       final secondsSinceLastData = DateTime.now().difference(_lastDataReceived).inSeconds;
       
-      // Sécurité 1 : Reconnexion si mort depuis 20 secondes
-      if (secondsSinceLastData > 20 && !_isDiagnosticMode && _isPolling) {
-        _log('WATCHDOG: Silence radio (20s) -> Reconnexion');
+      // Sécurité 1 : Reconnexion si mort depuis 30 secondes
+      if (secondsSinceLastData > 30 && !_isDiagnosticMode && _isPolling) {
+        _log('WATCHDOG: Silence radio (30s) -> Reconnexion');
         t.cancel();
         _handleDisconnect();
         return;
