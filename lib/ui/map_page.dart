@@ -412,31 +412,21 @@ class _MapPageState extends State<MapPage> {
               ),
             ),
 
-          // BARRE DE RECHERCHE
-          if (_destination == null)
+          // BOUTON RECENTRER GPS
+          if (!_isFollowing)
             Positioned(
-              top: 50, left: 16, right: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.8),
-                  borderRadius: BorderRadius.circular(35),
-                  border: Border.all(color: const Color(0xFFFF3333).withOpacity(0.3), width: 2),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.search, color: const Color(0xFFFF3333)),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        style: const TextStyle(color: Colors.white, fontSize: 18),
-                        decoration: const InputDecoration(hintText: "Où allons-nous Mimo ?", hintStyle: TextStyle(color: Colors.white38), border: InputBorder.none),
-                        onSubmitted: _searchDestination,
-                      ),
-                    ),
-                  ],
-                ),
+              bottom: _destination != null ? 100 : 30,
+              right: 16,
+              child: FloatingActionButton(
+                heroTag: 'recenter',
+                backgroundColor: const Color(0xFFFF3333),
+                onPressed: () {
+                  setState(() => _isFollowing = true);
+                  if (_currentPosition != null) {
+                    _followPosition(_currentPosition!, _smoothedSpeed);
+                  }
+                },
+                child: const Icon(Icons.my_location, color: Colors.white),
               ),
             ),
 
