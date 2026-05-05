@@ -285,7 +285,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (_isLoading) ...[
-                          const CircularProgressIndicator(color: const Color(0xFFE50000)),
+                          const CircularProgressIndicator(color: const Color(0xFFFF3333)),
                           const SizedBox(height: 16),
                           const Text('Scan en cours…\nAttente de réponse ECU', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
                         ] else ...[

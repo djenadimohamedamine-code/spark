@@ -530,14 +530,14 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                   decoration: BoxDecoration(
                     color: Colors.black.withOpacity(0.9),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE50000).withOpacity(0.5)),
+                    border: Border.all(color: const Color(0xFFFF3333).withOpacity(0.5)),
                   ),
                   child: Column(
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text("CONSOLE MIMO SPARK", style: TextStyle(color: const Color(0xFFE50000), fontSize: 10, fontWeight: FontWeight.bold)),
+                          const Text("CONSOLE MIMO SPARK", style: TextStyle(color: const Color(0xFFFF3333), fontSize: 10, fontWeight: FontWeight.bold)),
                           Row(
                             children: [
                               IconButton(
@@ -566,11 +566,12 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 ),
               ),
             ),
-          // Assistant Vocal Button (Trigger) — Position ajustée en paysage pour éviter de cacher l'horloge
-          Positioned(
-            bottom: MediaQuery.of(context).orientation == Orientation.landscape ? 65 : 100,
-            left: MediaQuery.of(context).size.width / 2 - 28,
-            child: GestureDetector(
+          // Assistant Vocal Button (Trigger) — Uniquement en portrait
+          if (MediaQuery.of(context).orientation == Orientation.portrait)
+            Positioned(
+              bottom: 100,
+              left: MediaQuery.of(context).size.width / 2 - 28,
+              child: GestureDetector(
               onTap: () {
                 HapticFeedback.mediumImpact();
                 _voiceService.startListening(_handleVoiceCommand);
@@ -581,16 +582,16 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 width: 56, height: 56,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _voiceService.isListening ? Colors.redAccent : const Color(0xFFE50000).withOpacity(0.1),
+                  color: _voiceService.isListening ? Colors.redAccent : const Color(0xFFFF3333).withOpacity(0.1),
                   boxShadow: [
                     if (_voiceService.isListening)
                       BoxShadow(color: Colors.redAccent.withOpacity(0.5), blurRadius: 20, spreadRadius: 5)
                   ],
-                  border: Border.all(color: _voiceService.isListening ? Colors.white : const Color(0xFFE50000).withOpacity(0.5), width: 2),
+                  border: Border.all(color: _voiceService.isListening ? Colors.white : const Color(0xFFFF3333).withOpacity(0.5), width: 2),
                 ),
                 child: Icon(
                   _voiceService.isListening ? Icons.mic : Icons.mic_none,
-                  color: _voiceService.isListening ? Colors.white : const Color(0xFFE50000),
+                  color: _voiceService.isListening ? Colors.white : const Color(0xFFFF3333),
                 ),
               ),
             ),
@@ -605,17 +606,17 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
             children: [
               UserAccountsDrawerHeader(
                 accountName: const Text('Mimo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                accountEmail: const Text('Directeur Technique', style: TextStyle(color: const Color(0xFFE50000))),
+                accountEmail: const Text('Directeur Technique', style: TextStyle(color: const Color(0xFFFF3333))),
                 currentAccountPicture: Container(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xFFE50000), width: 2),
-                    boxShadow: [BoxShadow(color: const Color(0xFFE50000).withOpacity(0.5), blurRadius: 10)],
+                    border: Border.all(color: const Color(0xFFFF3333), width: 2),
+                    boxShadow: [BoxShadow(color: const Color(0xFFFF3333).withOpacity(0.5), blurRadius: 10)],
                   ),
                   child: const CircleAvatar(backgroundImage: AssetImage('assets/images/IMG_0730.JPG')),
                 ),
                 decoration: const BoxDecoration(
-                  gradient: LinearGradient(colors: [Color(0xFF151828), Colors.black], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+                  gradient: LinearGradient(colors: [Color(0xFF1A0505), Colors.black], begin: Alignment.topCenter, end: Alignment.bottomCenter),
                 ),
               ),
               ListTile(
@@ -680,8 +681,8 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 },
               ),
               ListTile(
-                leading: Icon(isHudMode ? Icons.flip_to_front : Icons.flip_to_back, color: const Color(0xFFE50000)),
-                title: Text(isHudMode ? 'Mode Normal' : 'Mode HUD (Miroir)', style: const TextStyle(color: const Color(0xFFE50000))),
+                leading: Icon(isHudMode ? Icons.flip_to_front : Icons.flip_to_back, color: const Color(0xFFFF3333)),
+                title: Text(isHudMode ? 'Mode Normal' : 'Mode HUD (Miroir)', style: const TextStyle(color: const Color(0xFFFF3333))),
                 onTap: () {
                   setState(() => isHudMode = !isHudMode);
                   Navigator.pop(context);
@@ -727,7 +728,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
           gradient: RadialGradient(
             center: Alignment.center,
             radius: 1.2,
-            colors: [Color(0xFF151828), Color(0xFF000000)],
+            colors: [Color(0xFF1A0505), Color(0xFF000000)],
           ),
         ),
         child: Column(
@@ -760,7 +761,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                     ),
                     Builder(builder: (context) {
                       return IconButton(
-                        icon: const Icon(Icons.menu, color: const Color(0xFFE50000)),
+                        icon: const Icon(Icons.menu, color: const Color(0xFFFF3333)),
                         onPressed: () => Scaffold.of(context).openEndDrawer(),
                       );
                     }),
@@ -842,7 +843,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
         gradient: RadialGradient(
           center: Alignment.center,
           radius: 1.5,
-          colors: [Color(0xFF0A0C18), Colors.black],
+          colors: [Color(0xFF150202), Colors.black],
         ),
       ),
       child: SafeArea(
@@ -892,7 +893,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
               right: 10,
               child: Builder(builder: (context) {
                 return IconButton(
-                  icon: const Icon(Icons.menu, color: const Color(0xFFE50000), size: 30),
+                  icon: const Icon(Icons.menu, color: const Color(0xFFFF3333), size: 30),
                   onPressed: () => Scaffold.of(context).openEndDrawer(),
                 );
               }),
@@ -913,44 +914,36 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
         final timeStr = DateFormat('HH:mm').format(DateTime.now());
         
         if (landscape) {
-          final now = DateTime.now();
-          double hourValue = (now.hour % 12) + (now.minute / 60.0);
-          double minuteValue = now.minute / 5.0;
-          double secondValue = now.second / 5.0;
-
-          // Horloge sans boite noire — remplit tout l'espace disponible
+          final parts = timeStr.split(':');
           return Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
-                  child: SfRadialGauge(
-                    axes: <RadialAxis>[
-                      RadialAxis(
-                        minimum: 0, maximum: 12,
-                        startAngle: 270, endAngle: 270,
-                        showLabels: true, showTicks: true,
-                        interval: 1, minorTicksPerInterval: 4,
-                        axisLabelStyle: const GaugeTextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
-                        majorTickStyle: const MajorTickStyle(length: 14, thickness: 3, color: const Color(0xFFE50000)),
-                        minorTickStyle: const MinorTickStyle(length: 7, thickness: 1.5, color: Colors.white30),
-                        axisLineStyle: const AxisLineStyle(thickness: 2, color: Colors.white10),
-                        annotations: <GaugeAnnotation>[],
-                        pointers: <GaugePointer>[
-                          NeedlePointer(value: hourValue, needleColor: const Color(0xFFE50000), needleLength: 0.55, needleStartWidth: 5, needleEndWidth: 12, knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.07), enableAnimation: true, animationDuration: 300),
-                          NeedlePointer(value: minuteValue, needleColor: Colors.blueAccent, needleLength: 0.75, needleStartWidth: 3, needleEndWidth: 9, knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.07), enableAnimation: true, animationDuration: 300),
-                          NeedlePointer(value: secondValue, needleColor: Colors.redAccent, needleLength: 0.9, needleStartWidth: 1.5, needleEndWidth: 1.5, knobStyle: const KnobStyle(color: Colors.redAccent, knobRadius: 0.05), enableAnimation: true, animationDuration: 300),
-                        ],
-                      )
-                    ],
-                  ),
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(parts[0], style: const TextStyle(color: Colors.white, fontSize: 85, fontWeight: FontWeight.bold, letterSpacing: -2, shadows: [Shadow(color: const Color(0xFFFF3333), blurRadius: 10)])),
+                  Text(':', style: TextStyle(color: const Color(0xFFFF3333).withOpacity(0.5), fontSize: 65, fontWeight: FontWeight.w200)),
+                  Text(parts[1], style: const TextStyle(color: Colors.white, fontSize: 85, fontWeight: FontWeight.w300, letterSpacing: -2)),
+                  const SizedBox(width: 8),
+                  Text(DateFormat('ss').format(DateTime.now()), style: TextStyle(color: const Color(0xFFFF3333).withOpacity(0.4), fontSize: 24, fontWeight: FontWeight.w400)),
+                ],
               ),
-              // Heure numérique EN DESSOUS — propre et lisible
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(timeStr, style: const TextStyle(color: const Color(0xFFE50000), fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 3)),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(width: 60, height: 1, decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.transparent, const Color(0xFFFF3333).withOpacity(0.3)]))),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      DateFormat('EEEE d MMMM', 'fr_FR').format(DateTime.now()).toUpperCase(),
+                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 2),
+                    ),
+                  ),
+                  Container(width: 60, height: 1, decoration: BoxDecoration(gradient: LinearGradient(colors: [const Color(0xFFFF3333).withOpacity(0.3), Colors.transparent]))),
+                ],
               ),
             ],
           );
@@ -964,18 +957,18 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
-                Text(parts[0], style: const TextStyle(color: Colors.white, fontSize: 64, fontWeight: FontWeight.bold, letterSpacing: -2, shadows: [Shadow(color: const Color(0xFFE50000), blurRadius: 10)])),
-                Text(':', style: TextStyle(color: const Color(0xFFE50000).withOpacity(0.5), fontSize: 50, fontWeight: FontWeight.w200)),
-                Text(parts[1], style: const TextStyle(color: Colors.white, fontSize: 64, fontWeight: FontWeight.w300, letterSpacing: -2)),
+                Text(parts[0], style: const TextStyle(color: Colors.white, fontSize: 85, fontWeight: FontWeight.bold, letterSpacing: -2, shadows: [Shadow(color: const Color(0xFFFF3333), blurRadius: 10)])),
+                Text(':', style: TextStyle(color: const Color(0xFFFF3333).withOpacity(0.5), fontSize: 65, fontWeight: FontWeight.w200)),
+                Text(parts[1], style: const TextStyle(color: Colors.white, fontSize: 85, fontWeight: FontWeight.w300, letterSpacing: -2)),
                 const SizedBox(width: 8),
-                Text(DateFormat('ss').format(DateTime.now()), style: TextStyle(color: const Color(0xFFE50000).withOpacity(0.4), fontSize: 18, fontWeight: FontWeight.w400)),
+                Text(DateFormat('ss').format(DateTime.now()), style: TextStyle(color: const Color(0xFFFF3333).withOpacity(0.4), fontSize: 24, fontWeight: FontWeight.w400)),
               ],
             ),
             const SizedBox(height: 2),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(width: 40, height: 1, decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.transparent, const Color(0xFFE50000).withOpacity(0.3)]))),
+                Container(width: 40, height: 1, decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.transparent, const Color(0xFFFF3333).withOpacity(0.3)]))),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Text(
@@ -983,7 +976,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                     style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2),
                   ),
                 ),
-                Container(width: 40, height: 1, decoration: BoxDecoration(gradient: LinearGradient(colors: [const Color(0xFFE50000).withOpacity(0.3), Colors.transparent]))),
+                Container(width: 40, height: 1, decoration: BoxDecoration(gradient: LinearGradient(colors: [const Color(0xFFFF3333).withOpacity(0.3), Colors.transparent]))),
               ],
             ),
           ],
@@ -1095,13 +1088,14 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   Widget _buildGlassCard({required Widget child, required double height}) {
     return Container(
       height: height,
-      margin: const EdgeInsets.all(6),
+      margin: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: const Color(0xFF121212).withOpacity(0.7),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        color: const Color(0xFF0A0A0A).withOpacity(0.85),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFFF3333).withOpacity(0.3), width: 1.5),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 15, offset: const Offset(0, 5))
+          BoxShadow(color: Colors.black.withOpacity(0.8), blurRadius: 15, offset: const Offset(0, 10)),
+          BoxShadow(color: const Color(0xFFFF3333).withOpacity(0.08), blurRadius: 20, spreadRadius: -2),
         ],
       ),
       child: child,
@@ -1200,12 +1194,12 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
             minorTickStyle: const MinorTickStyle(length: 6, thickness: 1, color: Colors.white54),
             axisLabelStyle: const GaugeTextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
             ranges: <GaugeRange>[
-              GaugeRange(startValue: 0, endValue: 6000, color: const Color(0xFFE50000).withOpacity(0.3), startWidth: 10, endWidth: 10), 
+              GaugeRange(startValue: 0, endValue: 6000, color: const Color(0xFFFF3333).withOpacity(0.3), startWidth: 10, endWidth: 10), 
               GaugeRange(startValue: 6000, endValue: 8000, color: Colors.redAccent.withOpacity(0.6), startWidth: 10, endWidth: 15)
             ], 
             pointers: <GaugePointer>[
               NeedlePointer(
-                value: rpm, needleColor: const Color(0xFFE50000), tailStyle: const TailStyle(width: 8, color: const Color(0xFFE50000)),
+                value: rpm, needleColor: const Color(0xFFFF3333), tailStyle: const TailStyle(width: 8, color: const Color(0xFFFF3333)),
                 needleStartWidth: 1, needleEndWidth: 5, knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.08),
                 enableAnimation: true, animationDuration: 300, animationType: AnimationType.ease
               )
@@ -1218,7 +1212,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                     Text(currentGear, style: TextStyle(color: Colors.redAccent, fontSize: isLandscape ? 24 : 36, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
                     const Text('GEAR', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
                     const SizedBox(height: 2),
-                    Text('${rpm.toInt()}', style: TextStyle(color: const Color(0xFFE50000), fontSize: 20, fontWeight: FontWeight.bold)),
+                    Text('${rpm.toInt()}', style: TextStyle(color: const Color(0xFFFF3333), fontSize: 20, fontWeight: FontWeight.bold)),
                     const Text('RPM', style: TextStyle(color: Colors.white54, fontSize: 9, letterSpacing: 1)),
                   ],
                 ), 

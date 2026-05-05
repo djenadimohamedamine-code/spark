@@ -59,7 +59,7 @@ class _SettingsPageState extends State<SettingsPage> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE50000), foregroundColor: Colors.black, padding: const EdgeInsets.all(16)),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF3333), foregroundColor: Colors.black, padding: const EdgeInsets.all(16)),
                 onPressed: _save,
                 child: const Text('SAUVEGARDER', style: TextStyle(fontWeight: FontWeight.bold)),
               ),

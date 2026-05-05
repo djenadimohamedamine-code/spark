@@ -72,7 +72,7 @@ class _RideSummaryDialogState extends State<RideSummaryDialog> {
         mainAxisSize: MainAxisSize.min,
         children: [
           _buildRow('Durée du trajet :', '${widget.durationMinutes} min', Colors.white),
-          _buildRow('Distance :', '${widget.distanceKm.toStringAsFixed(1)} Km', const Color(0xFFE50000)),
+          _buildRow('Distance :', '${widget.distanceKm.toStringAsFixed(1)} Km', const Color(0xFFFF3333)),
           const Divider(color: Colors.white10, height: 24),
           _buildRow('Carburant perdu :', '- ${_fuelCost.toStringAsFixed(0)} DA', Colors.redAccent),
           const SizedBox(height: 12),

@@ -66,9 +66,9 @@ class StandaloneClockPage extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: Colors.black.withOpacity(0.3),
                             borderRadius: BorderRadius.circular(40),
-                            border: Border.all(color: const Color(0xFFE50000).withOpacity(0.3), width: 1.5),
+                            border: Border.all(color: const Color(0xFFFF3333).withOpacity(0.3), width: 1.5),
                             boxShadow: [
-                              BoxShadow(color: const Color(0xFFE50000).withOpacity(0.1), blurRadius: 40, spreadRadius: -5),
+                              BoxShadow(color: const Color(0xFFFF3333).withOpacity(0.1), blurRadius: 40, spreadRadius: -5),
                             ],
                           ),
                           child: Column(
@@ -84,12 +84,12 @@ class StandaloneClockPage extends StatelessWidget {
                                     timeStr,
                                     style: const TextStyle(
                                       color: Colors.white,
-                                      fontSize: 110,
+                                      fontSize: 150,
                                       fontWeight: FontWeight.w900,
                                       fontFamily: 'Roboto',
                                       letterSpacing: 2,
                                       shadows: [
-                                        Shadow(color: const Color(0xFFE50000), blurRadius: 25)
+                                        Shadow(color: const Color(0xFFFF3333), blurRadius: 25)
                                       ],
                                     ),
                                   ),
@@ -97,8 +97,8 @@ class StandaloneClockPage extends StatelessWidget {
                                   Text(
                                     secStr,
                                     style: TextStyle(
-                                      color: const Color(0xFFE50000).withOpacity(0.8),
-                                      fontSize: 40,
+                                      color: const Color(0xFFFF3333).withOpacity(0.8),
+                                      fontSize: 55,
                                       fontWeight: FontWeight.w300,
                                       fontFamily: 'Roboto',
                                     ),
@@ -136,12 +136,12 @@ class StandaloneClockPage extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.speed, color: const Color(0xFFE50000), size: 20),
+                        const Icon(Icons.speed, color: const Color(0xFFFF3333), size: 20),
                         const SizedBox(width: 10),
                         Text(
                           "MIMO SPARK OS",
                           style: TextStyle(
-                            color: const Color(0xFFE50000).withOpacity(0.7),
+                            color: const Color(0xFFFF3333).withOpacity(0.7),
                             fontSize: 14,
                             letterSpacing: 8,
                             fontWeight: FontWeight.bold,

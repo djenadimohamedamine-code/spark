@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 /// Inspiré du style Racing Sport
 class SparkTheme {
   // Couleurs Primaires
-  static const Color primary = Color(0xFFE50000);       // Rouge Sport vif
+  static const Color primary = Color(0xFFFF3333);       // Rouge Sport vif
   static const Color primaryDark = Color(0xFF9B0000);   // Rouge sombre (ombres)
   static const Color primaryLight = Color(0xFFFF4040);  // Rouge clair (hover)
   static const Color accent = Color(0xFFFF1A1A);        // Rouge accent (glow)

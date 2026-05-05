@@ -172,7 +172,7 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
               children: [
                 const SizedBox(height: 10),
                 const Text("MIMO SPARK", style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 2)),
-                const Text("Votre voiture. Vos données.", style: TextStyle(color: const Color(0xFFE50000), fontSize: 10)),
+                const Text("Votre voiture. Vos données.", style: TextStyle(color: const Color(0xFFFF3333), fontSize: 10)),
                 const SizedBox(height: 16),
                 
                 // Photo of Spark

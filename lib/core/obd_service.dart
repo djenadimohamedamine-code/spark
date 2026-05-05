@@ -160,6 +160,12 @@ class ObdService {
         onDone: () => _handleDisconnect(),
       );
 
+      // Gérer le future 'done' pour éviter les crashs asynchrones (ex: SocketException au moment de l'écriture)
+      _socket!.done.catchError((error) {
+        _log("SOCKET DONE ASYNC ERROR: $error");
+        _handleDisconnect();
+      });
+
       // Initialisation Standard
       await sendCommandWait('ATZ', delay: 1200);   
       await sendCommandWait('ATE0', delay: 500);    

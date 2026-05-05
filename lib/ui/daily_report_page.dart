@@ -84,7 +84,7 @@ class _DailyReportPageState extends State<DailyReportPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildMetric('Courses', '${_summary!.rideCount}', const Color(0xFFE50000)),
+              _buildMetric('Courses', '${_summary!.rideCount}', const Color(0xFFFF3333)),
               _buildMetric('Carburant', '${_summary!.totalFuelLiters.toStringAsFixed(2)} L', Colors.orangeAccent),
             ],
           ),
@@ -120,7 +120,7 @@ class _DailyReportPageState extends State<DailyReportPage> {
           color: const Color(0xFF101010),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white10)),
           child: ListTile(
-            leading: const Icon(Icons.directions_car, color: const Color(0xFFE50000)),
+            leading: const Icon(Icons.directions_car, color: const Color(0xFFFF3333)),
             title: Text('Course de $timeStr', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             subtitle: Text('Carburant: ${r.fuelLiters.toStringAsFixed(2)} L', style: const TextStyle(color: Colors.grey, fontSize: 12)),
             trailing: Column(
