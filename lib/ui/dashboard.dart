@@ -566,36 +566,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 ),
               ),
             ),
-          // Assistant Vocal Button (Trigger) — Uniquement en portrait
-          if (MediaQuery.of(context).orientation == Orientation.portrait)
-            Positioned(
-              bottom: 100,
-              left: MediaQuery.of(context).size.width / 2 - 28,
-              child: GestureDetector(
-              onTap: () {
-                HapticFeedback.mediumImpact();
-                _voiceService.startListening(_handleVoiceCommand);
-                setState(() {}); // Pour mettre à jour l'état de l'icône
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                width: 56, height: 56,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _voiceService.isListening ? Colors.redAccent : const Color(0xFFFF3333).withOpacity(0.1),
-                  boxShadow: [
-                    if (_voiceService.isListening)
-                      BoxShadow(color: Colors.redAccent.withOpacity(0.5), blurRadius: 20, spreadRadius: 5)
-                  ],
-                  border: Border.all(color: _voiceService.isListening ? Colors.white : const Color(0xFFFF3333).withOpacity(0.5), width: 2),
-                ),
-                child: Icon(
-                  _voiceService.isListening ? Icons.mic : Icons.mic_none,
-                  color: _voiceService.isListening ? Colors.white : const Color(0xFFFF3333),
-                ),
-              ),
-            ),
-          ),
+          // Assistant Vocal supprimé
         ],
       ),
       endDrawer: Drawer(
@@ -927,7 +898,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                   Text(':', style: TextStyle(color: const Color(0xFFFF3333).withOpacity(0.5), fontSize: 65, fontWeight: FontWeight.w200)),
                   Text(parts[1], style: const TextStyle(color: Colors.white, fontSize: 85, fontWeight: FontWeight.w300, letterSpacing: -2)),
                   const SizedBox(width: 8),
-                  Text(DateFormat('ss').format(DateTime.now()), style: TextStyle(color: const Color(0xFFFF3333).withOpacity(0.4), fontSize: 24, fontWeight: FontWeight.w400)),
+                  Text(DateFormat('ss').format(DateTime.now()), style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w400)),
                 ],
               ),
               const SizedBox(height: 8),
@@ -961,7 +932,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 Text(':', style: TextStyle(color: const Color(0xFFFF3333).withOpacity(0.5), fontSize: 65, fontWeight: FontWeight.w200)),
                 Text(parts[1], style: const TextStyle(color: Colors.white, fontSize: 85, fontWeight: FontWeight.w300, letterSpacing: -2)),
                 const SizedBox(width: 8),
-                Text(DateFormat('ss').format(DateTime.now()), style: TextStyle(color: const Color(0xFFFF3333).withOpacity(0.4), fontSize: 24, fontWeight: FontWeight.w400)),
+                Text(DateFormat('ss').format(DateTime.now()), style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w400)),
               ],
             ),
             const SizedBox(height: 2),
@@ -1104,7 +1075,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   Widget _buildFuelGauge({bool isLandscape = false}) {
     double fuelVal = _fuelCalculator.currentLiters;
-    int kmRestants = (fuelVal / 9.5 * 100).toInt();
+    int kmRestants = (fuelVal / 7.5 * 100).toInt();
     
     return _buildGlassCard(
       height: isLandscape ? 160 : (isHudMode ? 240 : 180), 

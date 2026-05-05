@@ -244,9 +244,11 @@ class ObdService {
       }
       try {
         sendCommand('010C'); // RPM
-        await Future.delayed(const Duration(milliseconds: 450));
+        await Future.delayed(const Duration(milliseconds: 300));
         sendCommand('010D'); // Speed
-        await Future.delayed(const Duration(milliseconds: 450));
+        await Future.delayed(const Duration(milliseconds: 300));
+        sendCommand('010B'); // MAP (pour Carburant)
+        await Future.delayed(const Duration(milliseconds: 300));
         if (tick % 5 == 0) {
           sendCommand('0105'); // Temp
           await Future.delayed(const Duration(milliseconds: 400));

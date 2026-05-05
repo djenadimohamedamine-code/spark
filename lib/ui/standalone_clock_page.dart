@@ -97,7 +97,7 @@ class StandaloneClockPage extends StatelessWidget {
                                   Text(
                                     secStr,
                                     style: TextStyle(
-                                      color: const Color(0xFFFF3333).withOpacity(0.8),
+                                      color: Colors.white,
                                       fontSize: 55,
                                       fontWeight: FontWeight.w300,
                                       fontFamily: 'Roboto',

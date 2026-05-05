@@ -363,7 +363,7 @@ class _MapPageState extends State<MapPage> {
                           Transform.rotate(
                             // +45.0 : Corrige le fait que l'image d'origine (PNG) est dessinée en diagonale (en haut à gauche)
                             // - rotation.camera garde la voiture sur la route même si on tourne la map
-                            angle: (_lastHeading - _mapController.camera.rotation + 45.0) * (math.pi / 180),
+                            angle: (_lastHeading - _mapController.camera.rotation + 225.0) * (math.pi / 180),
                             child: LayoutBuilder(builder: (context, constraints) {
                               final mapZoom = _mapController.camera.zoom;
                               final carSize = (mapZoom * 4.5).clamp(55.0, 100.0);

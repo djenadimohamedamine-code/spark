@@ -5,7 +5,7 @@ class FuelCalculator {
   bool lowFuelAlerted = false;
   int _lastAlertedKm = -1;
 
-  static const double _consumptionL100 = 9.5;
+  static const double _consumptionL100 = 7.5;
   static const double _tankCapacity = 35.0;
   static const double _fuelDensity = 750.0;  // g/L essence SP95
   static const double _afr = 14.7;           // Air-Fuel Ratio stœchiométrique
