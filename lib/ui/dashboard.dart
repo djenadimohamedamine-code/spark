@@ -1173,6 +1173,24 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 value: rpm, needleColor: const Color(0xFFFF3333), tailStyle: const TailStyle(width: 8, color: const Color(0xFFFF3333)),
                 needleStartWidth: 1, needleEndWidth: 5, knobStyle: const KnobStyle(color: Colors.white, knobRadius: 0.08),
                 enableAnimation: true, animationDuration: 300, animationType: AnimationType.ease
+              ),
+              // Indicateur discret de rétrogradage
+              MarkerPointer(
+                value: 1500,
+                markerType: MarkerType.rectangle,
+                markerHeight: 15,
+                markerWidth: 3,
+                color: const Color(0xFFFF3333).withOpacity(0.8),
+                markerOffset: -15,
+              ),
+              // Indicateur discret de passage de vitesse supérieure
+              MarkerPointer(
+                value: 4500,
+                markerType: MarkerType.rectangle,
+                markerHeight: 15,
+                markerWidth: 3,
+                color: const Color(0xFFFF3333).withOpacity(0.8),
+                markerOffset: -15,
               )
             ], 
             annotations: <GaugeAnnotation>[
