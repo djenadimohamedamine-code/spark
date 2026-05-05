@@ -45,8 +45,8 @@ class _MapPageState extends State<MapPage> {
 
   StreamSubscription<Position>? _positionStream;
 
-  static const String _googleTrafficUrl    = 'https://mt0.google.com/vt/lyrs=m,traffic&hl=fr&x={x}&y={y}&z={z}';
-  static const String _googleSatelliteUrl  = 'https://mt0.google.com/vt/lyrs=y&hl=fr&x={x}&y={y}&z={z}';
+  static const String _googleTrafficUrl    = 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}';
+  static const String _googleSatelliteUrl  = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
 
   @override
   void initState() {
