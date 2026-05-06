@@ -1198,10 +1198,10 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 widget: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(currentGear, style: TextStyle(color: Colors.redAccent, fontSize: isLandscape ? 24 : 36, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
+                    Text(currentGear, style: TextStyle(color: Colors.white, fontSize: isLandscape ? 24 : 36, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
                     const Text('GEAR', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
                     const SizedBox(height: 2),
-                    Text('${rpm.toInt()}', style: TextStyle(color: const Color(0xFFFF3333), fontSize: 20, fontWeight: FontWeight.bold)),
+                    Text('${rpm.toInt()}', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                     const Text('RPM', style: TextStyle(color: Colors.white54, fontSize: 9, letterSpacing: 1)),
                   ],
                 ), 
