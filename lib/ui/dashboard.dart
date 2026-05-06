@@ -1183,9 +1183,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 color: const Color(0xFFFF3333).withOpacity(0.8),
                 markerOffset: -15,
               ),
-              // Indicateur discret de passage de vitesse supérieure
+              // Indicateur discret de passage de vitesse supérieure (ÉCO / VTC)
               MarkerPointer(
-                value: 4500,
+                value: 2500,
                 markerType: MarkerType.rectangle,
                 markerHeight: 15,
                 markerWidth: 3,
