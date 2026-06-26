@@ -56,19 +56,14 @@ jobs:
       - name: Flutter Pub Get
         run: flutter pub get
 
-      - name: Prepare iOS Icon Directory
+      - name: Generate Native Splash (Android + iOS)
+        run: dart run flutter_native_splash:create
+
+      - name: Prepare iOS Icon Placeholders
         run: |
           mkdir -p ios/Runner/Assets.xcassets/AppIcon.appiconset
-          # Create placeholder PNG files for every size flutter_launcher_icons expects
-          SIZES=(20 29 40 58 60 76 80 87 120 152 167 180 1024)
-          for SIZE in "${SIZES[@]}"; do
-            PLACEHOLDER="ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-${SIZE}x${SIZE}@1x.png"
-            if [ ! -f "$PLACEHOLDER" ]; then
-              cp assets/images/spark2.png "$PLACEHOLDER" 2>/dev/null || true
-            fi
-          done
-          # Also copy the Contents.json if not present
-          ls ios/Runner/Assets.xcassets/AppIcon.appiconset/
+          # flutter_launcher_icons needs the folder to exist
+          ls ios/Runner/Assets.xcassets/AppIcon.appiconset/ || true
 
       - name: Generate App Icons (Android + iOS)
         run: flutter pub run flutter_launcher_icons

@@ -78,16 +78,24 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   void initState() {
     super.initState();
     _controller = AnimationController(duration: const Duration(seconds: 3), vsync: this);
-    _scaleAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutQuart));
+    _scaleAnimation = Tween<double>(begin: 0.92, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutQuart));
     _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
     
     _controller.forward();
     _playStartupSequence();
     
-    Timer(const Duration(seconds: 5), () {
+    // Après 5s : fade-out puis navigation vers le Dashboard
+    Timer(const Duration(seconds: 5), () async {
+      if (!mounted) return;
+      await _controller.reverse(from: 1.0); // Fade out en douceur
       if (mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const Dashboard()),
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => const Dashboard(),
+            transitionsBuilder: (_, anim, __, child) =>
+              FadeTransition(opacity: anim, child: child),
+            transitionDuration: const Duration(milliseconds: 600),
+          ),
         );
       }
     });
