@@ -8,19 +8,15 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 
-import 'expenses_page.dart';
 import '../logic/fuel_calculator.dart';
 import '../core/obd_service.dart';
 import '../core/gear_calculator.dart';
 import 'diagnostic.dart';
-import 'mileage_page.dart';
 import 'map_page.dart';
-import 'daily_report_page.dart';
 import 'settings_page.dart';
 import 'standalone_clock_page.dart';
-import 'ride_summary_dialog.dart';
+import 'engine_data_page.dart';
 import '../core/background_service.dart';
-import '../logic/analytics_engine.dart';
 import '../vocal/voice_service.dart';
 
 
@@ -77,13 +73,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   StreamSubscription<String>? _obdSubscription;
   Timer? _dataSyncTimer;
 
-  // Ride Tracking
+  // Ride Tracking (gardé pour compatibilité voix)
   bool isRideActive = false;
-  int? rideStartTime;
-  double startFuelLiters = 0.0;
   double rideDistance = 0.0;
-  double _lastLat = 0.0;
-  double _lastLng = 0.0;
 
   // Calcul du score de santé (Health Score)
   int get healthScore {
@@ -162,40 +154,13 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     if (!mounted) return;
 
     switch (cmd) {
-      case 'START_RIDE':
-        if (!isRideActive) {
-          _toggleRide();
-          _addLog("Course démarrée !");
-        } else {
-          _addLog("La course est déjà en cours.");
-        }
-        break;
-      case 'STOP_RIDE':
-        if (isRideActive) {
-          _toggleRide();
-          _addLog("Course terminée.");
-        } else {
-          _addLog("Aucune course n'est active.");
-        }
-        break;
       case 'MAP':
         _addLog("Affichage de la carte.");
         Navigator.push(
             context, MaterialPageRoute(builder: (context) => const MapPage()));
         break;
-      case 'EXPENSES':
-        _addLog("Ouverture des dépenses.");
-        Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (context) => ExpensesPage(
-                      isRideActive: isRideActive,
-                      onToggleRide: _toggleRide,
-                    )));
-        break;
       case 'DASHBOARD':
         _addLog("Retour au tableau de bord.");
-        // Si on est déjà sur Dashboard, on ne fait rien
         break;
       case 'TOGGLE_SATELLITE':
         _addLog("Mode satellite.");
@@ -444,10 +409,11 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
             }
             break;
 
-          case '0D': // SPEED (1 octet)
+          case '0D': // SPEED (1 octet) - offset calibré -10 km/h pour Spark
             if (i + 2 < parts.length) {
-              double newSpeed = (int.tryParse(parts[i + 2], radix: 16) ?? 0).toDouble();
-              _buffer['speed'] = newSpeed;
+              double rawSpeed = (int.tryParse(parts[i + 2], radix: 16) ?? 0).toDouble();
+              double correctedSpeed = (rawSpeed - 10.0).clamp(0.0, 250.0);
+              _buffer['speed'] = correctedSpeed;
             }
             break;
 
@@ -591,20 +557,18 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 ),
               ),
               ListTile(
-                leading: Icon(isRideActive ? Icons.stop_circle : Icons.play_circle_fill, color: isRideActive ? Colors.redAccent : Colors.greenAccent),
-                title: Text(isRideActive ? 'Terminer la Course' : 'Démarrer une Course', style: TextStyle(color: isRideActive ? Colors.redAccent : Colors.greenAccent, fontWeight: FontWeight.bold)),
-                subtitle: isRideActive 
-                  ? Text('En cours depuis ${DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(rideStartTime!)).inMinutes} min', style: const TextStyle(color: Colors.white38, fontSize: 10))
-                  : const Text('Lancer le suivi de trajet', style: TextStyle(color: Colors.white38, fontSize: 10)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _toggleRide();
-                },
-              ),
-              ListTile(
                 leading: const Icon(Icons.dashboard, color: Colors.white),
                 title: const Text('Dashboard', style: TextStyle(color: Colors.white)),
                 onTap: () => Navigator.pop(context),
+              ),
+              ListTile(
+                leading: const Icon(Icons.settings_input_component, color: const Color(0xFFFF3333)),
+                title: const Text('Données Moteur', style: TextStyle(color: Color(0xFFFF3333), fontWeight: FontWeight.bold)),
+                subtitle: const Text('Papillon · MAF · Fuel Trim · O2 · MAP…', style: TextStyle(color: Colors.white38, fontSize: 10)),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => EngineDataPage(obdService: _obdService)));
+                },
               ),
               ListTile(
                 leading: const Icon(Icons.warning, color: Colors.redAccent),
@@ -615,40 +579,12 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.radar, color: Colors.orangeAccent),
-                title: const Text('Mileage Analyzer PRO', style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold)),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => MileagePage(obdService: _obdService)));
-                },
-              ),
-              ListTile(
                 leading: const Icon(Icons.map, color: Colors.lightBlueAccent),
                 title: const Text('Navigation GPS', style: TextStyle(color: Colors.lightBlueAccent, fontWeight: FontWeight.bold)),
                 subtitle: const Text('Vue satellite + trafic temps réel', style: TextStyle(color: Colors.white38, fontSize: 10)),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const MapPage()));
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.receipt_long, color: Colors.greenAccent),
-                title: const Text('Bilan Journalier', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const DailyReportPage()));
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.calculate, color: Colors.redAccent),
-                title: const Text('Dépenses & Recharges', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
-                subtitle: const Text('Plein essence + Crédit inDrive', style: TextStyle(color: Colors.white38, fontSize: 10)),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => ExpensesPage(
-                    isRideActive: isRideActive,
-                    onToggleRide: _toggleRide,
-                  )));
                 },
               ),
               ListTile(
@@ -1016,41 +952,12 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   }
 
   void _toggleRide() {
-    if (!isRideActive) {
-      // START
-      setState(() {
-        isRideActive = true;
-        rideStartTime = DateTime.now().millisecondsSinceEpoch;
-        startFuelLiters = _fuelCalculator.currentLiters;
-        rideDistance = 0.0;
-      });
+    setState(() => isRideActive = !isRideActive);
+    if (isRideActive) {
+      rideDistance = 0.0;
       _addLog("Course démarrée. Bonne route Mimo.");
     } else {
-      // STOP
-      final endTime = DateTime.now().millisecondsSinceEpoch;
-      final fuelConsumed = startFuelLiters - _fuelCalculator.currentLiters;
-      final durationMin = DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(rideStartTime!)).inMinutes;
-      
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => RideSummaryDialog(
-          fuelLiters: fuelConsumed < 0 ? 0 : fuelConsumed,
-          distanceKm: rideDistance,
-          durationMinutes: durationMin,
-          onValidate: (amount) async {
-            await AnalyticsEngine().saveRide(
-              startTime: rideStartTime!,
-              endTime: endTime,
-              fuelLiters: fuelConsumed < 0 ? 0 : fuelConsumed,
-              earnedDa: amount,
-              distanceKm: rideDistance,
-            );
-            setState(() => isRideActive = false);
-            _addLog("Course enregistrée. Bénéfice calculé.");
-          },
-        ),
-      );
+      _addLog("Course terminée. Distance: ${rideDistance.toStringAsFixed(1)} km.");
     }
   }
 
