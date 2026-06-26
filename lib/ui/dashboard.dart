@@ -108,11 +108,11 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WakelockPlus.enable();
-    _fuelCalculator.init();
+    _fuelCalculator.init().catchError((e) => _addLog("FuelCalc init: $e"));
     _loadFuelCalibration();
     _startDataSync();
-    _voiceService.init(); // Initialisation de l'assistant vocal
-    _addLog("🚀 Mimo Spark Démarrée");
+    _voiceService.init().catchError((e) => _addLog("Voice init: $e"));
+    _addLog("Mimo Spark Démarrée");
     
     // On attend 2 secondes pour activer le bouclier
     // AUCUN service en arrière-plan - connexion directe uniquement

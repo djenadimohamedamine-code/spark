@@ -28,27 +28,35 @@ void main() async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
     
-    // Capture les erreurs de Flutter (UI, etc.)
     FlutterError.onError = (FlutterErrorDetails details) async {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('last_crash', "FLUTTER ERROR: ${details.exception}\n${details.stack}");
       FlutterError.presentError(details);
     };
 
-    await initializeDateFormatting('fr_FR', null);
-    await requestSparkPermissions();
+    String? initError;
+    try {
+      await initializeDateFormatting('fr_FR', null).timeout(const Duration(seconds: 5));
+    } catch (e) {
+      initError = "DateFormatting: $e";
+    }
+
+    try {
+      await requestSparkPermissions().timeout(const Duration(seconds: 10));
+    } catch (e) {
+      initError ??= "Permissions: $e";
+    }
     
-    runApp(const MimoSmartCarApp());
+    runApp(MimoSmartCarApp(initError: initError));
   }, (error, stack) async {
-    // Capture les erreurs asynchrones
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('last_crash', "ASYNC ERROR: $error\n$stack");
-    print("CRASH CAPTURÉ: $error");
   });
 }
 
 class MimoSmartCarApp extends StatelessWidget {
-  const MimoSmartCarApp({super.key});
+  final String? initError;
+  const MimoSmartCarApp({super.key, this.initError});
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +64,49 @@ class MimoSmartCarApp extends StatelessWidget {
       title: 'MIMO_SPARK',
       debugShowCheckedModeBanner: false,
       theme: SparkTheme.theme,
-      home: const SplashScreen(),
+      home: initError != null
+          ? ErrorScreen(error: initError!)
+          : const SplashScreen(),
+    );
+  }
+}
+
+class ErrorScreen extends StatelessWidget {
+  final String error;
+  const ErrorScreen({super.key, required this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 80),
+              const SizedBox(height: 20),
+              const Text(
+                'ERREUR DE DÉMARRAGE',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                error,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+              const SizedBox(height: 30),
+              ElevatedButton(
+                onPressed: () => main(),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
+                child: const Text('RÉESSAYER'),
+              )
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
