@@ -56,14 +56,22 @@ jobs:
       - name: Flutter Pub Get
         run: flutter pub get
 
-      - name: Generate App Icons (Android + iOS)
+      - name: Prepare iOS Icon Directory
         run: |
-          flutter pub run flutter_launcher_icons
-          # Copy generated iOS icons into the ios folder tracked by git
-          if [ -d "ios/Runner/Assets.xcassets/AppIcon.appiconset" ]; then
-            echo "iOS icons generated successfully"
-            ls ios/Runner/Assets.xcassets/AppIcon.appiconset/
-          fi
+          mkdir -p ios/Runner/Assets.xcassets/AppIcon.appiconset
+          # Create placeholder PNG files for every size flutter_launcher_icons expects
+          SIZES=(20 29 40 58 60 76 80 87 120 152 167 180 1024)
+          for SIZE in "${SIZES[@]}"; do
+            PLACEHOLDER="ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-${SIZE}x${SIZE}@1x.png"
+            if [ ! -f "$PLACEHOLDER" ]; then
+              cp assets/images/spark2.png "$PLACEHOLDER" 2>/dev/null || true
+            fi
+          done
+          # Also copy the Contents.json if not present
+          ls ios/Runner/Assets.xcassets/AppIcon.appiconset/
+
+      - name: Generate App Icons (Android + iOS)
+        run: flutter pub run flutter_launcher_icons
 
       - name: Build APK (Android)
         run: flutter build apk --release
