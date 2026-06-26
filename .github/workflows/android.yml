@@ -56,37 +56,7 @@ jobs:
       - name: Flutter Pub Get
         run: flutter pub get
 
-      - name: Generate Native Splash (Android + iOS)
-        run: dart run flutter_native_splash:create
-
-      - name: Prepare iOS Icon Placeholders
-        run: |
-          mkdir -p ios/Runner/Assets.xcassets/AppIcon.appiconset
-          SRC="assets/images/spark2.png"
-          DEST="ios/Runner/Assets.xcassets/AppIcon.appiconset"
-          # Liste exacte des fichiers attendus par flutter_launcher_icons 0.13.x
-          for ICON in \
-            "Icon-App-20x20@1x.png" \
-            "Icon-App-20x20@2x.png" \
-            "Icon-App-20x20@3x.png" \
-            "Icon-App-29x29@1x.png" \
-            "Icon-App-29x29@2x.png" \
-            "Icon-App-29x29@3x.png" \
-            "Icon-App-40x40@1x.png" \
-            "Icon-App-40x40@2x.png" \
-            "Icon-App-40x40@3x.png" \
-            "Icon-App-60x60@2x.png" \
-            "Icon-App-60x60@3x.png" \
-            "Icon-App-76x76@1x.png" \
-            "Icon-App-76x76@2x.png" \
-            "Icon-App-83.5x83.5@2x.png" \
-            "Icon-App-1024x1024@1x.png"; do
-            cp "$SRC" "$DEST/$ICON"
-          done
-          echo "✅ iOS icon placeholders créés:"
-          ls "$DEST"
-
-      - name: Generate App Icons (Android + iOS)
+      - name: Generate App Icons (Android only)
         run: flutter pub run flutter_launcher_icons
 
       - name: Build APK (Android)
