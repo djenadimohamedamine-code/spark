@@ -24,10 +24,26 @@ jobs:
 
       - name: Inject_iOS_Permissions
         run: |
-          # Injecter les permissions obligatoires pour le GPS et l'OBD Wifi
-          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Autorisation requise pour le radar GPS Mimo Spark'" ios/Runner/Info.plist
-          /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Navigation requise en arriere-plan pour la vue satellite'" ios/Runner/Info.plist
-          /usr/libexec/PlistBuddy -c "Add :NSLocalNetworkUsageDescription string 'Requis pour communiquer avec le dongle OBD2 WiFi'" ios/Runner/Info.plist
+          PLIST="ios/Runner/Info.plist"
+          # GPS / Localisation
+          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Mimo Spark utilise votre position pour la navigation GPS et le suivi de trajet'" $PLIST
+          /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Mimo Spark utilise votre position en arriere-plan pour le suivi GPS'" $PLIST
+          /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Navigation requise en arriere-plan pour la vue satellite'" $PLIST
+          # Reseau local (OBD2 WiFi)
+          /usr/libexec/PlistBuddy -c "Add :NSLocalNetworkUsageDescription string 'Requis pour communiquer avec le dongle OBD2 WiFi'" $PLIST
+          # Microphone et Reconnaissance vocale
+          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Mimo Spark utilise le microphone pour l assistant vocal'" $PLIST
+          /usr/libexec/PlistBuddy -c "Add :NSSpeechRecognitionUsageDescription string 'Reconnaissance vocale pour les commandes mains-libres'" $PLIST
+          # Bluetooth (OBD2)
+          /usr/libexec/PlistBuddy -c "Add :NSBluetoothAlwaysUsageDescription string 'Connexion Bluetooth a l adaptateur OBD2'" $PLIST
+          /usr/libexec/PlistBuddy -c "Add :NSBluetoothPeripheralUsageDescription string 'Connexion Bluetooth a l adaptateur OBD2'" $PLIST
+          # Camera (HUD)
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Mimo Spark utilise la camera pour le scan HUD'" $PLIST
+          # Modes background
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" $PLIST
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string location" $PLIST
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" $PLIST
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:2 string processing" $PLIST
 
       - name: Get_Deps
         run: |
