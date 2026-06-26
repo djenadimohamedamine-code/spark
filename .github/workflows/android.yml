@@ -56,8 +56,14 @@ jobs:
       - name: Flutter Pub Get
         run: flutter pub get
 
-      - name: Generate App Icons
-        run: flutter pub run flutter_launcher_icons
+      - name: Generate App Icons (Android + iOS)
+        run: |
+          flutter pub run flutter_launcher_icons
+          # Copy generated iOS icons into the ios folder tracked by git
+          if [ -d "ios/Runner/Assets.xcassets/AppIcon.appiconset" ]; then
+            echo "iOS icons generated successfully"
+            ls ios/Runner/Assets.xcassets/AppIcon.appiconset/
+          fi
 
       - name: Build APK (Android)
         run: flutter build apk --release

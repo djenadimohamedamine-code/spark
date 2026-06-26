@@ -119,11 +119,14 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
           opacity: _opacityAnimation,
           child: ScaleTransition(
             scale: _scaleAnimation,
-            child: Image.asset(
-              'assets/images/spark alpha.jpeg',
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
+            child: Container(
+              color: Colors.black,
+              child: Image.asset(
+                'assets/images/spark2.png',
+                fit: BoxFit.contain,
+                width: double.infinity,
+                height: double.infinity,
+              ),
             ),
           ),
         ),
