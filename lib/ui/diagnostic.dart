@@ -50,7 +50,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
       _currentErrors.clear();
       _resolvedErrors.clear();
     });
-    _log("Lancement du diagnostic expert Mimo Spark.");
+    _log("Lancement du diagnostic expert MIMO_OBD.");
     
     // Attente dynamique du scan (Plus rapide et précis)
     await _obdService.scanTroubleCodes();
@@ -196,7 +196,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
             context: context,
             builder: (context) => AlertDialog(
               backgroundColor: const Color(0xFF1A1A1A),
-              title: const Text('Mimo Spark V4.36 - Gear Fix', style: TextStyle(color: Colors.greenAccent, fontSize: 13)),
+              title: const Text('MIMO_OBD V4.36', style: TextStyle(color: Colors.greenAccent, fontSize: 13)),
               content: SingleChildScrollView(
                 child: Text(finDuLog, style: const TextStyle(fontSize: 10, color: Colors.greenAccent, fontFamily: 'monospace')),
               ),
@@ -220,7 +220,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
   void _shareLog() async {
     File? logFile = await _obdService.getLogFile();
     if (logFile != null) {
-      await Share.shareXFiles([XFile(logFile.path)], text: 'Journal de bord Mimo Spark OBD2');
+      await Share.shareXFiles([XFile(logFile.path)], text: 'Journal de bord MIMO_OBD');
     } else {
       _log('Aucun journal de bord disponible.');
     }
@@ -230,7 +230,7 @@ class _DiagnosticPageState extends State<DiagnosticPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Analyse DTC — Mimo Spark V4.31'),
+        title: const Text('Analyse DTC — MIMO_OBD'),
         backgroundColor: Colors.black,
         actions: [
           IconButton(

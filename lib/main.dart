@@ -61,7 +61,7 @@ class MimoSmartCarApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'MIMO_SPARK',
+      title: 'MIMO_OBD',
       debugShowCheckedModeBanner: false,
       theme: SparkTheme.theme,
       home: initError != null
@@ -148,7 +148,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     try {
       await _audioPlayer.play(AssetSource('sounds/dragon-studio-car-engine-372477.mp3'));
       await Future.delayed(const Duration(milliseconds: 1500));
-      print('Salut Mimo. Système Mimo Spark prêt.');
+      print('MIMO_OBD prêt.');
     } catch (e) {
       print('Erreur Audio: $e');
     }
@@ -173,7 +173,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             child: Container(
               color: Colors.black,
               child: Image.asset(
-                'assets/images/spark2.png',
+                'assets/images/IMG_0730.JPG',
                 fit: BoxFit.contain,
                 width: double.infinity,
                 height: double.infinity,

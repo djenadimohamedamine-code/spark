@@ -132,7 +132,7 @@ class StandaloneClockPage extends StatelessWidget {
                     
                     const SizedBox(height: 60),
                     
-                    // Signature Mimo Spark
+                    // Signature MIMO_OBD
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [

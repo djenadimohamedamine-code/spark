@@ -99,13 +99,13 @@ class ObdService {
   }
 
   void forceReconnect() {
-    _log("Mimo Spark: Reconnexion forcée demandée");
+    _log("MIMO_OBD: Reconnexion forcée demandée");
     _handleDisconnect(autoReconnect: true);
   }
 
   Future<void> _wakeUpEcu() async {
     _isDiagnosticMode = true;
-    _log("Mimo Spark: Réveil ECU...");
+    _log("MIMO_OBD: Réveil ECU...");
     await sendCommandWait('ATZ', delay: 2000);
     await sendCommandWait('ATSP0', delay: 1500); 
     await sendCommandWait('0100', delay: 1500);
@@ -116,7 +116,7 @@ class ObdService {
   Future<bool> connect() async {
     await _initLogFile();
     try {
-      _log("Mimo Spark: Connexion Socket directe (IP Statique conseillée)...");
+      _log("MIMO_OBD: Connexion Socket directe (IP Statique conseillée)...");
       
       _socket = await Socket.connect(ip, port, timeout: const Duration(seconds: 10));
       _socket!.setOption(SocketOption.tcpNoDelay, true); // Réduit la latence réseau (Important pour ELM327)
@@ -175,7 +175,7 @@ class ObdService {
       await sendCommandWait('0100', delay: 1000);   
       await sendCommandWait('ATSTFF', delay: 500); 
 
-      _log("Scanner Mimo Spark prêt.");
+      _log("Scanner MIMO_OBD prêt.");
       _isReconnecting = false;
       _lastDataReceived = DateTime.now();
       _startWatchdog();
@@ -304,7 +304,7 @@ class ObdService {
   }
 
   void disconnect() {
-    _log("Mimo Spark: Déconnexion manuelle demandée");
+    _log("MIMO_OBD: Déconnexion manuelle demandée");
     _handleDisconnect(autoReconnect: false);
   }
 

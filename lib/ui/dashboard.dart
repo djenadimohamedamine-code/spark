@@ -112,12 +112,12 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     _loadFuelCalibration();
     _startDataSync();
     _voiceService.init().catchError((e) => _addLog("Voice init: $e"));
-    _addLog("Mimo Spark Démarrée");
+    _addLog("MIMO_OBD Démarré");
     
-    // On attend 2 secondes pour activer le bouclier
-    // AUCUN service en arrière-plan - connexion directe uniquement
-    Timer(const Duration(seconds: 2), () {
-      _activateNativeShield();
+    // On attend 2 secondes pour activer le bouclier puis connecter l'OBD
+    Timer(const Duration(seconds: 2), () async {
+      await _activateNativeShield();
+      _connectObd();
     });
 
     // Vérifier s'il y a eu un crash précédent
@@ -454,7 +454,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   void _shareLog() async {
     File? logFile = await _obdService.getLogFile();
-    if (logFile != null) await Share.shareXFiles([XFile(logFile.path)], text: 'Journal de bord Mimo Spark OBD2 Dashboard');
+    if (logFile != null) await Share.shareXFiles([XFile(logFile.path)], text: 'Journal de bord MIMO_OBD');
   }
 
   Widget _buildHudTransform({required Widget child}) {

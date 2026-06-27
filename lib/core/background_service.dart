@@ -30,8 +30,8 @@ Future<void> initBackgroundService() async {
       autoStart: true,
       isForegroundMode: true,
       notificationChannelId: 'mimo_spark_obd',
-      initialNotificationTitle: 'Mimo Spark',
-      initialNotificationContent: '🔴 Scanner OBD déconnecté',
+      initialNotificationTitle: 'MIMO_OBD',
+      initialNotificationContent: 'OBD déconnecté',
       foregroundServiceNotificationId: 888,
     ),
     iosConfiguration: IosConfiguration(
@@ -93,7 +93,7 @@ void onServiceStart(ServiceInstance service) async {
       wasConnected = isNowConnected;
       if (service is AndroidServiceInstance) {
         service.setForegroundNotificationInfo(
-          title: 'Mimo Spark',
+          title: 'MIMO_OBD',
           content: isNowConnected
               ? '🟢 OBD connecté — Scanner actif'
               : '🔴 OBD déconnecté — Reconnexion...',
