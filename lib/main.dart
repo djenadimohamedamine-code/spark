@@ -135,17 +135,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     _playStartupSequence();
     
     // Après 5s : fade-out puis navigation vers le Dashboard
-    Timer(const Duration(seconds: 5), () async {
-      if (!mounted) return;
-      await _controller.reverse(from: 1.0); // Fade out en douceur
+    Timer(const Duration(seconds: 5), () {
       if (mounted) {
         Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (_, __, ___) => const Dashboard(),
-            transitionsBuilder: (_, anim, __, child) =>
-              FadeTransition(opacity: anim, child: child),
-            transitionDuration: const Duration(milliseconds: 600),
-          ),
+          MaterialPageRoute(builder: (context) => const Dashboard()),
         );
       }
     });
