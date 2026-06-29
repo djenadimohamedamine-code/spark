@@ -197,10 +197,13 @@ class ObdService {
       return true;
     } catch (e) {
       _log("CONNECTION FAILED: $e");
-      if (!_isReconnecting) _isReconnecting = true;
-      Future.delayed(const Duration(seconds: 5), () {
-        if (_socket == null) connect();
-      });
+      if (!_isReconnecting) {
+        _isReconnecting = true;
+        Future.delayed(const Duration(seconds: 5), () {
+          _isReconnecting = false;
+          if (_socket == null) connect();
+        });
+      }
       return false;
     }
   }
@@ -299,8 +302,10 @@ class ObdService {
     _isPolling = false;
     _tcpBuffer = '';
     _noDataCount = 0;
-    if (autoReconnect) {
+    if (autoReconnect && !_isReconnecting) {
+      _isReconnecting = true;
       Future.delayed(const Duration(seconds: 5), () {
+        _isReconnecting = false;
         if (_socket == null) connect();
       });
     }
