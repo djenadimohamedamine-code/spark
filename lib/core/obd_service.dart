@@ -249,9 +249,23 @@ class ObdService {
         await Future.delayed(const Duration(milliseconds: 300));
         sendCommand('010B'); // MAP (pour Carburant)
         await Future.delayed(const Duration(milliseconds: 300));
+        if (tick % 3 == 0) {
+          sendCommand('0111'); // TPS (Papillon)
+          await Future.delayed(const Duration(milliseconds: 300));
+          sendCommand('0104'); // Charge moteur
+          await Future.delayed(const Duration(milliseconds: 300));
+        }
         if (tick % 5 == 0) {
           sendCommand('0105'); // Temp
-          await Future.delayed(const Duration(milliseconds: 400));
+          await Future.delayed(const Duration(milliseconds: 350));
+          sendCommand('010F'); // IAT
+          await Future.delayed(const Duration(milliseconds: 350));
+        }
+        if (tick % 7 == 0) {
+          sendCommand('0106'); // Short Fuel Trim
+          await Future.delayed(const Duration(milliseconds: 350));
+          sendCommand('0107'); // Long Fuel Trim
+          await Future.delayed(const Duration(milliseconds: 350));
         }
         if (tick % 10 == 0) {
           sendCommand('ATRV'); // Volts
@@ -298,9 +312,8 @@ class ObdService {
       } catch (e) {
         _handleDisconnect();
       }
-    } else {
-      FlutterBackgroundService().invoke('sendCommand', {'command': command});
     }
+    // Si pas de socket, on ignore silencieusement (pas de fallback background service)
   }
 
   void disconnect() {

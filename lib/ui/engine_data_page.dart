@@ -35,34 +35,9 @@ class _EngineDataPageState extends State<EngineDataPage> {
   @override
   void initState() {
     super.initState();
+    // Mode PASSIF : on écoute uniquement le flux existant du dashboard
+    // On n'envoie AUCUNE commande supplémentaire pour ne pas surcharger l'ELM327
     _sub = widget.obdService.dataStream.listen(_parse);
-    _startPolling();
-  }
-
-  void _startPolling() {
-    _pollTimer = Timer.periodic(const Duration(milliseconds: 400), (t) async {
-      final cmds = [
-        '0111', // TPS
-        '0110', // MAF
-        '010B', // MAP
-        '010F', // IAT
-        '0105', // ECT
-        '010C', // RPM
-        '010D', // Speed
-        '0104', // Load
-        '010E', // Timing
-        '0106', // Short FT
-        '0107', // Long FT
-        '012F', // Fuel Level
-        '0133', // Baro
-        '0117', // O2 B1S2
-        'ATRV',  // Voltage
-      ];
-      for (final cmd in cmds) {
-        widget.obdService.sendCommand(cmd);
-        await Future.delayed(const Duration(milliseconds: 20));
-      }
-    });
   }
 
   void _parse(String data) {

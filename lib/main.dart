@@ -1,10 +1,10 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'ui/dashboard.dart';
-import 'core/background_service.dart';
 import 'core/spark_theme.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';

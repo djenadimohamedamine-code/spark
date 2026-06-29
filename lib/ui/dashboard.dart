@@ -409,11 +409,10 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
             }
             break;
 
-          case '0D': // SPEED (1 octet) - offset calibré -10 km/h pour Spark
+          case '0D': // SPEED (1 octet) - valeur brute OBD2
             if (i + 2 < parts.length) {
               double rawSpeed = (int.tryParse(parts[i + 2], radix: 16) ?? 0).toDouble();
-              double correctedSpeed = (rawSpeed - 10.0).clamp(0.0, 250.0);
-              _buffer['speed'] = correctedSpeed;
+              _buffer['speed'] = rawSpeed;
             }
             break;
 
