@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:network_info_plus/network_info_plus.dart';
 
 class ObdService {
   static final ObdService _instance = ObdService._internal();
@@ -118,7 +119,20 @@ class ObdService {
     try {
       _log("MIMO_OBD: Connexion Socket directe (IP Statique conseillée)...");
       
-      _socket = await Socket.connect(ip, port, timeout: const Duration(seconds: 10));
+      String? wifiIp;
+      try {
+        wifiIp = await NetworkInfo().getWifiIP();
+        _log("MIMO_OBD: IP WiFi locale = $wifiIp");
+      } catch (e) {
+        _log("MIMO_OBD: Erreur récupération IP WiFi: $e");
+      }
+
+      _socket = await Socket.connect(
+        ip, 
+        port, 
+        timeout: const Duration(seconds: 10),
+        sourceAddress: wifiIp, // Force le routage par l'interface WiFi (split routing)
+      );
       _socket!.setOption(SocketOption.tcpNoDelay, true); // Réduit la latence réseau (Important pour ELM327)
 
       _tcpBuffer = '';
