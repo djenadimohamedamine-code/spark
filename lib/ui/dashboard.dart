@@ -241,16 +241,17 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      _wasPaused = true;
+      if (!_wasPaused) {
+        _wasPaused = true;
+        _addLog("⏸️ App en arrière-plan, déconnexion propre de l'OBD...");
+        _obdService.disconnect(); // Envoie un FIN TCP à l'ELM327 avant que l'OS ne gèle l'app
+      }
     }
     if (state == AppLifecycleState.resumed && _wasPaused) {
       _wasPaused = false;
-      // Android tue les sockets TCP en arrière-plan même si Flutter croit qu'ils sont vivants.
-      // On force un disconnect propre puis reconnexion immédiate.
-      _obdService.disconnect();
-      Future.delayed(const Duration(milliseconds: 800), () {
+      _addLog("▶️ App de retour, reconnexion...");
+      Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) {
-          _addLog("🔄 Reconnexion après retour app...");
           _connectObd();
         }
       });
