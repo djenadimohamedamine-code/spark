@@ -16,8 +16,10 @@ import 'map_page.dart';
 import 'settings_page.dart';
 import 'standalone_clock_page.dart';
 import 'engine_data_page.dart';
+import 'performance_page.dart';
 import '../core/background_service.dart';
 import '../vocal/voice_service.dart';
+import '../vocal/tts_service.dart';
 
 
 class Dashboard extends StatefulWidget {
@@ -56,6 +58,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   final FuelCalculator _fuelCalculator = FuelCalculator();
   final ObdService _obdService = ObdService();
   final VoiceService _voiceService = VoiceService();
+  final TtsService _ttsService = TtsService();
   
   bool alert98Triggered = false;
   bool alert103Triggered = false;
@@ -66,6 +69,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   double _smoothVoltage = 0.0;
   double _smoothLph = 0.0;
   double _smoothTemp = 0.0;
+  double _iat = 25.0; // Température d'admission d'air
   
   // Cooldowns d'alertes par label (Pro Style)
   final Map<String, DateTime> _alertCooldowns = {};
@@ -358,14 +362,17 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     _addLog(line);
   }
 
-  // DRY Alert Helper (Tesla Style)
-  void _checkAlert(String label, double value, double threshold, int cooldownSec, String message) {
+  // DRY Alert Helper (Tesla Style) avec Synthèse Vocale
+  void _checkAlert(String label, double value, double threshold, int cooldownSec, String message, {bool lessThan = false}) {
     final now = DateTime.now();
     final lastTime = _alertCooldowns[label] ?? now.subtract(const Duration(hours: 1));
 
-    if (value >= threshold && now.difference(lastTime).inSeconds > cooldownSec) {
+    bool triggered = lessThan ? (value <= threshold) : (value >= threshold);
+
+    if (triggered && now.difference(lastTime).inSeconds > cooldownSec) {
       _addLog("ALERTE : $message");
       _alertCooldowns[label] = now;
+      _ttsService.speak(message, key: label, cooldownSeconds: cooldownSec);
     }
   }
 
@@ -416,12 +423,20 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
             }
             break;
 
+          case '0F': // IAT (Température d'admission d'air)
+            if (i + 2 < parts.length) {
+              _iat = (int.tryParse(parts[i + 2], radix: 16) ?? 40).toDouble() - 40.0;
+            }
+            break;
+
           case '0B': // MAP (pour MAF Virtuel)
             if (i + 2 < parts.length) {
               int mapKpa = int.tryParse(parts[i + 2], radix: 16) ?? 0;
-              final double tempK = temperature + 273.15; // Utilise la température d'eau comme approximation si IAT indisponible
-              double ve = 0.75 + (rpm / 10000.0); // VE dynamique estimée pour Spark 1.0L
-              double mafGs = (rpm * mapKpa / 120.0) * ve * (28.97 / 8.314) / tempK;
+              final double currentRpm = _buffer['rpm'] ?? rpm;
+              final double tempK = _iat + 273.15; // Utilise la vraie IAT (temp d'admission)
+              double ve = 0.75 + (currentRpm / 10000.0); // VE dynamique estimée pour Spark
+              // Cylindrée de 0.8L (multiplié par 0.8)
+              double mafGs = (currentRpm * mapKpa / 120.0) * ve * (28.97 / 8.314) / tempK * 0.8;
               double rawLph = _fuelCalculator.calculateConsumptionLph(mafGs);
               _smoothLph = (_smoothLph == 0) ? rawLph : (_smoothLph * 0.9) + (rawLph * 0.1);
               
@@ -444,6 +459,11 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
         if (rawVolt > 5.0 && rawVolt < 16.0) { // Range de sécurité Spark
           _smoothVoltage = (_smoothVoltage == 0) ? rawVolt : (_smoothVoltage * 0.8) + (rawVolt * 0.2);
           _buffer['tension'] = _smoothVoltage;
+          
+          final double currentRpm = _buffer['rpm'] ?? rpm;
+          if (currentRpm > 500) {
+            _checkAlert("BATT_LOW", rawVolt, 11.8, 180, "Attention Mimo, batterie faible !", lessThan: true);
+          }
         }
       } catch (_) {}
     }
@@ -614,6 +634,15 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.timer, color: Colors.orangeAccent),
+                title: const Text('Chrono Performance', style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold)),
+                subtitle: const Text('Mesurer le 0-50 km/h et 0-100 km/h', style: TextStyle(color: Colors.white38, fontSize: 10)),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const PerformancePage()));
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.settings, color: Colors.grey),
                 title: const Text('Configuration', style: TextStyle(color: Colors.white)),
                 onTap: () {
@@ -714,7 +743,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                         ),
                       ),
                     ),
-                    // CONSOLE DE LOG + BATTERY
+                    // CONSOLE DE LOG + BATTERY + CONSUMPTION
                     Container(
                       height: 50,
                       width: double.infinity,
@@ -730,7 +759,10 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                               ),
                             ),
                           ),
+                          _buildFuelConsumptionMini(),
+                          const SizedBox(width: 8),
                           _buildBatteryMini(),
+                          const SizedBox(width: 8),
                         ],
                       ),
                     ),
@@ -782,6 +814,8 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
+                            _buildFuelConsumptionMini(isLandscape: true),
+                            const SizedBox(height: 8),
                             _buildBatteryMini(isLandscape: true),
                             const SizedBox(height: 12),
                           ],
@@ -907,6 +941,35 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                size: isLandscape ? 18 : 14),
           const SizedBox(width: 6),
           Text('${tension.toStringAsFixed(1)}V', 
+               style: TextStyle(color: Colors.white, fontSize: isLandscape ? 16 : 12, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFuelConsumptionMini({bool isLandscape = false}) {
+    // Calcul de la consommation aux 100km si le véhicule roule, sinon en L/h
+    final double lph = _smoothLph;
+    final bool isStopped = speed < 5.0;
+    final String valueStr = isStopped 
+        ? '${lph.toStringAsFixed(1)} L/h' 
+        : '${(lph / speed * 100).toStringAsFixed(1)} L/100';
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: isLandscape ? 20 : 12, vertical: isLandscape ? 4 : 0),
+      decoration: isLandscape ? BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white10),
+      ) : null,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.local_gas_station, 
+               color: isStopped ? Colors.orangeAccent : Colors.greenAccent, 
+               size: isLandscape ? 18 : 14),
+          const SizedBox(width: 6),
+          Text(valueStr, 
                style: TextStyle(color: Colors.white, fontSize: isLandscape ? 16 : 12, fontWeight: FontWeight.bold)),
         ],
       ),
