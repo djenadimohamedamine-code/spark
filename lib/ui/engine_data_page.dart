@@ -13,22 +13,22 @@ class EngineDataPage extends StatefulWidget {
 class _EngineDataPageState extends State<EngineDataPage> {
   StreamSubscription<String>? _sub;
 
-  // Données moteur
-  double tps = 0;       // Papillon (Throttle Position) %
-  double maf = 0;       // Débit masse air g/s
-  double map = 0;       // Pression collecteur kPa
-  double iat = 0;       // Température air admission °C
-  double ect = 0;       // Température liquide °C
-  double rpm = 0;
-  double speed = 0;
-  double voltage = 0;
-  double ftrimST = 0;   // Fuel Trim CT %
-  double ftrimLT = 0;   // Fuel Trim LT %
-  double load = 0;      // Charge moteur %
-  double timing = 0;    // Avance allumage °
-  double o2 = 0;        // Sonde Lambda V
-  double fuelPct = 0;   // Niveau carburant %
-  double baroPres = 0;  // Pression baro kPa
+  // Données moteur (null = Pas de capteur / Non supporté)
+  double? tps;       // Papillon (Throttle Position) %
+  double? maf;       // Débit masse air g/s
+  double? map;       // Pression collecteur kPa
+  double? iat;       // Température air admission °C
+  double? ect;       // Température liquide °C
+  double? rpm;
+  double? speed;
+  double? voltage;
+  double? ftrimST;   // Fuel Trim CT %
+  double? ftrimLT;   // Fuel Trim LT %
+  double? load;      // Charge moteur %
+  double? timing;    // Avance allumage °
+  double? o2;        // Sonde Lambda V
+  double? fuelPct;   // Niveau carburant %
+  double? baroPres;  // Pression baro kPa
 
   Timer? _pollTimer;
 
@@ -116,28 +116,29 @@ class _EngineDataPageState extends State<EngineDataPage> {
           mainAxisSpacing: 10,
           crossAxisSpacing: 10,
           children: [
-            _buildTile('PAPILLON', '${tps.toStringAsFixed(1)}%', Icons.air, Colors.orangeAccent, tps / 100, _getColor(tps, 70, 90)),
-            _buildTile('MAF', '${maf.toStringAsFixed(2)} g/s', Icons.wind_power, Colors.lightBlueAccent, maf / 40, _getColor(maf, 25, 35)),
-            _buildTile('PRESSION MAP', '${map.toStringAsFixed(0)} kPa', Icons.compress, Colors.purpleAccent, map / 120, _getColor(map, 90, 110)),
-            _buildTile('TEMP. AIR', '${iat.toStringAsFixed(0)}°C', Icons.thermostat_outlined, Colors.lightGreenAccent, (iat + 20) / 80, _getColor(iat, 45, 60)),
-            _buildTile('TEMP. EAU', '${ect.toStringAsFixed(0)}°C', Icons.thermostat, Colors.redAccent, ect / 120, _getColor(ect, 95, 105)),
-            _buildTile('CHARGE MOT.', '${load.toStringAsFixed(1)}%', Icons.speed, Colors.amberAccent, load / 100, _getColor(load, 75, 90)),
-            _buildTile('AVANCE ALLUM.', '${timing.toStringAsFixed(1)}°', Icons.bolt, const Color(0xFFFFD700), (timing + 64) / 128, null),
-            _buildTile('FUEL TRIM CT', '${ftrimST.toStringAsFixed(1)}%', Icons.local_gas_station, Colors.greenAccent, (ftrimST + 100) / 200, _getTrimColor(ftrimST)),
-            _buildTile('FUEL TRIM LT', '${ftrimLT.toStringAsFixed(1)}%', Icons.local_gas_station_outlined, Colors.tealAccent, (ftrimLT + 100) / 200, _getTrimColor(ftrimLT)),
-            _buildTile('SONDE O2', '${o2.toStringAsFixed(3)} V', Icons.scatter_plot, Colors.pinkAccent, o2 / 1.2, null),
-            _buildTile('BARO.', '${baroPres.toStringAsFixed(0)} kPa', Icons.landscape, Colors.cyanAccent, baroPres / 105, null),
-            _buildTile('BATTERIE', '${voltage.toStringAsFixed(2)} V', Icons.battery_charging_full, Colors.greenAccent, (voltage - 10) / 6, _getColor(voltage, 14.5, 15.5, invert: true)),
-            _buildTile('NIVEAU CARB.', '${fuelPct.toStringAsFixed(1)}%', Icons.local_gas_station, Colors.orangeAccent, fuelPct / 100, _getColor(fuelPct, 20, 10, invert: true)),
-            _buildTile('VITESSE OBD', '${speed.toStringAsFixed(0)} km/h', Icons.speed, Colors.white, speed / 200, null),
-            _buildTile('RPM', '${rpm.toStringAsFixed(0)}', Icons.rotate_right, const Color(0xFFFF3333), rpm / 8000, _getColor(rpm, 5500, 6500)),
+            _buildTile('PAPILLON', tps != null ? '${tps!.toStringAsFixed(1)}%' : 'N/A', Icons.air, Colors.orangeAccent, tps != null ? tps! / 100 : 0.0, _getColor(tps, 70, 90)),
+            _buildTile('MAF', maf != null ? '${maf!.toStringAsFixed(2)} g/s' : 'N/A', Icons.wind_power, Colors.lightBlueAccent, maf != null ? maf! / 40 : 0.0, _getColor(maf, 25, 35)),
+            _buildTile('PRESSION MAP', map != null ? '${map!.toStringAsFixed(0)} kPa' : 'N/A', Icons.compress, Colors.purpleAccent, map != null ? map! / 120 : 0.0, _getColor(map, 90, 110)),
+            _buildTile('TEMP. AIR', iat != null ? '${iat!.toStringAsFixed(0)}°C' : 'N/A', Icons.thermostat_outlined, Colors.lightGreenAccent, iat != null ? (iat! + 20) / 80 : 0.0, _getColor(iat, 45, 60)),
+            _buildTile('TEMP. EAU', ect != null ? '${ect!.toStringAsFixed(0)}°C' : 'N/A', Icons.thermostat, Colors.redAccent, ect != null ? ect! / 120 : 0.0, _getColor(ect, 95, 105)),
+            _buildTile('CHARGE MOT.', load != null ? '${load!.toStringAsFixed(1)}%' : 'N/A', Icons.speed, Colors.amberAccent, load != null ? load! / 100 : 0.0, _getColor(load, 75, 90)),
+            _buildTile('AVANCE ALLUM.', timing != null ? '${timing!.toStringAsFixed(1)}°' : 'N/A', Icons.bolt, const Color(0xFFFFD700), timing != null ? (timing! + 64) / 128 : 0.0, _getColor(timing, 100, 100)),
+            _buildTile('FUEL TRIM CT', ftrimST != null ? '${ftrimST!.toStringAsFixed(1)}%' : 'N/A', Icons.local_gas_station, Colors.greenAccent, ftrimST != null ? (ftrimST! + 100) / 200 : 0.0, _getTrimColor(ftrimST)),
+            _buildTile('FUEL TRIM LT', ftrimLT != null ? '${ftrimLT!.toStringAsFixed(1)}%' : 'N/A', Icons.local_gas_station_outlined, Colors.tealAccent, ftrimLT != null ? (ftrimLT! + 100) / 200 : 0.0, _getTrimColor(ftrimLT)),
+            _buildTile('SONDE O2', o2 != null ? '${o2!.toStringAsFixed(3)} V' : 'N/A', Icons.scatter_plot, Colors.pinkAccent, o2 != null ? o2! / 1.2 : 0.0, _getColor(o2, 100, 100)),
+            _buildTile('BARO.', baroPres != null ? '${baroPres!.toStringAsFixed(0)} kPa' : 'N/A', Icons.landscape, Colors.cyanAccent, baroPres != null ? baroPres! / 105 : 0.0, _getColor(baroPres, 200, 200)),
+            _buildTile('BATTERIE', voltage != null ? '${voltage!.toStringAsFixed(2)} V' : 'N/A', Icons.battery_charging_full, Colors.greenAccent, voltage != null ? (voltage! - 10) / 6 : 0.0, _getColor(voltage, 14.5, 15.5, invert: true)),
+            _buildTile('NIVEAU CARB.', fuelPct != null ? '${fuelPct!.toStringAsFixed(1)}%' : 'N/A', Icons.local_gas_station, Colors.orangeAccent, fuelPct != null ? fuelPct! / 100 : 0.0, _getColor(fuelPct, 20, 10, invert: true)),
+            _buildTile('VITESSE OBD', speed != null ? '${speed!.toStringAsFixed(0)} km/h' : 'N/A', Icons.speed, Colors.white, speed != null ? speed! / 200 : 0.0, _getColor(speed, 200, 200)),
+            _buildTile('RPM', rpm != null ? '${rpm!.toStringAsFixed(0)}' : 'N/A', Icons.rotate_right, const Color(0xFFFF3333), rpm != null ? rpm! / 8000 : 0.0, _getColor(rpm, 5500, 6500)),
           ],
         ),
       ),
     );
   }
 
-  Color _getColor(double v, double warn, double crit, {bool invert = false}) {
+  Color _getColor(double? v, double warn, double crit, {bool invert = false}) {
+    if (v == null) return Colors.white12;
     if (invert) {
       if (v <= crit) return Colors.redAccent;
       if (v <= warn) return Colors.orangeAccent;
@@ -148,7 +149,8 @@ class _EngineDataPageState extends State<EngineDataPage> {
     return Colors.greenAccent;
   }
 
-  Color? _getTrimColor(double v) {
+  Color? _getTrimColor(double? v) {
+    if (v == null) return Colors.white12;
     if (v.abs() > 15) return Colors.redAccent;
     if (v.abs() > 8) return Colors.orangeAccent;
     return Colors.greenAccent;
