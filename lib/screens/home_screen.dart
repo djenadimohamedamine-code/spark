@@ -203,7 +203,10 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             
             // ─── CONTROL BOARD ───
-            _buildControlBoard(switcher, currentSource, isSplit, isSmallScreen),
+            Expanded(
+              flex: 1,
+              child: _buildControlBoard(switcher, currentSource, isSplit, isSmallScreen),
+            ),
           ],
         ),
       ),
@@ -476,7 +479,6 @@ class _HomeScreenState extends State<HomeScreen> {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               width: isSmallScreen ? 70 : 90,
-              height: double.infinity,
               decoration: BoxDecoration(
                 color: isSplit 
                   ? Colors.amber 
@@ -504,7 +506,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          Container(width: 1, height: double.infinity, color: const Color(0xFF333333)),
+          Container(width: 1, color: const Color(0xFF333333)),
           const SizedBox(width: 12),
           // ── Source Buttons Grid ──
           Expanded(
