@@ -278,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
               margin: const EdgeInsets.only(right: 12),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.2),
+                color: Colors.orange.withOpacity(0.2),
                 border: Border.all(color: Colors.orange),
                 borderRadius: BorderRadius.circular(4),
               ),
@@ -309,8 +309,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
-            color: Colors.red.withValues(alpha: value * 0.3),
-            border: Border.all(color: Colors.red.withValues(alpha: value)),
+            color: Colors.red.withOpacity(value * 0.3),
+            border: Border.all(color: Colors.red.withOpacity(value)),
             borderRadius: BorderRadius.circular(6),
           ),
           child: Row(
@@ -320,7 +320,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: value),
+                  color: Colors.red.withOpacity(value),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -354,7 +354,7 @@ class _HomeScreenState extends State<HomeScreen> {
         border: Border.all(color: const Color(0xFF2A2A2A), width: 2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.8),
+            color: Colors.black.withOpacity(0.8),
             blurRadius: 20,
             spreadRadius: 5,
           ),
@@ -391,7 +391,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     borderRadius: BorderRadius.circular(4),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.red.withValues(alpha: 0.5),
+                        color: Colors.red.withOpacity(0.5),
                         blurRadius: 8,
                         spreadRadius: 1,
                       ),
@@ -423,7 +423,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.6),
+                  color: Colors.black.withOpacity(0.6),
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(color: Colors.white24),
                 ),
@@ -480,14 +480,14 @@ class _HomeScreenState extends State<HomeScreen> {
               decoration: BoxDecoration(
                 color: isSplit 
                   ? Colors.amber 
-                  : Colors.amber.withValues(alpha: 0.15),
+                  : Colors.amber.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: isSplit ? Colors.amberAccent : Colors.amber.withValues(alpha: 0.5),
+                  color: isSplit ? Colors.amberAccent : Colors.amber.withOpacity(0.5),
                   width: 2,
                 ),
                 boxShadow: isSplit 
-                  ? [BoxShadow(color: Colors.amber.withValues(alpha: 0.5), blurRadius: 12, spreadRadius: 2)] 
+                  ? [BoxShadow(color: Colors.amber.withOpacity(0.5), blurRadius: 12, spreadRadius: 2)] 
                   : [],
               ),
               child: Center(
@@ -552,7 +552,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.signal_wifi_off, color: Colors.red.withValues(alpha: 0.3), size: 40),
+              Icon(Icons.signal_wifi_off, color: Colors.red.withOpacity(0.3), size: 40),
               const SizedBox(height: 8),
               const Text(
                 'SIGNAL PERDU',
@@ -581,7 +581,7 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.6),
+            color: Colors.black.withOpacity(0.6),
             blurRadius: 12,
             offset: const Offset(2, 4),
           ),
@@ -674,16 +674,16 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: BoxDecoration(
           color: isLive 
             ? Colors.red 
-            : buttonColor.withValues(alpha: isDisabled ? 0.08 : 0.2),
+            : buttonColor.withOpacity(isDisabled ? 0.08 : 0.2),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isLive 
               ? Colors.redAccent 
-              : buttonColor.withValues(alpha: isDisabled ? 0.2 : 0.7),
+              : buttonColor.withOpacity(isDisabled ? 0.2 : 0.7),
             width: isLive ? 2 : 1.5,
           ),
           boxShadow: isLive
-              ? [BoxShadow(color: Colors.red.withValues(alpha: 0.5), blurRadius: 10, spreadRadius: 1)]
+              ? [BoxShadow(color: Colors.red.withOpacity(0.5), blurRadius: 10, spreadRadius: 1)]
               : [],
         ),
         child: Center(
@@ -691,13 +691,13 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (!isSmallScreen) ...[
-                Icon(typeIcon, size: 14, color: isDisabled ? Colors.grey.withValues(alpha: 0.3) : (isLive ? Colors.white : buttonColor)),
+                Icon(typeIcon, size: 14, color: isDisabled ? Colors.grey.withOpacity(0.3) : (isLive ? Colors.white : buttonColor)),
                 const SizedBox(height: 2),
               ],
               Text(
                 source.shortName,
                 style: TextStyle(
-                  color: isDisabled ? Colors.grey.withValues(alpha: 0.4) : Colors.white,
+                  color: isDisabled ? Colors.grey.withOpacity(0.4) : Colors.white,
                   fontWeight: FontWeight.w900,
                   fontSize: isSmallScreen ? 11 : 13,
                   letterSpacing: 0.5,
@@ -708,8 +708,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 source.name,
                 style: TextStyle(
                   color: isDisabled 
-                    ? Colors.grey.withValues(alpha: 0.2) 
-                    : Colors.white.withValues(alpha: 0.5),
+                    ? Colors.grey.withOpacity(0.2) 
+                    : Colors.white.withOpacity(0.5),
                   fontSize: isSmallScreen ? 8 : 10,
                 ),
                 textAlign: TextAlign.center,
