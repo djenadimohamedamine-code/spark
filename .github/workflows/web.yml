@@ -1,5 +1,4 @@
-name: Build Web
-
+name: MVS7000-Web-Build
 on:
   push:
     branches: [ "mvs7000_simulator" ]
@@ -10,14 +9,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Clone repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
-          flutter-version-file: pubspec.yaml
+          flutter-version: '3.22.0'
+          channel: 'stable'
 
       - name: Install dependencies
         run: flutter pub get
@@ -28,5 +27,5 @@ jobs:
       - name: Upload Web Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: flutter-web-build
+          name: MVS7000-Web-Build
           path: build/web
