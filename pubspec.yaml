@@ -1,5 +1,5 @@
 name: flutter_mv7000_demo
-description: A new Flutter project.
+description: Simulateur Sony MVS-7000 - Mélangeur broadcast pour entraînement JT
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -13,6 +13,7 @@ dependencies:
   video_player: ^2.8.2
   provider: ^6.1.1
   google_fonts: ^6.1.0
+  audioplayers: ^5.2.1
 
 dev_dependencies:
   flutter_test:

@@ -1,0 +1,22 @@
+# Flutter
+/build/
+/.dart_tool/
+/.packages
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# IDE
+/.idea/
+*.iml
+.vscode/
+
+# macOS
+.DS_Store
+
+# Metadata files from Antigravity
+*.metadata.json
+
+# Miscellaneous
+*.log
+*.pyc
