@@ -9,7 +9,7 @@ class SwitcherProvider extends ChangeNotifier {
       name: 'Générique Début', 
       shortName: 'SERVER 1', 
       type: SourceType.server, 
-      assetPath: 'assets/intro.mp4', 
+      networkUrl: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
       autoReturn: true
     ),
     Source(
@@ -17,7 +17,7 @@ class SwitcherProvider extends ChangeNotifier {
       name: 'Générique Fin', 
       shortName: 'SERVER 2', 
       type: SourceType.server, 
-      assetPath: 'assets/outro.mp4', 
+      networkUrl: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
       autoReturn: false
     ),
     Source(
@@ -25,7 +25,7 @@ class SwitcherProvider extends ChangeNotifier {
       name: 'Présentateur', 
       shortName: 'STUDIO', 
       type: SourceType.presenter, 
-      assetPath: 'assets/presenter.mp4', 
+      networkUrl: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4',
       autoReturn: false,
       lowerThirdTitle: 'MOHAMED AMINE',
       lowerThirdSubtitle: 'Édition Spéciale - JT 20H',
@@ -35,7 +35,7 @@ class SwitcherProvider extends ChangeNotifier {
       name: 'VTR 1 (Économie)', 
       shortName: 'VTR 1', 
       type: SourceType.xdcam, 
-      assetPath: 'assets/xdcam1.mp4', 
+      networkUrl: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
       autoReturn: true,
       lowerThirdTitle: 'ÉCONOMIE: HAUSSE DES EXPORTATIONS',
       lowerThirdSubtitle: 'Sujet: Impact sur le marché local',
@@ -45,7 +45,7 @@ class SwitcherProvider extends ChangeNotifier {
       name: 'VTR 2 (Sport)', 
       shortName: 'VTR 2', 
       type: SourceType.xdcam, 
-      assetPath: 'assets/xdcam2.mp4', 
+      networkUrl: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
       autoReturn: true,
       lowerThirdTitle: 'SPORT: RÉSULTATS DU WEEK-END',
       lowerThirdSubtitle: 'Ligue 1: La course au titre relancée',
@@ -55,7 +55,7 @@ class SwitcherProvider extends ChangeNotifier {
       name: 'VTR 3 (Météo)', 
       shortName: 'VTR 3', 
       type: SourceType.xdcam, 
-      assetPath: 'assets/xdcam3.mp4', 
+      networkUrl: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
       autoReturn: true,
       lowerThirdTitle: 'MÉTÉO: VAGUE DE CHALEUR',
       lowerThirdSubtitle: 'Prévisions pour les prochains jours',
@@ -65,7 +65,7 @@ class SwitcherProvider extends ChangeNotifier {
       name: 'Direct Paris', 
       shortName: 'EXT A', 
       type: SourceType.external, 
-      assetPath: 'assets/external_a.mp4', 
+      networkUrl: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
       autoReturn: false, // NO AUTO RETURN! It will go black if the operator misses it.
       lowerThirdTitle: 'EN DIRECT DE PARIS',
       lowerThirdSubtitle: 'Notre correspondant sur place',
@@ -75,7 +75,7 @@ class SwitcherProvider extends ChangeNotifier {
       name: 'Direct Alger', 
       shortName: 'EXT B', 
       type: SourceType.external, 
-      assetPath: 'assets/external_b.mp4', 
+      networkUrl: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
       autoReturn: false, // NO AUTO RETURN!
       lowerThirdTitle: 'EN DIRECT D\'ALGER',
       lowerThirdSubtitle: 'Intervention spéciale',

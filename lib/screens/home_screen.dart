@@ -100,7 +100,7 @@ class _HomeScreenState extends State<HomeScreen> {
       secondarySourceToPlay = extSource;
     }
     
-    _mainController = VideoPlayerController.asset(mainSourceToPlay.assetPath);
+    _mainController = VideoPlayerController.networkUrl(Uri.parse(mainSourceToPlay.networkUrl));
     await _mainController!.initialize();
     
     if (mainSourceToPlay.type == SourceType.presenter) {
@@ -116,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _mainController!.play();
 
     if (secondarySourceToPlay != null) {
-      _secondaryController = VideoPlayerController.asset(secondarySourceToPlay.assetPath);
+      _secondaryController = VideoPlayerController.networkUrl(Uri.parse(secondarySourceToPlay.networkUrl));
       await _secondaryController!.initialize();
       
       _secondaryController!.addListener(_createVideoEndListener(
