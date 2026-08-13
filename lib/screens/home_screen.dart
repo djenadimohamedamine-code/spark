@@ -510,40 +510,66 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(width: 12),
           // ── Source Buttons Grid ──
           Expanded(
-            child: GridView.builder(
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                crossAxisSpacing: isSmallScreen ? 8 : 12,
-                mainAxisSpacing: isSmallScreen ? 8 : 12,
-                childAspectRatio: isSmallScreen ? 2.0 : 2.5,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return Column(
+                    children: [
+                      Expanded(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: List.generate(4, (index) {
+                            final source = switcher.sources[index];
+                            return Expanded(
+                              child: Padding(
+                                padding: EdgeInsets.only(right: index < 3 ? (isSmallScreen ? 4.0 : 12.0) : 0),
+                                child: _buildSwitcherButton(
+                                  source: source,
+                                  isLive: _isSourceLive(source, currentSource, switcher, isSplit),
+                                  isDisabled: switcher.areVTRsLocked && source.type == SourceType.xdcam,
+                                  isSmallScreen: isSmallScreen,
+                                  onTap: (switcher.areVTRsLocked && source.type == SourceType.xdcam) ? null : () => switcher.cutToSource(source),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                      SizedBox(height: isSmallScreen ? 4 : 12),
+                      Expanded(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: List.generate(4, (index) {
+                            final source = switcher.sources[index + 4];
+                            return Expanded(
+                              child: Padding(
+                                padding: EdgeInsets.only(right: index < 3 ? (isSmallScreen ? 4.0 : 12.0) : 0),
+                                child: _buildSwitcherButton(
+                                  source: source,
+                                  isLive: _isSourceLive(source, currentSource, switcher, isSplit),
+                                  isDisabled: switcher.areVTRsLocked && source.type == SourceType.xdcam,
+                                  isSmallScreen: isSmallScreen,
+                                  onTap: (switcher.areVTRsLocked && source.type == SourceType.xdcam) ? null : () => switcher.cutToSource(source),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
-              itemCount: switcher.sources.length,
-              itemBuilder: (context, index) {
-                final source = switcher.sources[index];
-                bool isLive = source.id == currentSource.id;
-                if (isSplit && source.type == SourceType.external && source.id == switcher.lastExternalSource?.id) {
-                  isLive = true;
-                }
-                if (isSplit && source.type == SourceType.presenter) {
-                  isLive = true;
-                }
-                
-                final isDisabled = switcher.areVTRsLocked && source.type == SourceType.xdcam;
-                
-                return _buildSwitcherButton(
-                  source: source,
-                  isLive: isLive,
-                  isDisabled: isDisabled,
-                  isSmallScreen: isSmallScreen,
-                  onTap: isDisabled ? null : () => switcher.cutToSource(source),
-                );
-              },
-            ),
           ),
         ],
       ),
     );
+  }
+
+  bool _isSourceLive(Source source, Source currentSource, SwitcherProvider switcher, bool isSplit) {
+    if (source.id == currentSource.id) return true;
+    if (isSplit && source.type == SourceType.external && source.id == switcher.lastExternalSource?.id) return true;
+    if (isSplit && source.type == SourceType.presenter) return true;
+    return false;
   }
 
   Widget _buildVideoPlayer(VideoPlayerController controller, Source source, bool isEnded) {
