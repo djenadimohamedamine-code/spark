@@ -100,7 +100,7 @@ class _HomeScreenState extends State<HomeScreen> {
       secondarySourceToPlay = extSource;
     }
     
-    _mainController = VideoPlayerController.networkUrl(Uri.parse(mainSourceToPlay.networkUrl));
+    _mainController = VideoPlayerController.asset(mainSourceToPlay.assetPath);
     await _mainController!.initialize();
     
     if (mainSourceToPlay.type == SourceType.presenter) {
@@ -116,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _mainController!.play();
 
     if (secondarySourceToPlay != null) {
-      _secondaryController = VideoPlayerController.networkUrl(Uri.parse(secondarySourceToPlay.networkUrl));
+      _secondaryController = VideoPlayerController.asset(secondarySourceToPlay.assetPath);
       await _secondaryController!.initialize();
       
       _secondaryController!.addListener(_createVideoEndListener(
@@ -517,32 +517,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       Expanded(
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: List.generate(4, (index) {
+                          children: List.generate(switcher.sources.length, (index) {
                             final source = switcher.sources[index];
                             return Expanded(
                               child: Padding(
-                                padding: EdgeInsets.only(right: index < 3 ? (isSmallScreen ? 4.0 : 12.0) : 0),
-                                child: _buildSwitcherButton(
-                                  source: source,
-                                  isLive: _isSourceLive(source, currentSource, switcher, isSplit),
-                                  isDisabled: switcher.areVTRsLocked && source.type == SourceType.xdcam,
-                                  isSmallScreen: isSmallScreen,
-                                  onTap: (switcher.areVTRsLocked && source.type == SourceType.xdcam) ? null : () => switcher.cutToSource(source),
-                                ),
-                              ),
-                            );
-                          }),
-                        ),
-                      ),
-                      SizedBox(height: isSmallScreen ? 4 : 12),
-                      Expanded(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: List.generate(4, (index) {
-                            final source = switcher.sources[index + 4];
-                            return Expanded(
-                              child: Padding(
-                                padding: EdgeInsets.only(right: index < 3 ? (isSmallScreen ? 4.0 : 12.0) : 0),
+                                padding: EdgeInsets.only(right: index < switcher.sources.length - 1 ? (isSmallScreen ? 6.0 : 12.0) : 0),
                                 child: _buildSwitcherButton(
                                   source: source,
                                   isLive: _isSourceLive(source, currentSource, switcher, isSplit),

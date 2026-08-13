@@ -10,7 +10,7 @@ class Source {
   final String name;
   final String shortName; // For the button text
   final SourceType type;
-  final String networkUrl;
+  final String assetPath;
   final bool autoReturn;  // If true, returns to presenter when video ends
   final String? lowerThirdTitle; // Title for the news lower-third graphics
   final String? lowerThirdSubtitle;
@@ -20,7 +20,7 @@ class Source {
     required this.name,
     required this.shortName,
     required this.type,
-    required this.networkUrl,
+    required this.assetPath,
     this.autoReturn = true, 
     this.lowerThirdTitle,
     this.lowerThirdSubtitle,
