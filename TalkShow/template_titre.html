@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>TalkShow — POP TV — Titre Indépendant</title>
+    <link rel="stylesheet" href="assets/talkshow.css">
+</head>
+<body>
+    <div class="canvas">
+        <div class="ts-titleband">
+            <div class="ts-titleband-top">
+                <div class="ts-titleband-main" lang="ar">العنوان الرئيسي</div>
+            </div>
+            
+            <div class="ts-titleband-separator"></div>
+            
+            <div class="ts-titleband-bottom">
+                <div class="ts-titleband-sub" lang="ar">النص الثانوي</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    (function () {
+        'use strict';
+        var started = false;
+        var band = document.querySelector(".ts-titleband");
+
+        function play() {
+            if (started || !band) return;
+            started = true;
+            
+            var cs = getComputedStyle(document.documentElement);
+            var inDur = parseFloat(cs.getPropertyValue("--ts-in-dur")) || 400;
+            var outDur = parseFloat(cs.getPropertyValue("--ts-out-dur")) || 400;
+            var holdMs = parseFloat(cs.getPropertyValue("--ts-hold")) || 4600;
+            var outTo = cs.getPropertyValue("--ts-out-to") || "translateY(50px)";
+            
+            // Animation WAAPI (Fade-in + léger slide-up)
+            var kf = [
+                { opacity: 0, transform: outTo, offset: 0 },
+                { opacity: 1, transform: "translateY(0)", offset: inDur / (inDur + holdMs + outDur) },
+                { opacity: 1, transform: "translateY(0)", offset: (inDur + holdMs) / (inDur + holdMs + outDur) },
+                { opacity: 0, transform: outTo, offset: 1 }
+            ];
+            
+            band.animate(kf, {
+                duration: inDur + holdMs + outDur,
+                easing: "ease-in-out",
+                fill: "forwards"
+            });
+        }
+
+        function arm() {
+            if (!document.body || !band) return;
+            if (document.body.classList.contains("playing")) { play(); }
+            var obs = new MutationObserver(function () {
+                if (started) { obs.disconnect(); return; }
+                if (document.body.classList.contains("playing")) {
+                    obs.disconnect();
+                    play();
+                }
+            });
+            obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+        }
+        arm();
+    })();
+    </script>
+    <script src="assets/habillage.js"></script>
+</body>
+</html>

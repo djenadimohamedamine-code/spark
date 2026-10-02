@@ -1,0 +1,1471 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TalkShow — Panneau de contrôle</title>
+<style>
+/* ---- identite POP TV (tokens du projet, aucun nouveau token) -------------- */
+@font-face {
+    font-family: 'Montserrat';
+    src: url('assets/fonts/Montserrat.woff2') format('woff2'),
+         url('assets/fonts/Montserrat.ttf') format('truetype');
+    font-weight: 100 900;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'Kufi';
+    src: url('assets/fonts/NotoKufiArabic.woff2') format('woff2'),
+         url('assets/fonts/NotoKufiArabic.ttf') format('truetype');
+    font-weight: 100 900;
+    font-display: swap;
+}
+:root {
+    --pop-bg: #16082B;
+    --pop-magenta: #E2007A;
+    --pop-cyan: #00E5FF;
+    --pop-yellow: #FFE600;
+    --pop-dark: #0A0414;
+    --pop-white: #FFFFFF;
+    --pop-text-sub: #E2D9F3;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    background: var(--pop-dark);
+    color: var(--pop-white);
+    font-family: Montserrat, "Segoe UI", sans-serif;
+    font-size: 15px;
+    min-height: 100vh;
+}
+header {
+    background: var(--pop-bg);
+    border-bottom: 4px solid var(--pop-magenta);
+    padding: 16px 28px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+header h1 { font-size: 21px; font-weight: 800; letter-spacing: 1px; }
+header .tag {
+    background: var(--pop-yellow);
+    color: var(--pop-dark);
+    font-weight: 800;
+    font-size: 12px;
+    padding: 4px 14px;
+    letter-spacing: 2px;
+}
+header .sub { color: var(--pop-text-sub); font-size: 13px; font-weight: 600; }
+
+/* ---- onglets ------------------------------------------------------------- */
+nav {
+    display: flex;
+    gap: 4px;
+    padding: 14px 28px 0;
+    background: var(--pop-bg);
+}
+nav button {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--pop-text-sub);
+    background: rgba(255,255,255,.06);
+    border: 2px solid transparent;
+    border-bottom: none;
+    padding: 10px 22px;
+    cursor: pointer;
+    transform: skewX(-12deg);
+}
+nav button span { display: inline-block; transform: skewX(12deg); }
+nav button.active {
+    background: var(--pop-magenta);
+    color: var(--pop-white);
+    border-color: var(--pop-cyan);
+}
+nav button:hover:not(.active) { background: rgba(255,255,255,.12); }
+
+/* ---- grille -------------------------------------------------------------- */
+main { display: grid; grid-template-columns: minmax(460px, 560px) 1fr; gap: 22px; padding: 22px 28px; }
+@media (max-width: 1250px) { main { grid-template-columns: 1fr; } }
+section.panel {
+    background: var(--pop-bg);
+    border: 2px solid var(--pop-magenta);
+    box-shadow: 6px 6px 0 var(--pop-cyan);
+    padding: 20px 22px;
+}
+/* apercu COLLANT : il descend avec le scroll des couleurs/parametres */
+section.preview {
+    position: sticky;
+    top: 14px;
+    align-self: start;
+}
+@media (max-width: 1250px) { section.preview { position: static; } }
+h2 {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: var(--pop-cyan);
+    margin-bottom: 16px;
+    text-transform: uppercase;
+}
+.field { margin-bottom: 14px; }
+.field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--pop-text-sub);
+    margin-bottom: 5px;
+}
+.field label .val { float: right; color: var(--pop-cyan); font-weight: 800; }
+.field .hint { color: rgba(226,217,243,.55); font-weight: 500; }
+.field input, .field textarea {
+    width: 100%;
+    background: var(--pop-dark);
+    border: 2px solid rgba(0,229,255,.35);
+    color: var(--pop-white);
+    font-family: Kufi, Montserrat, sans-serif;
+    font-size: 17px;
+    padding: 9px 12px;
+    outline: none;
+}
+.field input[dir="ltr"], .field textarea[dir="ltr"] { font-family: Montserrat, sans-serif; }
+.field input:focus, .field textarea:focus { border-color: var(--pop-cyan); }
+.field textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
+
+/* ---- template actuel ------------------------------------------------------ */
+.tcur {
+    background: rgba(255,230,0,.07);
+    border: 2px solid var(--pop-yellow);
+    padding: 10px 12px;
+    margin-bottom: 16px;
+}
+.tcur .lab { font-size: 10px; font-weight: 800; letter-spacing: 2px; color: var(--pop-yellow); }
+.tcur .name { display: block; font-size: 17px; font-weight: 800; margin-top: 3px; }
+.tcur .st { display: block; font-size: 11px; font-weight: 600; color: var(--pop-text-sub); margin-top: 5px; line-height: 1.5; }
+.tcur .st.custom { color: var(--pop-cyan); }
+
+/* ---- selecteurs ----------------------------------------------------------- */
+select.sel {
+    width: 100%;
+    background: var(--pop-dark);
+    border: 2px solid rgba(0,229,255,.35);
+    color: var(--pop-white);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 9px 10px;
+    outline: none;
+    cursor: pointer;
+}
+select.sel:focus { border-color: var(--pop-cyan); }
+.swatches { display: flex; gap: 4px; margin-top: 8px; }
+.swatches i { width: 100%; height: 12px; display: block; border: 1px solid rgba(255,255,255,.25); }
+
+/* ---- couleurs : [■] pick + HEX + RGB/HSL ---------------------------------- */
+.crow { display: flex; gap: 8px; }
+.crow input[type="color"] {
+    width: 54px;
+    min-width: 54px;
+    height: 38px;
+    padding: 3px;
+    background: var(--pop-dark);
+    border: 2px solid rgba(0,229,255,.35);
+    cursor: pointer;
+}
+.crow input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+.crow input[type="color"]::-webkit-color-swatch { border: none; }
+.crow input.hex {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+    background: var(--pop-dark);
+    border: 2px solid rgba(0,229,255,.35);
+    color: var(--pop-white);
+    font-family: Montserrat, monospace;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 8px 10px;
+    text-transform: uppercase;
+    outline: none;
+    text-align: center;
+}
+.crow input.hex.invalid { border-color: var(--pop-magenta); }
+.crow input:disabled { opacity: .4; cursor: not-allowed; }
+.crow .vide {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(226,217,243,.85);
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+}
+.crow .vide input { accent-color: var(--pop-cyan); cursor: pointer; }
+.chint { font-size: 11px; color: rgba(226,217,243,.55); margin-top: 4px; font-weight: 600; }
+
+/* ---- sliders / nombres ---------------------------------------------------- */
+.nrow { display: flex; gap: 10px; align-items: center; }
+.nrow input[type="range"] {
+    flex: 1;
+    width: auto;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    accent-color: var(--pop-cyan);
+    cursor: pointer;
+}
+.nrow input.numin {
+    width: 84px;
+    background: var(--pop-dark);
+    border: 2px solid rgba(0,229,255,.35);
+    color: var(--pop-white);
+    font-family: Montserrat, sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 7px 8px;
+    outline: none;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.nrow input.numin:focus { border-color: var(--pop-cyan); }
+
+/* ---- groupes de parametres ------------------------------------------------ */
+.gh {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: var(--pop-magenta);
+    margin: 18px 0 10px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,.12);
+}
+.gh:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+.note {
+    font-size: 11px;
+    color: rgba(226,217,243,.55);
+    font-weight: 600;
+    line-height: 1.6;
+    margin-top: 4px;
+}
+
+/* ---- actions -------------------------------------------------------------- */
+.actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+button.btn {
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    border: none;
+    padding: 12px 24px;
+    cursor: pointer;
+    color: var(--pop-white);
+    background: var(--pop-magenta);
+    box-shadow: 5px 5px 0 var(--pop-cyan);
+    transition: transform .05s;
+}
+button.btn:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 var(--pop-cyan); }
+button.btn:disabled { opacity: .45; cursor: wait; }
+button.btn.ghost {
+    background: transparent;
+    border: 2px solid var(--pop-yellow);
+    color: var(--pop-yellow);
+    box-shadow: none;
+    padding: 10px 20px;
+}
+button.btn.cyan {
+    background: transparent;
+    border: 2px solid var(--pop-cyan);
+    color: var(--pop-cyan);
+    box-shadow: none;
+    padding: 10px 20px;
+}
+
+/* ---- progression / statut ------------------------------------------------ */
+.prog { margin-top: 16px; display: none; }
+.prog .track { height: 14px; background: rgba(255,255,255,.1); border: 1px solid rgba(0,229,255,.4); }
+.prog .fill { height: 100%; width: 0; background: var(--pop-cyan); transition: width .3s; }
+.status { margin-top: 10px; font-size: 13px; font-weight: 600; color: var(--pop-text-sub); min-height: 18px; }
+.status.ok  { color: var(--pop-cyan); }
+.status.err { color: var(--pop-magenta); font-weight: 800; }
+.result { margin-top: 12px; display: none; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+.result a { color: var(--pop-yellow); font-weight: 800; text-decoration: none; }
+.result a:hover { text-decoration: underline; }
+.qc { color: var(--pop-text-sub); font-size: 12px; }
+
+/* ---- file d'attente des rendus ------------------------------------------- */
+.qprog { float: right; font-size: 12px; font-weight: 800; color: var(--pop-yellow); }
+.qlist { margin-top: 8px; display: flex; flex-direction: column; gap: 6px;
+         max-height: 280px; overflow-y: auto; }
+.qempty { font-size: 12px; color: rgba(226,217,243,.55); line-height: 1.55; }
+.qjob { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        background: rgba(255,255,255,.05); border-left: 3px solid #7a6f9b;
+        padding: 7px 9px; font-size: 12.5px; font-weight: 600; }
+.qjob .qst { font-weight: 800; white-space: nowrap; }
+.qjob.qrunning { border-left-color: var(--pop-cyan); background: rgba(0,229,255,.08); }
+.qjob.qdone    { border-left-color: #37d67a; }
+.qjob.qerror   { border-left-color: var(--pop-magenta); background: rgba(226,0,122,.08); }
+.qjob a { color: var(--pop-yellow); font-weight: 800; text-decoration: none; }
+.qjob a:hover { text-decoration: underline; }
+.qjob .qpct { margin-left: auto; color: var(--pop-cyan); font-weight: 800;
+              font-variant-numeric: tabular-nums; }
+.qjob .qerr { color: var(--pop-magenta); font-weight: 700; overflow-wrap: anywhere; }
+.qdel { background: none; border: 0; color: var(--pop-magenta); font-weight: 800;
+        cursor: pointer; font-size: 13px; padding: 0 2px; }
+
+/* ---- apercu -------------------------------------------------------------- */
+.prevwrap {
+    position: relative;
+    width: 100%;
+    /* le panneau d'apercu tient TOUJOURS dans la fenetre (colonne collante) */
+    max-width: calc((100vh - 215px) * 16 / 9);
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: var(--pop-bg);
+    border: 2px solid rgba(0,229,255,.5);
+}
+@media (max-width: 1250px) { .prevwrap { max-width: none; } }
+.prevwrap iframe {
+    position: absolute;
+    top: 0; left: 0;
+    width: 1920px; height: 1080px;
+    border: none;
+    transform-origin: 0 0;
+}
+
+/* ---- fond d'apercu : DAMIER / VIOLET / IMAGE ------------------------------
+   VISUALISATION SEULEMENT (comme le damier de Photoshop / After Effects) :
+   ce motif est injecte en JS dans le document de l'iframe d'apercu et n'existe
+   QUE dans cette session de panneau. Jamais servi par le serveur, jamais vu
+   par le pipeline de rendu -> .mov / PNG alpha inchanges. */
+.prevmode {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: rgba(226, 217, 243, .75);
+}
+.prevmode button {
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    padding: 5px 12px;
+    background: rgba(255, 255, 255, .06);
+    border: 1px solid rgba(0, 229, 255, .35);
+    color: rgba(226, 217, 243, .8);
+    cursor: pointer;
+}
+.prevmode button:hover { background: rgba(255, 255, 255, .12); }
+.prevmode button.on {
+    background: var(--pop-cyan);
+    border-color: var(--pop-cyan);
+    color: var(--pop-dark);
+}
+.prevmode .hint {
+    font-weight: 600;
+    letter-spacing: 0;
+    color: rgba(226, 217, 243, .5);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.prevmeta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: rgba(226,217,243,.7);
+    margin-top: 8px;
+    font-weight: 600;
+}
+footer {
+    padding: 14px 28px 26px;
+    color: rgba(226,217,243,.6);
+    font-size: 12px;
+    line-height: 1.7;
+}
+footer b { color: var(--pop-yellow); }
+</style>
+</head>
+<body>
+
+<header>
+    <span class="tag">POP TV</span>
+    <h1>TALKSHOW — PANNEAU DE CONTRÔLE</h1>
+    <span class="sub">habillage broadcast · génération .mov</span>
+</header>
+
+<nav id="tabs"></nav>
+
+<main>
+    <!-- colonne gauche : contenu + parametres -->
+    <section class="panel">
+        <div class="tcur">
+            <span class="lab">TEMPLATE ACTUEL</span>
+            <span class="name" id="curName">—</span>
+            <span class="st" id="curState">chargement…</span>
+        </div>
+
+        <h2>Contenu du synthé</h2>
+        <div id="form"></div>
+
+        <h2>Couleurs &amp; palette</h2>
+        <div id="colors"></div>
+
+        <h2>Paramètres visuels</h2>
+        <div id="params"></div>
+
+        <div class="actions">
+            <button class="btn cyan" id="apply" onclick="applyNow()">APPLIQUER</button>
+            <button class="btn ghost" id="reset" onclick="resetDefaults()">RESET DÉFAUTS</button>
+        </div>
+        
+        <div class="actions">
+            <button class="btn cyan" id="preview-render-btn" onclick="previewRender()">👁 PRÉVISUALISER</button>
+        </div>
+        <div class="actions">
+            <button class="btn" id="gen" onclick="generate()">GÉNÉRER LE .MOV</button>
+            <button class="btn ghost" id="reveal" onclick="reveal()">OUVRIR LE DOSSIER</button>
+        </div>
+
+        <div class="prog" id="prog">
+            <div class="track"><div class="fill" id="fill"></div></div>
+        </div>
+        <div class="status" id="status">Prêt.</div>
+
+        <div class="result" id="result">
+            <a id="dl" href="#">⬇ Télécharger le .mov</a>
+            <span class="qc" id="qc"></span>
+        </div>
+
+        <h2>File d'attente des rendus <span class="qprog" id="qprog">0/0 terminés</span></h2>
+        <div class="actions">
+            <button class="btn" id="qadd" onclick="queueAdd()">➕ AJOUTER AU RENDU</button>
+            <button class="btn cyan" id="qstart" onclick="queueStart()">▶ GÉNÉRER TOUT</button>
+            <button class="btn ghost" id="qclear" onclick="queueClear()">VIDER LA FILE</button>
+        </div>
+        <div class="qlist" id="queue"></div>
+    </section>
+
+    <!-- colonne droite : apercu du VRAI design (colonne collante, suit le scroll) -->
+    <section class="panel preview">
+        <h2>Aperçu en direct (vrai rendu — mêmes paramètres que le .mov)</h2>
+        <div class="prevwrap" id="prevwrap">
+            <iframe id="prev" title="aperçu"></iframe>
+        </div>
+        <div class="prevmode">
+            <span>FOND :</span>
+            <button type="button" data-bg="damier">DAMIER</button>
+            <button type="button" data-bg="violet">VIOLET</button>
+            <button type="button" data-bg="image">IMAGE</button>
+            <input type="file" id="bgfile" accept="image/*" hidden>
+            <span class="hint" id="bghint">vérification de la transparence</span>
+        </div>
+        <div class="prevmeta">
+            <span>1920 × 1080 · fond d'apercu local (non exporté — .mov / PNG alpha intacts)</span>
+            <span>export : RLE alpha 1080i50 · 5,00 s</span>
+        </div>
+    </section>
+</main>
+
+<footer>
+    Sortie : <b>EXPORTS\TalkShow_&lt;X&gt;.mov</b> (QuickTime RLE, 1920×1080, canal alpha, 1080i50, 5,00 s
+    — 10,00 s pour l'Invité)
+    + <b>PREVIEW\TalkShow_&lt;X&gt;.mp4</b> (H.264 sur fond noir).<br>
+    Les templates officiels ne sont jamais modifiés : contenu et paramètres sont injectés dans un
+    fichier temporaire — l'aperçu et le .mov partagent le même pipeline (exactement les mêmes valeurs).<br>
+    Animation : <b>Invité</b> — entrée 250 ms / motion 950 ms / affichage 8600 ms (V2, réglable) ·
+    <b>autres</b> — fondu 400 ms, coupe à 5 s. Paramètres système protégés : skew, RTL, structure,
+    positionnement, z-index, keyframes, durées du clip, réglages du renderer.
+</footer>
+
+<script>
+/* =========================================================================
+   CONFIGURATION DES ONGLETS (champs de contenu)
+   ========================================================================= */
+const TPLS = {
+    invite:     { label: "Invite", fields: [
+        { k: "nom",      l: "Nom (arabe)",       max: 24, dir: "rtl" },
+        { k: "role",     l: "Rôle (arabe)",      max: 40, dir: "rtl" },
+        { k: "badge_ar", l: "Badge arabe",       max: 10, dir: "rtl" },
+        { k: "badge_la", l: "Badge latin",       max: 12, dir: "ltr" },
+    ]},
+    nom:        { label: "Nom", fields: [
+        { k: "nom",  l: "Nom (arabe)",  max: 24, dir: "rtl" },
+        { k: "role", l: "Rôle (arabe)", max: 40, dir: "rtl" },
+    ]},
+    titre:      { label: "Titre", fields: [
+        { k: "title_main", l: "Texte principal (arabe)", max: 80, dir: "rtl" },
+        { k: "title_sub",  l: "Texte secondaire (arabe)", max: 50, dir: "rtl" },
+    ]},
+    bug:        { label: "Bug", fields: [
+        { k: "texte", l: "Texte du logo / émission", max: 30, dir: "ltr" },
+    ]},
+    fullscreen: { label: "Fullscreen", fields: [
+        { k: "tab",   l: "Onglet de section (arabe)", max: 20, dir: "rtl" },
+        { k: "lead",  l: "Titre de contenu (arabe)",  max: 70, dir: "rtl" },
+        { k: "textes", l: "Paragraphe(s) <span class='hint'>— 1 ligne = 1 paragraphe, 3 max</span>",
+          max: 720, dir: "rtl", type: "textarea" },
+    ]},
+    generique: { label: "Générique", fields: [
+        { k: "credits", l: "Générique <span class='hint'>— « # » = catégorie, sinon nom · lignes vides ignorées · lignes illimitées</span>",
+          max: 6000, dir: "ltr", type: "textarea", rows: 12, lines: 0 },
+    ]},
+};
+
+const DEFAULTS = {
+    invite: { nom: "محمد أمين", role: "مقدّم البرنامج و مخرج TV", badge_ar: "ضيف", badge_la: "INVITÉ" },
+    nom:    { nom: "محمد أمين", role: "مقدّم البرنامج و مخرج TV" },
+    titre:  { title_main: "الإصلاح الاقتصادي: كيف نخرج من الأزمة؟", title_sub: "موضوع النقاش" },
+    bug:    { texte: "TALKSHOW" },
+    fullscreen: {
+        tab: "ملخص النقاش",
+        lead: "أبرز المواضيع التي تناولتها الحلقة",
+        textes: [
+            "تركّز النقاش على الوضع الاقتصادي الحالي وتأثيره على القدرة الشرائية للأسر التونسية، فضلاً عن ملفّ الشباب والبطالة وسبل خلق فرص عمل جديدة، مع محاولة تقديم مقترحات عملية قابلة للتطبيق في المرحلة المقبلة.",
+            "كما خُصّصت فقرة لتحليل الوعود الانتخابية التي تقدّمها الأحزاب ولقياس مدى مطابقتها لواقع المواطن اليوم.",
+        ].join("\n"),
+    },
+    generique: {
+        // meme contenu que DEFAULTS["generique"] de render_talkshow.py
+        credits: [
+            "# RÉALISATION", "Mohamed Amine Djenadi", "Ahmed", "Karim",
+            "# CAMÉRAS", "Ali", "Samir", "Nadir",
+            "# RÉGIE", "Sofiane", "Yacine",
+        ].join("\n"),
+    },
+};
+
+/* =========================================================================
+   ETAT
+   ========================================================================= */
+let SCHEMA = null;                 // schema serveur /params (source de verite)
+let colors = {};                   // couleurs globales (tokens partages)
+let customPalette = null;          // palette personnalisee (memorisee en local)
+let visualNum = {};                // {tpl: {id: nombre}}
+let visualSel = {};                // {tpl: {id: valeur}}
+let paletteSel = "pop";
+let lastSolidBg = null;            // derniere couleur de fond REELLE (avant mode VIDE)
+let current = "invite";
+let busy = false;
+let prevTimer = null;
+let pollTimer = null;
+const LS_KEY = "talkshow_palette_custom";
+const LS_VIS_KEY = "talkshow_visual_params";   // NOUVELLE cle : tailles/opacite/police...
+
+let savedContent = {};
+function initContent() {
+    try {
+        localStorage.removeItem("talkshow_content_custom"); // FORCE CLEAR TO FIX CORRUPTION
+        const raw = localStorage.getItem("talkshow_content_custom");
+        if (raw) savedContent = JSON.parse(raw) || {};
+    } catch(e) {}
+}
+function saveContent(tpl, key, val) {
+    savedContent[tpl] = savedContent[tpl] || {};
+    savedContent[tpl][key] = val;
+    try { localStorage.setItem("talkshow_content_custom", JSON.stringify(savedContent)); } catch(e) {}
+}
+
+function esc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function fmt(n) { return (n % 1) ? n.toFixed(1) : String(n); }
+
+function normHex(v) {
+    let h = String(v || "").trim();
+    if (!h) return null;
+    if (h[0] !== "#") h = "#" + h;
+    if (/^#[0-9a-fA-F]{3}$/.test(h)) h = "#" + h.slice(1).split("").map(c => c + c).join("");
+    return /^#[0-9A-Fa-f]{6}$/.test(h) ? h.toUpperCase() : null;
+}
+function hexRgb(h) {
+    return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+}
+function rgbHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+    let h = 0, s = 0;
+    if (mx !== mn) {
+        const d = mx - mn;
+        s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+        h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+        h *= 60;
+    }
+    return [Math.round(h), Math.round(s * 100), Math.round(l * 100)];
+}
+function updateHint(el, hex) {
+    const [r, g, b] = hexRgb(hex);
+    const [h, s, l] = rgbHsl(r, g, b);
+    el.textContent = "RGB " + r + ", " + g + ", " + b + "  ·  HSL " + h + "° " + s + "% " + l + "%";
+}
+
+/* =========================================================================
+   INITIALISATION
+   ========================================================================= */
+function initVisual() {
+    colors = Object.assign({}, SCHEMA.palettes.pop.colors);
+    customPalette = null;
+    
+    // CORRECTION : Recuperer d'abord le modele actif sauvegarde
+    let currentModel = "original";
+    try {
+        const rawVis = localStorage.getItem(LS_VIS_KEY);
+        if (rawVis) {
+            const savedVis = JSON.parse(rawVis);
+            if (savedVis && savedVis.selects && savedVis.selects.invite && savedVis.selects.invite.model) {
+                currentModel = savedVis.selects.invite.model;
+            }
+        }
+    } catch (e) {}
+
+    try {
+        const raw = localStorage.getItem(LS_KEY);
+        if (raw) {
+            const stored = JSON.parse(raw);
+            if (stored && typeof stored === "object") {
+                // Nouveau format : { original: {bg:#, name:#, ...}, news-pro: {...} }
+                // Ancien format (flat) : { bg:#, magenta:#, ... } -> on le jette pour repartir propre
+                const firstVal = Object.values(stored)[0];
+                if (firstVal && typeof firstVal === "object" && !firstVal.startsWith) {
+                    // C'est le nouveau format par modele -> charger le bon modele
+                    const modelPalette = stored[currentModel] || null;
+                    if (modelPalette) {
+                        const clean = {};
+                        for (const k of Object.keys(modelPalette)) {
+                            const rawV = String(modelPalette[k] || "").trim();
+                            if (k === "bg" && rawV.toLowerCase() === "transparent") { clean[k] = "transparent"; continue; }
+                            const h = normHex(modelPalette[k]);
+                            if (h) clean[k] = h;
+                        }
+                        if (Object.keys(clean).length) customPalette = Object.assign({}, colors, clean);
+                    }
+                } else {
+                    // Ancien format corrompu -> on efface et on repart propre
+                    localStorage.removeItem(LS_KEY);
+                }
+            }
+        }
+    } catch (e) { /* localstorage indisponible : pas bloquant */ }
+
+    // restauration : la palette personnalisee (y c. couleur du panneau du
+    // Generique) s'applique au demarrage — la cle existante etait lue mais
+    // jamais reappliquee, les couleurs sautaient a chaque rechargement
+    if (customPalette) {
+        colors = Object.assign({}, customPalette);
+        paletteSel = "custom";
+    }
+
+    for (const tpl of Object.keys(SCHEMA.tpls)) {
+        visualNum[tpl] = {};
+        visualSel[tpl] = {};
+        const defs = SCHEMA.tpls[tpl];
+        for (const n of defs.numbers) visualNum[tpl][n.id] = n.default;
+        for (const s of defs.selects) visualSel[tpl][s.id] = s.default;
+    }
+    // parametres visuels persistants, INDEPENDANTS par template
+    // (police, opacite du panneau, tailles...) — nouvelle cle locale,
+    // les cles existantes (contenu / palette) ne sont pas touchees
+    try {
+        const raw = localStorage.getItem(LS_VIS_KEY);
+        const saved = raw ? JSON.parse(raw) : null;
+        if (saved && typeof saved === "object") {
+            for (const tpl of Object.keys(SCHEMA.tpls)) {
+                const defs = SCHEMA.tpls[tpl];
+                const sn = (saved.numbers || {})[tpl] || {};
+                const ss = (saved.selects || {})[tpl] || {};
+                for (const n of defs.numbers) {
+                    const v = sn[n.id];
+                    if (typeof v === "number" && isFinite(v))
+                        visualNum[tpl][n.id] = Math.min(Math.max(v, n.min), n.max);
+                }
+                for (const s of defs.selects) {
+                    const v = ss[s.id];
+                    if (v !== undefined && s.options.some(o => o[0] === v))
+                        visualSel[tpl][s.id] = v;
+                }
+            }
+        }
+    } catch (e) {}
+}
+
+function saveVisual() {
+    try {
+        localStorage.setItem(LS_VIS_KEY,
+            JSON.stringify({ numbers: visualNum, selects: visualSel }));
+    } catch (e) {}
+}
+
+function savePalette() {
+    // Si on est sur l'invite, on sauvegarde la palette specifique a la forme (model)
+    let currentModel = (visualSel['invite'] && visualSel['invite']['model']) ? visualSel['invite']['model'] : 'original';
+    let palettes = {};
+    try {
+        let raw = localStorage.getItem(LS_KEY);
+        if (raw) palettes = JSON.parse(raw);
+    } catch(e) {}
+    palettes[currentModel] = customPalette;
+    try { localStorage.setItem(LS_KEY, JSON.stringify(palettes)); } catch (e) {}
+}
+
+function setPalette(v) {
+    paletteSel = v;
+    if (v === "pop") {
+        colors = Object.assign({}, SCHEMA.palettes.pop.colors);
+    } else {
+        let currentModel = (visualSel['invite'] && visualSel['invite']['model']) ? visualSel['invite']['model'] : 'original';
+        let loaded = null;
+        try {
+            let raw = localStorage.getItem(LS_KEY);
+            if (raw) loaded = JSON.parse(raw)[currentModel];
+        } catch(e) {}
+        customPalette = loaded || Object.assign({}, SCHEMA.palettes.pop.colors);
+        colors = Object.assign({}, customPalette);
+        savePalette();
+    }
+    buildColors();
+    refreshState();
+    schedulePreview();
+}
+
+function onColorEdit(id, hex) {
+    colors[id] = hex;
+    if (paletteSel !== "custom") {
+        paletteSel = "custom";
+        const ps = document.getElementById("paletteSel");
+        if (ps) ps.value = "custom";
+    }
+    customPalette = Object.assign({}, colors);
+    savePalette();
+    syncColor(id);
+    refreshState();
+    schedulePreview();
+}
+
+function syncColor(id) {
+    const wrap = document.querySelector("[data-color-id='" + id + "']");
+    if (!wrap) return;
+    const hex = colors[id];
+    if (!hex) return;
+    const pick = wrap.querySelector("input[type='color']");
+    const hexIn = wrap.querySelector("input.hex");
+    const hint = wrap.querySelector(".chint");
+    const vide = wrap.querySelector("input.videbox");
+    if (vide) vide.checked = (hex === "transparent");
+    if (hex === "transparent") {
+        /* mode VIDE : aucune valeur hexa -> entrees inactives, pas de hint RGB.
+           Le blanc #FFFFFF n'est JAMAIS ramene ici : il reste une vraie couleur. */
+        pick.disabled = true;
+        hexIn.disabled = true;
+        hexIn.value = "";
+        hint.textContent = "Vide — aucun fond : la vidéo derrière le synthé reste visible";
+        return;
+    }
+    pick.disabled = false;
+    hexIn.disabled = false;
+    pick.value = hex.toLowerCase();
+    hexIn.value = hex;
+    updateHint(hint, hex);
+}
+
+/* =========================================================================
+   ONGLETS + FORMULAIRE DE CONTENU
+   ========================================================================= */
+function buildTabs() {
+    const tabsEl = document.getElementById("tabs");
+    tabsEl.innerHTML = "";
+    for (const key of Object.keys(TPLS)) {
+        const b = document.createElement("button");
+        b.innerHTML = "<span>" + TPLS[key].label + "</span>";
+        b.dataset.tpl = key;
+        b.onclick = () => selectTab(key);
+        tabsEl.appendChild(b);
+    }
+}
+
+function selectTab(key) {
+    current = key;
+    for (const b of document.getElementById("tabs").children)
+        b.classList.toggle("active", b.dataset.tpl === key);
+    buildForm();
+    buildColors();
+    buildParams();
+    refreshState();
+    updatePreview();
+    setStatus("Prêt.", "");
+    document.getElementById("result").style.display = "none";
+}
+
+function buildForm() {
+    const form = document.getElementById("form");
+    form.innerHTML = "";
+    for (const f of TPLS[current].fields) {
+        const wrap = document.createElement("div");
+        wrap.className = "field";
+        const id = "f_" + f.k;
+        const savedVal = (savedContent[current] || {})[f.k];
+        const val = savedVal !== undefined ? savedVal : (DEFAULTS[current][f.k] || "");
+        let control;
+        if (f.type === "textarea") {
+            control = document.createElement("textarea");
+            control.rows = f.rows || 5;
+        } else {
+            control = document.createElement("input");
+        }
+        control.id = id;
+        control.dir = f.dir;
+        control.maxLength = f.max;
+        control.value = val;
+        control.oninput = () => {
+            saveContent(current, f.k, control.value);
+            schedulePreview();
+        };
+        wrap.innerHTML = "<label for='" + id + "'>" + f.l + "</label>";
+        wrap.appendChild(control);
+        form.appendChild(wrap);
+    }
+}
+
+/* =========================================================================
+   PALETTE + COULEURS (selecteur graphique + HEX + RGB/HSL)
+   ========================================================================= */
+function buildColors() {
+    const sch = SCHEMA.tpls[current];
+    const box = document.getElementById("colors");
+    box.innerHTML = "";
+
+    /* -- couleurs absentes de la palette partagee (ex. : couleur du panneau
+          du generique, pas dans les tokens POP TV) : valeur par defaut du
+          template, pour que la pipette s'affiche et que paramsOf() n'envoie
+          jamais undefined -- */
+    for (const c of sch.colors) {
+        if (colors[c.id] === undefined) colors[c.id] = sch.defaults[c.id];
+    }
+
+    /* -- PALETTE -- */
+    const pw = document.createElement("div");
+    pw.className = "field";
+    pw.innerHTML =
+        "<label>Palette <span class='hint'>— POP TV = valeurs validées · Personnalisée = mémorisée en local</span></label>" +
+        "<select class='sel' id='paletteSel'></select>" +
+        "<div class='swatches' id='palSw'></div>";
+    box.appendChild(pw);
+    const sel = pw.querySelector("#paletteSel");
+    const o1 = document.createElement("option");
+    o1.value = "pop";
+    o1.textContent = SCHEMA.palettes.pop.label;
+    sel.appendChild(o1);
+    const o2 = document.createElement("option");
+    o2.value = "custom";
+    o2.textContent = "Personnalisée" + (customPalette ? "" : " (sera créée à la 1ʳᵉ modification)");
+    sel.appendChild(o2);
+    sel.value = paletteSel;
+    sel.onchange = () => setPalette(sel.value);
+    const sw = pw.querySelector("#palSw");
+    for (const k of Object.keys(SCHEMA.palettes.pop.colors)) {
+        const i = document.createElement("i");
+        i.title = k + " : " + colors[k];
+        i.style.background = colors[k];
+        sw.appendChild(i);
+    }
+
+    /* -- CONTROLEURS DE COULEUR du template courant -- */
+    for (const c of sch.colors) {
+        const wrap = document.createElement("div");
+        wrap.className = "field";
+        wrap.dataset.colorId = c.id;
+        const cid = "c_" + c.id;
+        wrap.innerHTML =
+            "<label>" + esc(c.label) + "</label>" +
+            "<div class='crow'>" +
+            "  <input type='color' aria-label='sélecteur graphique'>" +
+            "  <input type='text' class='hex' spellcheck='false' dir='ltr' maxlength='7' aria-label='valeur HEX'>" +
+            (c.id === "bg" ? "  <label class='vide' title='Aucun fond : la vidéo derrière le synthé reste visible — le blanc reste une couleur normale'><input type='checkbox' class='videbox'> Vide</label>" : "") +
+            "</div>" +
+            "<div class='chint'></div>";
+        const pick = wrap.querySelector("input[type='color']");
+        const hexIn = wrap.querySelector("input.hex");
+        const hint = wrap.querySelector(".chint");
+
+        /* -- option explicite « VIDE » sur la couleur de FOND (bg) uniquement :
+              cochee -> colors.bg = "transparent" (envoye tel quel au serveur qui
+              injecte --pop-bg: transparent) ; decochee -> derniere couleur reelle
+              restauree. #FFFFFF coche/decoche = blanc OPAQUE, jamais transparent. -- */
+        const vide = wrap.querySelector("input.videbox");
+        if (vide) {
+            vide.checked = (colors[c.id] === "transparent");
+            vide.onchange = () => {
+                if (vide.checked) {
+                    if (colors[c.id] !== "transparent") lastSolidBg = colors[c.id];
+                    onColorEdit(c.id, "transparent");
+                } else {
+                    onColorEdit(c.id, lastSolidBg || sch.defaults[c.id]);
+                }
+            };
+        }
+
+        pick.oninput = () => {
+            const h = normHex(pick.value);
+            if (h) onColorEdit(c.id, h);
+        };
+        hexIn.oninput = () => {
+            const h = normHex(hexIn.value);
+            hexIn.classList.toggle("invalid", !h);
+            if (h) onColorEdit(c.id, h);
+        };
+        hexIn.onblur = () => { hexIn.classList.remove("invalid"); syncColor(c.id); };
+
+        box.appendChild(wrap);
+        syncColor(c.id);
+    }
+
+    /* -- NOMBRES rattaches a la section couleurs (ex. : opacite du panneau,
+          groupe "couleurs" = pas rendu par buildParams -> pas de doublon) -- */
+    for (const n of sch.numbers.filter(x => x.group === "couleurs")) {
+        box.appendChild(numField(n));
+    }
+}
+
+/* =========================================================================
+   PARAMETRES NUMERIQUES + LISTES (generes depuis /params)
+   ========================================================================= */
+function buildParams() {
+    const sch = SCHEMA.tpls[current];
+    const box = document.getElementById("params");
+    box.innerHTML = "";
+
+    const byGroup = {};
+    for (const n of sch.numbers) (byGroup[n.group] = byGroup[n.group] || []).push(n);
+    for (const s of sch.selects) (byGroup[s.group] = byGroup[s.group] || []).push(s);
+
+    const order = ["geometrie", "typographie", "ombre", "animation"];
+    for (const g of order) {
+        const items = byGroup[g];
+        if (!items || !items.length) continue;
+        const h = document.createElement("div");
+        h.className = "gh";
+        h.textContent = SCHEMA.groups[g] || g.toUpperCase();
+        box.appendChild(h);
+        for (const it of items) {
+            box.appendChild(it.type === "number" ? numField(it) : selField(it));
+        }
+    }
+
+    const note = document.createElement("div");
+    note.className = "note";
+    note.textContent = current === "invite"
+        ? "Sortie automatique : le serveur borne les valeurs pour garantir une entrée complète " +
+          "et une fin d'animation avant 5 000 ms (durée du clip inchangée)."
+        : current === "generique"
+        ? "Durée dynamique : défilement à vitesse constante + pause finale figée sur le " +
+          "dernier élément ; durée du clip et nombre d'images calculés automatiquement " +
+          "d'après la hauteur du contenu et la pause finale (paramètre « Pause finale »)."
+        : "Sortie : coupure franche à 5,00 s (durée du clip — paramètre système, non modifiable).";
+    box.appendChild(note);
+}
+
+function numField(n) {
+    const wrap = document.createElement("div");
+    wrap.className = "field";
+    wrap.dataset.numId = n.id;
+    const id = "n_" + n.id;
+    wrap.innerHTML =
+        "<label>" + esc(n.label) + " <b class='val'></b></label>" +
+        "<div class='nrow'>" +
+        "  <input type='range' id='" + id + "' min='" + n.min + "' max='" + n.max + "' step='" + n.step + "'>" +
+        "  <input type='number' class='numin' min='" + n.min + "' max='" + n.max + "' step='" + n.step + "'>" +
+        "</div>";
+    const rng = wrap.querySelector("input[type='range']");
+    const num = wrap.querySelector("input.numin");
+    const valEl = wrap.querySelector(".val");
+
+    const apply = (raw) => {
+        let x = Number(raw);
+        if (!isFinite(x)) x = n.default;
+        x = Math.min(Math.max(x, n.min), n.max);
+        x = Math.round(x / n.step) * n.step;
+        visualNum[current][n.id] = x;
+        clampAnim();
+        syncNum(n.id);
+        refreshState();
+        saveVisual();
+        schedulePreview();
+    };
+    rng.oninput = () => apply(rng.value);
+    num.onchange = () => apply(num.value);
+    syncNum(n.id);
+    return wrap;
+}
+
+function syncNum(id) {
+    const wrap = document.querySelector("[data-num-id='" + id + "']");
+    if (!wrap) return;
+    const n = SCHEMA.tpls[current].numbers.find(x => x.id === id);
+    if (!n) return;
+    const v = visualNum[current][id];
+    wrap.querySelector("input[type='range']").value = v;
+    wrap.querySelector("input.numin").value = v;
+    wrap.querySelector(".val").textContent = fmt(v) + " " + n.unit;
+}
+
+function selField(s) {
+    const wrap = document.createElement("div");
+    wrap.className = "field";
+    wrap.dataset.selId = s.id;
+    wrap.innerHTML = "<label>" + esc(s.label) + "</label><select class='sel'></select>";
+    const sel = wrap.querySelector("select");
+    for (const [value, label] of s.options) {
+        const o = document.createElement("option");
+        o.value = value;
+        o.textContent = label;
+        sel.appendChild(o);
+    }
+    sel.value = visualSel[current][s.id];
+    sel.onchange = () => {
+        visualSel[current][s.id] = sel.value;
+        if (current === "invite" && s.id === "model" && paletteSel === "custom") {
+            setPalette("custom");
+        }
+        refreshState();
+        saveVisual();
+        schedulePreview();
+    };
+    return wrap;
+}
+
+/* invariant : entree complete avant la sortie, sortie finie avant la fin du
+   clip Invite (10000 ms — miroir serveur CLIP_INVITE_MS) */
+function clampAnim() {
+    const v = visualNum[current];
+    if (!v || !("hold" in v)) return;
+    const hi = 10000 - v.out_dur;
+    const lo = Math.min(hi, v.in_delay + v.in_dur);
+    v.hold = Math.min(Math.max(v.hold, lo), hi);
+}
+
+/* =========================================================================
+   ETAT AFFICHE : "TEMPLATE ACTUEL" + parametres actuels
+   ========================================================================= */
+function refreshState() {
+    const sch = SCHEMA.tpls[current];
+    document.getElementById("curName").textContent = sch.label;
+    const mods = [];
+    for (const c of sch.colors) {
+        if (colors[c.id] !== sch.defaults[c.id]) {
+            const v = colors[c.id];
+            mods.push(c.label + " → " + (v === "transparent" ? "Vide (transparent)" : v));
+        }
+    }
+    for (const n of sch.numbers) {
+        const v = visualNum[current][n.id];
+        if (v !== n.default) mods.push(n.label + " → " + fmt(v) + " " + n.unit);
+    }
+    for (const s of sch.selects) {
+        const v = visualSel[current][s.id];
+        if (v !== s.default) {
+            const opt = s.options.find(o => o[0] === v);
+            mods.push(s.label + " → " + (opt ? opt[1] : v));
+        }
+    }
+    const el = document.getElementById("curState");
+    if (mods.length) {
+        el.classList.add("custom");
+        el.textContent = mods.length + " paramètre(s) personnalisé(s) : " + mods.join(" · ");
+    } else {
+        el.classList.remove("custom");
+        el.textContent = "valeurs par défaut (palette POP TV validée)";
+    }
+}
+
+/* =========================================================================
+   PARAMETRES ENVOIES (contenu + visuels) — meme objet pour apercu et .mov
+   ========================================================================= */
+function paramsOf() {
+    const p = {};
+    for (const f of TPLS[current].fields) {
+        const el = document.getElementById("f_" + f.k);
+        if (f.type === "textarea") {
+            const lines = el.value.split("\n").map(s => s.trim()).filter(Boolean);
+            const lim = f.lines === undefined ? 3 : f.lines;   // 0 = illimité
+            p[f.k] = lim > 0 ? lines.slice(0, lim) : lines;
+        } else {
+            p[f.k] = el.value;
+        }
+    }
+    const sch = SCHEMA.tpls[current];
+    for (const c of sch.colors) p[c.id] = colors[c.id];
+    for (const n of sch.numbers) p[n.id] = visualNum[current][n.id];
+    for (const s of sch.selects) p[s.id] = visualSel[current][s.id];
+    return p;
+}
+
+/* ---- apercu en direct (debounce 350 ms) ----------------------------------- */
+function schedulePreview() {
+    clearTimeout(prevTimer);
+    prevTimer = setTimeout(updatePreview, 350);
+}
+function updatePreview() {
+    if (!SCHEMA) return;
+    const q = new URLSearchParams({ tpl: current, p: JSON.stringify(paramsOf()) });
+    document.getElementById("prev").src = "/preview?" + q.toString();
+}
+function fitPreview() {
+    const wrap = document.getElementById("prevwrap");
+    const s = wrap.clientWidth / 1920;
+    document.getElementById("prev").style.transform = "scale(" + s + ")";
+}
+window.addEventListener("resize", fitPreview);
+
+/* ---- FOND DE L'APERCU : DAMIER / VIOLET / IMAGE ----------------------------
+   Mode de verification de la transparence, exactement comme le damier de
+   Photoshop / After Effects.
+
+   CHAINE DE DONNEES :
+     bouton du panneau -> prevBgMode (JS, TALKSHOW.html) -> applyPrevBg()
+        -> injecte un <style id="prev-bg-local"> DANS LE DOCUMENT DE L'IFRAME
+           (iframe meme origine, ajoute APRES le style du serveur -> il gagne)
+
+   EXCLUSIVEMENT DU PREVIEW :
+     - le HTML servi par /preview n'est pas modifie ;
+     - le pipeline de rendu (compose_html -> _render_tmp.html -> PNG/.mov) ne
+       passe JAMAIS par ce code : le damier n'est donc jamais dans le .mov,
+       jamais dans le PNG/alpha, jamais dans le HTML final ;
+     - le fond reel du synthe (--pop-bg, blanc #FFFFFF, etat transparent),
+       la glow/LED sweep, les modeles et les typographies ne sont pas touches. */
+const LS_BG_KEY = "talkshow_preview_bg";
+let prevBgMode = "damier";            // defaut : verification de transparence
+let prevBgImage = null;               // URL d'objet de l'image choisie (blob:)
+
+function prevBgBody(imp) {
+    if (prevBgMode === "image" && prevBgImage)
+        return "background:#16082B url('" + prevBgImage + "') center center / cover no-repeat" + imp;
+    if (prevBgMode === "violet")
+        return "background:#16082B" + imp + ";background-image:none" + imp;
+    /* damier gris clair / gris fonce, carres de 20 px (tuile de 40 px) */
+    return "background-color:#c9c9c9" + imp +
+           ";background-image:repeating-conic-gradient(#c9c9c9 0% 25%, #9a9a9a 25% 50%)" + imp +
+           ";background-size:40px 40px" + imp +
+           ";background-repeat:repeat" + imp;
+}
+
+function applyPrevBg() {
+    /* 1) dans l'iframe d'apercu — style local, jamais servi par le serveur */
+    try {
+        const doc = document.getElementById("prev").contentDocument;
+        if (doc && doc.body) {
+            let st = doc.getElementById("prev-bg-local");
+            if (!st) {
+                st = doc.createElement("style");
+                st.id = "prev-bg-local";
+                doc.body.appendChild(st);      // apres le style du serveur -> gagne
+            }
+            st.textContent = "html,body{" + prevBgBody(" !important") + "}";
+        }
+    } catch (e) { /* iframe non accessible : on ignore */ }
+    /* 2) le cadre du panneau suit (pendant le chargement, hors zone iframe) */
+    const wrap = document.getElementById("prevwrap");
+    if (wrap) wrap.style.cssText = prevBgBody("");
+}
+
+function setPrevBg(mode, save) {
+    prevBgMode = mode;
+    if (save !== false) {
+        try { localStorage.setItem(LS_BG_KEY, mode); } catch (e) {}
+    }
+    document.querySelectorAll(".prevmode button[data-bg]").forEach(
+        b => b.classList.toggle("on", b.dataset.bg === mode));
+    const h = document.getElementById("bghint");
+    if (h) {
+        h.textContent = mode === "damier" ? "vérification de la transparence"
+            : mode === "violet" ? "fond #16082B (ancien aperçu)"
+            : (prevBgImage ? "image de fond (aperçu seul)" : "aucune image choisie");
+    }
+    applyPrevBg();
+}
+
+function initPrevBg() {
+    let saved = null;
+    try { saved = localStorage.getItem(LS_BG_KEY); } catch (e) {}
+    prevBgMode = (saved === "violet" || saved === "image") ? saved : "damier";
+    if (prevBgMode === "image" && !prevBgImage) prevBgMode = "damier";  // blob: non memorisable
+
+    document.querySelectorAll(".prevmode button[data-bg]").forEach(b => {
+        b.onclick = () => {
+            if (b.dataset.bg === "image" && !prevBgImage) {
+                document.getElementById("bgfile").click();   // choix image d'abord
+                return;
+            }
+            setPrevBg(b.dataset.bg);
+        };
+    });
+    const fi = document.getElementById("bgfile");
+    fi.onchange = () => {
+        const f = fi.files && fi.files[0];
+        if (!f) return;
+        if (prevBgImage) { try { URL.revokeObjectURL(prevBgImage); } catch (e) {} }
+        prevBgImage = URL.createObjectURL(f);
+        setPrevBg("image");
+    };
+
+    document.getElementById("prev").addEventListener("load", applyPrevBg);
+    setPrevBg(prevBgMode, false);
+}
+
+function applyNow() {
+    updatePreview();
+    setStatus("Aperçu appliqué — mêmes paramètres que le rendu .mov.", "ok");
+}
+
+function resetDefaults() {
+    colors = Object.assign({}, SCHEMA.palettes.pop.colors);
+    paletteSel = "pop";
+    for (const tpl of Object.keys(SCHEMA.tpls)) {
+        const defs = SCHEMA.tpls[tpl];
+        for (const n of defs.numbers) visualNum[tpl][n.id] = n.default;
+        for (const s of defs.selects) visualSel[tpl][s.id] = s.default;
+    }
+    saveVisual();
+    buildColors();
+    buildParams();
+    refreshState();
+    updatePreview();
+    setStatus("Valeurs par défaut POP TV restaurées (couleurs, tailles, positions, animation — contenu texte conservé).", "ok");
+}
+
+/* =========================================================================
+   STATUT / GENERATION
+   ========================================================================= */
+function setStatus(msg, cls) {
+    const el = document.getElementById("status");
+    el.textContent = msg;
+    el.className = "status" + (cls ? " " + cls : "");
+}
+
+
+async function previewRender() {
+    if (busy || !SCHEMA) return;
+    busy = true;
+    const btn = document.getElementById("preview-render-btn");
+    const originalText = btn.innerHTML;
+    btn.innerHTML = "⏳ GÉNÉRATION (150 FRAMES, ~15s)...";
+    btn.disabled = true;
+
+    try {
+        const res = await fetch("/preview-render", {
+            method: "POST",
+            body: JSON.stringify({ tpl: current, params: paramsOf() })
+        });
+        const data = await res.json();
+        if (data.ok && data.url) {
+            document.getElementById("web-preview-modal").style.display = "flex";
+            const vid = document.getElementById("web-preview-video");
+            vid.src = data.url + "&t=" + Date.now();
+            vid.play();
+        } else {
+            alert("Erreur: " + data.error);
+        }
+    } catch(e) {
+        alert("Erreur réseau");
+    } finally {
+        busy = false;
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+
+async function generate() {
+    if (busy || !SCHEMA) return;
+    busy = true;
+    const btn = document.getElementById("gen");
+    btn.disabled = true;
+    document.getElementById("result").style.display = "none";
+    document.getElementById("prog").style.display = "block";
+    document.getElementById("fill").style.width = "0";
+    setStatus("Démarrage du rendu…", "");
+
+    let res;
+    try {
+        res = await fetch("/render", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tpl: current, params: paramsOf() }),
+        });
+    } catch (e) {
+        setStatus("Serveur injoignable : " + e, "err");
+        finish();
+        return;
+    }
+    const j = await res.json();
+    if (!j.ok) {
+        setStatus("Refus : " + (j.error || "erreur"), "err");
+        finish();
+        return;
+    }
+
+    pollTimer = setInterval(async () => {
+        let s;
+        try { s = await (await fetch("/status")).json(); }
+        catch (e) { return; }
+
+        if (s.state === "rendering") {
+            const pct = s.total ? Math.round(100 * s.progress / s.total) : 0;
+            document.getElementById("fill").style.width = pct + "%";
+            setStatus("Capture images… " + s.progress + " / " + s.total + " (" + pct + " %)");
+        } else if (s.state === "encoding") {
+            document.getElementById("fill").style.width = "100%";
+            setStatus("Encodage FFmpeg en cours… (ne pas fermer)");
+        } else if (s.state === "done") {
+            clearInterval(pollTimer);
+            document.getElementById("fill").style.width = "100%";
+            setStatus("Terminé : " + s.file, "ok");
+            const result = document.getElementById("result");
+            result.style.display = "flex";
+            document.getElementById("dl").href = "/file?name=" + encodeURIComponent(s.file);
+            document.getElementById("dl").textContent = "⬇ Télécharger " + s.file;
+            document.getElementById("qc").textContent = s.qc && !s.qc.empty
+                ? "marges mesurées : droite " + s.qc.r + " · bas " + s.qc.b +
+                  " · haut " + s.qc.t + " · gauche " + s.qc.l + " px"
+                : "";
+            finish();
+        } else if (s.state === "error") {
+            clearInterval(pollTimer);
+            setStatus("Erreur : " + s.error, "err");
+            finish();
+        }
+    }, 700);
+
+    function finish() {
+        busy = false;
+        btn.disabled = false;
+        setTimeout(() => { document.getElementById("prog").style.display = "none"; }, 1200);
+    }
+}
+
+function reveal() { fetch("/reveal"); }
+
+/* =========================================================================
+   FILE D'ATTENTE — etat cote serveur : sequentielle, UN SEUL rendu lourd
+   a la fois (meme verrou que GÉNÉRER LE .MOV), progression automatique,
+   erreur d'un job = passage au suivant. Chaque job garde les parametres
+   (contenu + visuels + police) AU MOMENT de l'ajout.
+   ========================================================================= */
+let qTimer = null;
+async function queueFetch() {
+    let q;
+    try { q = await (await fetch("/queue")).json(); } catch (e) { return; }
+    renderQueue(q);
+    // la boucle ne tourne que tant qu'il se passe quelque chose ; elle repart
+    // automatiquement a chaque nouvel ajout (liste toujours fraiche, sans
+    // re-peindre inutilement au repos)
+    if ((q.pending || q.running) && !qTimer) qTimer = setInterval(queueFetch, 800);
+    else if (!q.pending && !q.running && qTimer) { clearInterval(qTimer); qTimer = null; }
+}
+function queuePolling() {
+    if (qTimer) return;
+    qTimer = setInterval(queueFetch, 800);
+}
+function renderQueue(q) {
+    const box = document.getElementById("queue");
+    const lbl = { pending: "⏳ En attente", running: "🔄 Rendu en cours",
+                  done: "✅ Terminé", error: "❌ Erreur" };
+    document.getElementById("qprog").textContent =
+        q.done + "/" + q.total + " terminés" +
+        (q.errors ? " · " + q.errors + " en erreur" : "") +
+        (q.pending ? " · " + q.pending + " en attente" : "");
+    if (!q.jobs.length) {
+        box.innerHTML = "<div class='qempty'>Aucun rendu en file. « Ajouter au rendu » " +
+            "place le template actuel (contenu, couleurs, tailles et police à l'instant " +
+            "de l'ajout) dans la file : exécution automatique, un seul rendu à la fois, " +
+            "les suivants démarrent seuls — vous pouvez laisser le PC travailler.</div>";
+        return;
+    }
+    box.innerHTML = q.jobs.map(j => {
+        const pct = j.state === "done" ? 100
+                  : (j.state === "running" && j.total
+                     ? Math.round(100 * j.progress / j.total) : 0);
+        let extra = "";
+        if (j.state === "running") extra = " · image " + j.progress + "/" + j.total;
+        if (j.state === "done" && j.file)
+            extra = " · <a href='/file?name=" + encodeURIComponent(j.file) + "'>" + esc(j.file) + "</a>";
+        if (j.state === "error")
+            extra = " · <span class='qerr'>" + esc(j.error || "erreur") + "</span>";
+        const del = j.state === "pending"
+            ? " <button class='qdel' title='Retirer de la file' onclick='queueRemove(" + j.id + ")'>✕</button>"
+            : "";
+        return "<div class='qjob q" + j.state + "'><span class='qst'>" + lbl[j.state] +
+               "</span><span>" + esc(j.label) + extra + "</span>" +
+               "<span class='qpct'>" + pct + "%</span>" + del + "</div>";
+    }).join("");
+}
+async function queueAdd() {
+    if (!SCHEMA) return;
+    try {
+        const res = await fetch("/queue/add", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tpl: current, params: paramsOf() }),
+        });
+        const j = await res.json();
+        if (!j.ok) { setStatus("Refus : " + (j.error || "impossible d'ajouter"), "err"); return; }
+        setStatus("Ajouté à la file (job #" + j.id + ") — exécution séquentielle automatique.", "ok");
+        queuePolling(); queueFetch();
+    } catch (e) { setStatus("Serveur injoignable : " + e, "err"); }
+}
+async function queueRemove(id) {
+    try {
+        await fetch("/queue/remove", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: id }),
+        });
+    } catch (e) {}
+    queueFetch();
+}
+async function queueClear() {
+    try { await fetch("/queue/clear", { method: "POST", body: "{}" }); } catch (e) {}
+    queueFetch();
+}
+async function queueStart() {
+    try {
+        const j = await (await fetch("/queue/start", { method: "POST", body: "{}" })).json();
+        setStatus(j.started ? "File lancée : " + j.pending + " rendu(s) en attente."
+                            : "Rien à lancer : file vide ou déjà en cours.", "ok");
+    } catch (e) { setStatus("Serveur injoignable : " + e, "err"); }
+    queuePolling(); queueFetch();
+}
+
+/* =========================================================================
+   DEMARRAGE
+   ========================================================================= */
+(async function boot() {
+    try {
+        SCHEMA = await (await fetch("/params")).json();
+    } catch (e) {
+        setStatus("Schéma /params indisponible : " + e, "err");
+        return;
+    }
+    initContent();
+    initVisual();
+    buildTabs();
+    initPrevBg();               // fond d'apercu (damier defaut) AVANT le 1er load
+    selectTab("invite");
+    fitPreview();
+    queueFetch();               // etat de la file (auto-demarrage si active)
+})();
+</script>
+
+<div id="web-preview-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.85); z-index:9999; align-items:center; justify-content:center; flex-direction:column;">
+    <div style="background:var(--pop-bg); padding:20px; border: 2px solid var(--pop-cyan); width:90%; max-width:1400px; box-shadow: 10px 10px 0 var(--pop-magenta);">
+        <h3 style="color:var(--pop-cyan); margin-top:0; font-size:16px;">👁 Aperçu du Rendu FFmpeg (Damier de contrôle)</h3>
+        <video id="web-preview-video" controls loop style="width:100%; aspect-ratio:16/9; background:#000; outline:none; border:none;"></video>
+        <div style="text-align:right; margin-top:15px;">
+            <button class="btn ghost" onclick="document.getElementById('web-preview-video').pause(); document.getElementById('web-preview-modal').style.display='none'">FERMER</button>
+        </div>
+    </div>
+</div>
+</body>
+
+</html>

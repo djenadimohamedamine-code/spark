@@ -1,0 +1,1026 @@
+/* ============================================================
+   BROADCAST LOWER THIRD — 1920×1080i 50Hz — TriCaster ready
+   Pixel-perfect : toutes les valeurs en multiples de 2px
+   Aucun backdrop-filter, aucun clip hack, aucun sub-pixel
+   ============================================================ */
+/* ==========================================================================
+   TalkShow — POP TV / habillage broadcast
+   Master Invite V1  (template_invite.html)
+
+   PARAMÈTRES VERROUILLÉS (ne pas modifier) :
+   --pop-bg #16082B / --pop-magenta #E2007A / --pop-cyan #00E5FF /
+   --pop-yellow #FFE600 / --pop-dark #0A0414 / --pop-white #FFFFFF /
+   --pop-text-sub #E2D9F3 / --skew-angle -12deg / --shadow-hard 8px 8px 0 cyan
+   canvas 1920x1080 / right 90px / bottom 60px / RTL / skew UNIQUEMENT sur ::before
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Fonts locales (copie de Allo Chef — sources inchangées, aucun téléchargement)
+   -------------------------------------------------------------------------- */
+@font-face {
+    font-family: 'Kufi';
+    src: url('fonts/NotoKufiArabic.woff2') format('woff2'),
+         url('fonts/NotoKufiArabic.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: block;
+}
+
+@font-face {
+    font-family: 'Kufi';
+    src: url('fonts/NotoKufiArabic-Bold.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+    font-display: block;
+}
+
+@font-face {
+    font-family: 'IBMPlexArabic';
+    src: url('fonts/IBMPlexSansArabic-Regular.woff2') format('woff2'),
+         url('fonts/IBMPlexSansArabic-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: block;
+}
+
+@font-face {
+    font-family: 'IBMPlexArabic';
+    src: url('fonts/IBMPlexSansArabic-SemiBold.woff2') format('woff2'),
+         url('fonts/IBMPlexSansArabic-SemiBold.ttf') format('truetype');
+    font-weight: 600;
+    font-style: normal;
+    font-display: block;
+}
+
+@font-face {
+    font-family: 'Montserrat';
+    src: url('fonts/Montserrat.woff2') format('woff2'),
+         url('fonts/Montserrat.ttf') format('truetype');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: block;
+}
+
+/* --------------------------------------------------------------------------
+   Tokens (verrouillés)
+   -------------------------------------------------------------------------- */
+:root {
+    --pop-bg: #16082B;
+    --pop-magenta: #E2007A;
+    --pop-cyan: #00E5FF;
+    --pop-yellow: #FFE600;
+    --pop-dark: #0A0414;
+    --pop-white: #FFFFFF;
+    --pop-text-sub: #E2D9F3;
+
+    --skew-angle: -12deg;
+    --shadow-hard: var(--ts-shadow-x) var(--ts-shadow-y) 0 var(--ts-glow-c);
+
+    /* ---- PARAMS PANNEAU V2 ------------------------------------------------
+       DÉFAUTS = valeurs validées (V1b + animation V2). Le panneau ne modifie
+       QUE ces variables (schéma whitelisté côté serveur). Paramètres SYSTÈME
+       NON exposés : --skew-angle, structure, positionnement, display,
+       z-index, keyframes, easings, durée du clip, renderer. --------------- */
+    --ts-pos-x: 90px;          /* lower-third right / bug right / fullscreen L+R */
+    --ts-pos-y: 60px;          /* lower-third bottom / bug top */
+    --ts-fs-top: 120px;        /* fullscreen marge haute */
+    --ts-fs-bottom: 100px;     /* fullscreen marge basse */
+    --ts-name-size: 72px;
+    --ts-role-size: 36px;
+    --ts-chip-size: 24px;      /* badge latin (invite + bug) */
+    --ts-kicker-size: 30px;
+    --ts-title-size: 60px;
+    --ts-title-max: 900px;
+    --ts-panel-max: 1012px;    /* titre : largeur utile du panneau */
+    --ts-lead-size: 54px;
+    --ts-text-size: 32px;
+    --ts-fs-content-max: 1480px;
+    --ts-shadow-x: 8px;
+    --ts-shadow-y: 8px;
+    --ts-wash-intensity: 20;  /* 20 = Défaut broadcast validé. */
+    --ts-wash-radius: 6px;    /* diffusion de la text-shadow wash */
+    --ts-fade-dur: 400ms;      /* entrée fade V1b (4 templates sans motion) */
+    --ts-in-from: translateY(240px);   /* V2 : origine de l'entrée */
+    --ts-in-dur: 950ms;
+    --ts-in-delay: 250ms;
+    --ts-out-to: translateY(240px);    /* V2 : destination de la sortie */
+    --ts-out-dur: 850ms;
+    --ts-hold: 8600ms;                 /* début de la sortie (clip 10 s) */
+
+    --font-display: 'Kufi', sans-serif;
+    --font-text: 'IBMPlexArabic', sans-serif;
+    --font-latin: 'Montserrat', sans-serif;
+
+    /* ---- COULEURS PAR DÉFAUT (design broadcast — surchargées par le panneau) */
+    --ts-bg: #16082B;
+    --ts-name-c: #FFFFFF;
+    --ts-role-c: #F5680A;
+    --ts-badge-bg: var(--pop-yellow);
+    --ts-badge-txt: var(--pop-dark);
+    --ts-border1: var(--pop-cyan);
+    --ts-border2: var(--pop-magenta);
+    --ts-glow-c: var(--pop-cyan);
+    --ts-bg-alpha: 100;
+}
+
+/* --------------------------------------------------------------------------
+   Base — canvas transparent, aucune décoration, aucun fond d'image
+   -------------------------------------------------------------------------- */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    background: transparent;   /* habillage broadcast : pas de fond */
+    overflow: hidden;
+}
+
+.canvas {
+    position: relative;
+    width: 1920px;
+    height: 1080px;
+    margin: 0 auto;
+    background: transparent;
+    direction: rtl;            /* contenu RTL */
+    font-family: var(--font-text);
+    -webkit-font-smoothing: antialiased;
+    font-synthesis: none;
+}
+
+/* --------------------------------------------------------------------------
+   Position (verrouillée) — bas droite du canvas, badge au-dessus du panneau
+   -------------------------------------------------------------------------- */
+.ts-lower {
+    position: absolute;
+    right: var(--ts-pos-x, 90px);
+    bottom: var(--ts-pos-y, 60px);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;   /* RTL : aligne sur le bord droit du panneau */
+    gap: 8px;                  /* esthétique V1b : bloc badge/panneau plus solidaire (testé 8 vs 12) */
+    transform: none;
+    opacity: 0;                /* Standby : hors antenne */
+}
+
+/* Entrée : fade-in par opacity uniquement, aucune transformation */
+body.playing .ts-lower {
+    animation: tsEnter var(--ts-fade-dur, 400ms) ease-out both;
+}
+
+@keyframes tsEnter {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+/* Pas de sortie animée : suppression de .playing = coupure franche */
+
+/* --------------------------------------------------------------------------
+   Badge jaune  ضيف / INVITÉ
+   -------------------------------------------------------------------------- */
+.ts-badge {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;                 /* H1 V1 */
+    padding: 10px 28px 12px;   /* H1 V1 */
+    margin-right: -29px;       /* esthétique V1b : arêtes badge/panneau colinéaires
+                                  (mesures : jonction 27.5px, colinéaire 29.2px → 29px) */
+    transform: none;
+}
+
+.ts-badge::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--ts-badge-bg);
+    transform: skewX(var(--skew-angle));   /* skew UNIQUEMENT sur ::before */
+}
+
+.ts-badge-ar {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 34px;           /* H1 V1 */
+    line-height: 1.2;
+    color: var(--ts-badge-txt);
+    letter-spacing: normal;
+    transform: none;
+}
+
+.ts-badge-la {
+    font-family: var(--font-latin);
+    font-weight: 700;
+    font-size: var(--ts-chip-size, 24px);   /* esthétique V1b : 20 → 24 px (Gemini), polices/couleur inchangées */
+    line-height: 1.2;
+    color: var(--ts-badge-txt);
+    letter-spacing: normal;
+    text-transform: uppercase;
+    transform: none;
+}
+
+/* --------------------------------------------------------------------------
+   Panneau principal — violet, bord magenta, ombre cyan dure 8px
+   -------------------------------------------------------------------------- */
+.ts-panel {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;                  /* H1 V1 */
+    padding: 28px 50px 32px 62px;  
+    transform: none;
+}
+
+/* CALQUE 1 — bordures + ombre cyan (toujours 100 % opaques, aucun alpha) */
+.ts-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border: 4px solid var(--ts-border2);   /* H1 V1 */
+    box-shadow: var(--shadow-hard);
+    transform: skewX(var(--skew-angle));    /* skew sur le calque seul (jamais sur le texte) */
+}
+
+/* CALQUE 2 — remplissage violet SEUL, opacité pilotée par `opacity`
+   (propriété universelle, comprise par TOUS les moteurs — aucun color-mix).
+   --ts-bg-alpha = 100 -> --pop-bg opaque (etat Master V1) ;
+   --ts-bg-alpha = 0   -> aucun pixel de fond : la VIDEO est visible
+   directement derriere le NOM, alpha pur, sans residue blanc/gris. */
+.ts-panel::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    /* Qualité Broadcast : Dégradé 3D (lumière haut, ombre bas) superposé à la couleur pure */
+    background: 
+        linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0) 35%, rgba(0, 0, 0, 0.25) 100%),
+        var(--ts-bg);
+    box-shadow: inset 0 1.5px 1px rgba(255, 255, 255, 0.25);
+    opacity: calc(var(--ts-bg-alpha, 100) / 100);
+    transform: skewX(var(--skew-angle));
+}
+
+.ts-name {
+    position: relative;        /* conteneur du calque de balayage ::after
+                                  (aucun effet sur la mise en page) */
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--ts-name-size, 72px);   /* H1 V1 */
+    line-height: 1.2;
+    color: var(--ts-name-c);
+    letter-spacing: normal;
+    white-space: nowrap;
+    transform: none;
+    /* WASH broadcast — protection lisibilité sur fond caméra.
+       3 couches text-shadow noires diffuses. L'opacité est multipliée par
+       --ts-wash-intensity (0 = désactivé, 100 = plein). Aucune modification
+       de la géométrie des glyphes arabes (text-shadow n'affecte pas la graisse
+       ni les contours, contrairement à -webkit-text-stroke ou filter: blur). */
+    text-shadow:
+        0 1px calc(var(--ts-wash-radius, 6px) * 0.33)
+            rgba(0, 0, 0, calc(var(--ts-wash-intensity, 0) * 0.007)),
+        0 2px var(--ts-wash-radius, 6px)
+            rgba(0, 0, 0, calc(var(--ts-wash-intensity, 0) * 0.0032)),
+        0 0  calc(var(--ts-wash-radius, 6px) * 2.33)
+            rgba(0, 0, 0, calc(var(--ts-wash-intensity, 0) * 0.0016));
+}
+
+.ts-role {
+    font-family: var(--font-text);
+    font-weight: 600;
+    font-size: var(--ts-role-size, 36px);   /* H1 V1 */
+    line-height: 1.4;
+    color: var(--ts-role-c);
+    letter-spacing: normal;
+    white-space: nowrap;
+    transform: none;
+    /* WASH rôle — légèrement moins opaque que le nom (texte orange, plus petit).
+       Même principe multi-couches, opacités réduites de 30 %. */
+    text-shadow:
+        0 1px calc(var(--ts-wash-radius, 6px) * 0.33)
+            rgba(0, 0, 0, calc(var(--ts-wash-intensity, 0) * 0.0049)),
+        0 2px var(--ts-wash-radius, 6px)
+            rgba(0, 0, 0, calc(var(--ts-wash-intensity, 0) * 0.00224)),
+        0 0  calc(var(--ts-wash-radius, 6px) * 2.33)
+            rgba(0, 0, 0, calc(var(--ts-wash-intensity, 0) * 0.00112));
+}
+
+/* --------------------------------------------------------------------------
+   Barre Preview — créée dynamiquement UNIQUEMENT en mode ?preview=1
+   Jamais présente dans le DOM en production.
+   -------------------------------------------------------------------------- */
+.ts-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 18px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    direction: ltr;
+    z-index: 999;
+}
+
+.ts-play {
+    font-family: var(--font-latin);
+    font-weight: 700;
+    font-size: 16px;
+    padding: 10px 28px;
+    background: var(--ts-badge-bg);
+    color: var(--ts-badge-txt);
+    border: 0;
+    cursor: pointer;
+}
+
+.ts-status {
+    font-family: var(--font-latin);
+    font-weight: 700;
+    font-size: 14px;
+    padding: 10px 20px;
+    background: var(--ts-badge-txt);
+    color: var(--ts-name-c); opacity: 0.8;
+}
+
+.ts-status[data-onair='1'] {
+    background: var(--ts-badge-bg);
+    color: var(--ts-name-c);
+}
+
+/* ==========================================================================
+   DÉCLINAISONS V1b — template_nom / template_titre / template_bug /
+   template_fullscreen
+
+   Le Master Invite V1b ci-dessus est INTOUCHABLE (7725 premiers octets).
+   Aucun nouveau token. Réutilisation : tokens, principe ::before skewé,
+   .ts-badge, .ts-panel, .ts-name, .ts-role, habillage.js, fonts locales,
+   preview ?preview=1, fade 400 ms / hard cut 5000 ms.
+   Les valeurs propres à chaque composition sont des HYPOTHÈSES V1 à valider.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   template_nom — synthé « Nom simple »
+   Master sans badge : panneau compact, nom dominant. Réutilise tel quel
+   .ts-lower / .ts-panel / .ts-name / .ts-role V1b (aucune règle nécessaire).
+   -------------------------------------------------------------------------- */
+
+/* --------------------------------------------------------------------------
+   template_titre — synthé « Titre / Sujet du débat » (1 à 2 lignes)
+   -------------------------------------------------------------------------- */
+.ts-lower--titre .ts-panel {
+    max-width: var(--ts-panel-max, 1012px);  /* H1 : largeur utile = titre 900 + paddings */
+}
+
+.ts-kicker {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--ts-kicker-size, 30px);  /* H1 : échelle label (réf. INVITÉ 24) */
+    line-height: 1.3;
+    color: var(--ts-role-c);
+    letter-spacing: normal;
+    white-space: nowrap;
+    transform: none;
+    /* WASH kicker — même logique que .ts-role, force réduite à 65 % */
+    text-shadow:
+        0 1px calc(var(--ts-wash-radius, 6px) * 0.33)
+            rgba(0, 0, 0, calc(var(--ts-wash-intensity, 0) * 0.00455)),
+        0 2px var(--ts-wash-radius, 6px)
+            rgba(0, 0, 0, calc(var(--ts-wash-intensity, 0) * 0.00208)),
+        0 0  calc(var(--ts-wash-radius, 6px) * 2.33)
+            rgba(0, 0, 0, calc(var(--ts-wash-intensity, 0) * 0.00104));
+}
+
+.ts-title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--ts-title-size, 60px);   /* H1 : sous le nom 72, hiérarchie propre */
+    line-height: 1.45;         /* H1 : interligne arabe sur 2 lignes */
+    color: var(--ts-name-c);
+    letter-spacing: normal;
+    max-width: var(--ts-title-max, 900px);  /* H1 : 1 à 2 lignes */
+    text-wrap: balance;
+    transform: none;
+    /* WASH titre — même logique que .ts-name, force pleine */
+    text-shadow:
+        0 1px calc(var(--ts-wash-radius, 6px) * 0.33)
+            rgba(0, 0, 0, calc(var(--ts-wash-intensity, 0) * 0.007)),
+        0 2px var(--ts-wash-radius, 6px)
+            rgba(0, 0, 0, calc(var(--ts-wash-intensity, 0) * 0.0032)),
+        0 0  calc(var(--ts-wash-radius, 6px) * 2.33)
+            rgba(0, 0, 0, calc(var(--ts-wash-intensity, 0) * 0.0016));
+}
+
+/* --------------------------------------------------------------------------
+   template_bug — Logo emission permanent, bas gauche avec Shimmer
+   -------------------------------------------------------------------------- */
+.ts-lower--bug {
+    left: var(--ts-pos-x, 90px);
+    right: auto;
+    bottom: var(--ts-pos-y, 60px);
+    top: auto;
+}
+
+.ts-bug-logo {
+    background-color: var(--ts-bg);
+    border: 3px solid var(--ts-glow-c);
+    border-radius: 60px;
+    padding: 15px 45px;
+    box-shadow: var(--ts-shadow-x) var(--ts-shadow-y) 0 rgba(0,0,0,0.5);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: skewX(-10deg);
+}
+
+.ts-bug-text {
+    font-family: var(--font-family);
+    font-weight: 700;
+    font-size: var(--ts-name-size, 45px);
+    color: var(--ts-name-c);
+    margin: 0;
+    white-space: nowrap;
+    position: relative;
+    z-index: 2;
+    transform: skewX(10deg);
+}
+
+.ts-bug-logo::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -150%;
+    width: 50%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    transform: skewX(-20deg);
+    z-index: 1;
+}
+
+body.playing .ts-bug-logo::before {
+    animation: shimmerLoop 5s linear infinite;
+}
+
+@keyframes shimmerLoop {
+    0%   { left: -150%; }
+    10%  { left: 200%; }
+    100% { left: 200%; }
+}
+
+/* --------------------------------------------------------------------------
+   template_fullscreen — habillage plein écran / infographie
+   Cadre rectangulaire + onglet de section skewé + zone de contenu.
+   PAS un lower-third agrandir : aucun skew sur le cadre.
+   -------------------------------------------------------------------------- */
+.ts-lower--fullscreen {
+    left: var(--ts-pos-x, 90px);
+    right: var(--ts-pos-x, 90px);
+    top: var(--ts-fs-top, 120px);
+    bottom: var(--ts-fs-bottom, 100px);
+    display: block;
+}
+
+.fs-frame {
+    position: relative;
+    isolation: isolate;
+    width: 100%;
+    height: 100%;
+    padding: 44px 64px 56px;   /* H1 : marge interne plein écran */
+    border: 4px solid var(--ts-border2);
+    box-shadow: var(--shadow-hard);
+    transform: none;           /* cadre rectangulaire, texte horizontal */
+}
+
+/* Fond plein écran : calque séparé (meme logique broadcast-safe que .ts-panel)
+   — color-mix() supprime, opacite passe par `opacity`. */
+.fs-frame::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    /* Qualité Broadcast : Dégradé radial pour le plein écran */
+    background: 
+        radial-gradient(circle at center, rgba(255,255,255,0.1) 0%, rgba(0,0,0,0.3) 100%),
+        var(--ts-bg);
+    opacity: calc(var(--ts-bg-alpha, 100) / 100);
+}
+
+.fs-body {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;   /* RTL : départ = bord droit */
+    height: 100%;
+}
+
+.fs-tab {
+    margin-right: 0;           /* surcharge du calage -29 px du Master */
+}
+
+.fs-content {
+    margin-top: 32px;          /* H1 */
+    max-width: var(--ts-fs-content-max, 1480px);  /* H1 : zone de contenu */
+    transform: none;
+}
+
+.fs-lead {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--ts-lead-size, 54px);  /* H1 */
+    line-height: 1.4;
+    color: var(--ts-name-c);
+    letter-spacing: normal;
+    margin-bottom: 18px;       /* H1 */
+    transform: none;
+    /* WASH lead — texte blanc principal, force pleine */
+    text-shadow:
+        0 1px calc(var(--ts-wash-radius, 6px) * 0.33)
+            rgba(0, 0, 0, calc(var(--ts-wash-intensity, 0) * 0.007)),
+        0 2px var(--ts-wash-radius, 6px)
+            rgba(0, 0, 0, calc(var(--ts-wash-intensity, 0) * 0.0032)),
+        0 0  calc(var(--ts-wash-radius, 6px) * 2.33)
+            rgba(0, 0, 0, calc(var(--ts-wash-intensity, 0) * 0.0016));
+}
+
+.fs-text {
+    font-family: var(--font-text);
+    font-weight: 600;
+    font-size: var(--ts-text-size, 32px);   /* réf. rôle 30 */
+    line-height: 1.9;          /* H1 : lecture longue */
+    color: var(--ts-name-c); opacity: 0.8;
+    letter-spacing: normal;
+    margin-bottom: 16px;       /* H1 */
+    transform: none;
+    /* WASH texte corps — déjà à opacity 0.8, wash réduit à 50% */
+    text-shadow:
+        0 1px calc(var(--ts-wash-radius, 6px) * 0.33)
+            rgba(0, 0, 0, calc(var(--ts-wash-intensity, 0) * 0.0035)),
+        0 2px var(--ts-wash-radius, 6px)
+            rgba(0, 0, 0, calc(var(--ts-wash-intensity, 0) * 0.0016)),
+        0 0  calc(var(--ts-wash-radius, 6px) * 2.33)
+            rgba(0, 0, 0, calc(var(--ts-wash-intensity, 0) * 0.0008));
+}
+
+.fs-text:last-child {
+    margin-bottom: 0;
+}
+
+/* ==========================================================================
+   ANIMATION V2 — MOTION BROADCAST (template_invite.html UNIQUEMENT)
+
+   Architecture : wrapper .ts-motion autour de .ts-lower.
+   - .ts-lower conserve sa geometrie V1b stricte : right 90px / bottom 60px,
+     skew UNIQUEMENT sur ::before, typographie et couleurs inchangees ;
+   - le transform d'animation est applique au wrapper : translateY seul
+     (aucun scale, aucun bounce, aucun skew, aucun effet cartoon/gaming) ;
+   - le texte arabe reste parfaitement horizontal : aucune transformation
+     n'est posee sur un element contenant du texte.
+   - Les 4 autres templates n'ont PAS .ts-motion : ils gardent le fade 400 ms
+     / cut V1b (règle body.playing .ts-lower ci-dessus). Ne pas generaliser
+     sans validation visuelle explicite.
+
+   TIMELINE 10000 ms (CLIP_INVITE_MS, 500 images @ 50 i/s) :
+     0 -> 250 ms       cache  (remplissage d'entree, fill both)
+     250 -> 1200 ms    ENTREE  translateY +240px -> 0 , opacity 0 -> 1
+                       950 ms · cubic-bezier(0.16, 1, 0.3, 1)  [expo-out]
+     1200 -> 8600 ms   REPOS   etat V1b strict, immobile (7400 ms)
+     8600 -> 9450 ms   SORTIE  translateY 0 -> +240px , opacity 1 -> 0
+                       850 ms · cubic-bezier(0.55, 0.06, 0.68, 0.19) [ease-in]
+     9450 -> 10000 ms  cache  (sortie terminee 550 ms avant la fin)
+     10000 ms          retrait de .playing -> AUCUN changement visible :
+                       .ts-lower (opacity de base 0) redevient masque, le
+                       wrapper etait deja transparent depuis 9450 ms.
+
+   Export : aucune modification du moteur — le scrub getAnimations()/
+   setFrameTime() capture ces 2 animations (delais inclus, currentTime gère
+   la phase de delay exactement comme le moteur Allo Chef).
+   ========================================================================== */
+
+/* Conteneur de mouvement : boite identique au canvas, donc le conteneur de
+   positionnement de .ts-lower ne bouge PAS (avec ou sans transform) :
+   geometrie V1b preservee au pixel pres. */
+.ts-motion {
+    position: absolute;
+    inset: 0;
+}
+
+/* .ts-motion porte l'opacite animée. Le fade 400 ms V1b est neutralise sur
+   ce template pour ne laisser qu'une seule courbe (le motion wrapper).
+   L'opacite de base 0 de .ts-lower reste le coupe-circuit hors antenne. */
+body.playing .ts-motion .ts-lower {
+    animation: none;
+    opacity: 1;
+}
+
+/* Entree (delay 250 ms, fill both) + Sortie (delay 8600 ms, fill forwards)
+   empilees : la cle la plus tardive de animation-name gagne pendant sa
+   phase active -> le repos (1200-8600 ms) tient l'etat de fin d'entree. */
+body.playing .ts-motion {
+    animation:
+        tsV2In  var(--ts-in-dur, 950ms) cubic-bezier(0.16, 1, 0.3, 1) var(--ts-in-delay, 250ms) both,
+        tsV2Out var(--ts-out-dur, 850ms) cubic-bezier(0.55, 0.06, 0.68, 0.19) var(--ts-hold, 8600ms) forwards;
+}
+
+@keyframes tsV2In {
+    from { transform: var(--ts-in-from, translateY(240px)); opacity: 0; }
+    to   { transform: none; opacity: 1; }
+}
+
+@keyframes tsV2Out {
+    from { transform: none;                                opacity: 1; }
+    to   { transform: var(--ts-out-to, translateY(240px)); opacity: 0; }
+}
+
+
+/* ==========================================================================
+   TEMPLATE GENERIQUE — generique de fin TV (6e template)
+   Defilement vertical bas -> haut, duree dynamique (render_talkshow.py).
+   BLOC STRICTEMENT ISOLE : aucune regle existante ne cible .ts-generique-*
+   ni .cr-* ; aucun template existant n'utilise ces classes.
+   Variables lues ici : --ts-cat-size / --ts-name-size / --ts-spacing /
+   --ts-align-x (+ --ts-cred-dur / --ts-cred-speed pour le script, +
+   --ts-cred-panel = rgba() du panneau translucide) — toutes injectees par
+   credits_style() (compose_html), DEFAUTS INCLUS : or, --ts-name-size est
+   un jeton partage (72 px pour Invite, :root plus haut), donc le repli
+   36 px de .cr-name ne s'appliquerait jamais sans emission explicite —
+   l'injection a lieu apres le <link>, cette :root gagne.
+   Les line-height ci-dessous sont le MIROIR exact des constantes Python
+   CR_CAT_LH / CR_NAME_LH / CR_BLOCK_GAP : ne pas les modifier sans les
+   modifier aussi dans render_talkshow.py (duree dynamique).
+   ========================================================================== */
+.ts-generique-wrapper {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    display: flex;
+    align-items: flex-start;       /* NE PAS etirer la track a 1080 px : sa
+                                      hauteur mesuree = hauteur du contenu
+                                      (JS : getBoundingClientRect().height) */
+    justify-content: var(--ts-align-x, center);
+    padding: 0 120px;              /* marges de securite broadcast */
+    /* PAS de fond opaque : canvas ALPHA comme les 5 autres templates —
+       la video/camera passe derriere le panneau translucide des credits
+       (vraie transparence rgba(), --ts-cred-panel). L'apercu garde le fond
+       violet via l'injection preview_html (html,body #16082B). */
+}
+
+.ts-credits-track {
+    position: relative;            /* ancre du panneau ::before (ci-dessous) */
+    display: flex;
+    flex-direction: column;
+    gap: var(--ts-spacing, 60px);  /* = parametre "spacing" (miroir Python) */
+    width: 100%;
+    max-width: 800px;
+    /* C2 : isolation remplace will-change: transform — MÊME contexte
+       d'empilement (le ::before en z-index:-1 reste AU-DESSUS des fonds
+       d'ancetres et DERIERE le texte) mais SANS promotion permanente en
+       couche compositée : le texte est peint/echantillonne comme celui du
+       synthe (.ts-badge / .ts-panel utilisent deja isolation: isolate).
+       Motif : promotion permanente + positions de defilement fractionnaires
+       -> re-echantillonnage de sous-pixel image apres image (scintillement) ;
+       voir aussi steps(1 px) de template_generique.html. */
+    isolation: isolate;
+    /* pas de transform au repos : le script de template_generique.html pose
+       le depart hors ecran puis anime la track (WAAPI linear, fill forwards,
+       positions ENTIERES). */
+}
+
+/* Panneau translucide derriere TOUTE la colonne des credits :
+   ancre = la track -> sa hauteur = hauteur du contenu (+ respiration),
+   il suit donc le defilement sans zone fixe ni modification de la trajectoire.
+   Aplat simple rgba() : ni gradient, ni 3D, ni bordure, ni animation. */
+.ts-credits-track::before {
+    content: "";
+    position: absolute;
+    top: -48px;
+    bottom: -48px;
+    left: -56px;
+    right: -56px;
+    background: var(--ts-cred-panel, rgba(10, 4, 20, 0.75));
+    z-index: -1;                   /* derriere le texte, jamais devant */
+    pointer-events: none;
+}
+
+.cr-block {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;                     /* miroir Python : CR_BLOCK_GAP */
+    text-align: center;
+}
+
+.cr-cat {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--ts-cat-size, 40px);
+    line-height: 1.2;              /* miroir Python : duree dynamique */
+    color: var(--ts-badge-bg);
+    text-transform: uppercase;
+    white-space: nowrap;           /* hauteur deterministe : 1 ligne = 1 ligne */
+}
+
+.cr-name {
+    font-family: var(--font-text);
+    font-weight: 600;
+    font-size: var(--ts-name-size, 36px);
+    line-height: 1.3;              /* miroir Python : duree dynamique */
+    color: var(--ts-name-c);
+    white-space: nowrap;
+}
+
+/* ==========================================================================
+   MODÈLES DE SYNTHÉ INVITE  (paramètre model)
+   ─────────────────────────────────────────────
+   Le modèle "original" n'a AUCUNE règle ici : il est 100 % intact.
+   Animation V2, durée 10 s, alpha, QTRLE, 1080i50 : inchangés.
+   ========================================================================== */
+
+/* Correction globale du texte fonction */
+.ts-role {
+    color: var(--ts-role-c);
+    background: none;
+    -webkit-text-fill-color: unset;
+}
+body.playing .ts-role {
+    animation: none;
+}
+
+/* ==========================================================================
+   MODÈLES MINIMALISTES PREMIUM (Inspiration After Effects Typographiques)
+   ========================================================================== */
+
+/* ---- 1. MINIMAL LIGNE (Séparateur fin, aucun fond) ---- */
+.ts-lower[data-model="minimal-ligne"] .ts-badge { display: none; }
+.ts-lower[data-model="minimal-ligne"] .ts-panel { padding: 0; gap: 10px; }
+.ts-lower[data-model="minimal-ligne"] .ts-panel::before,
+.ts-lower[data-model="minimal-ligne"] .ts-panel::after { display: none; }
+.ts-lower[data-model="minimal-ligne"] .ts-name {
+    font-size: var(--ts-name-size, 70px);
+    font-weight: 600;
+    padding-bottom: 12px;
+    border-bottom: 3px solid var(--ts-border1);
+    letter-spacing: normal;
+}
+.ts-lower[data-model="minimal-ligne"] .ts-role {
+    font-size: var(--ts-role-size, 30px);
+    font-weight: 400;
+    color: var(--ts-role-c);
+}
+
+/* ---- 2. MINIMAL CADRE (Boîte transparente fine) ---- */
+.ts-lower[data-model="minimal-cadre"] .ts-badge {
+    position: absolute; top: -18px; right: 40px; padding: 0 10px; margin: 0;
+    background: transparent; z-index: 10;
+}
+.ts-lower[data-model="minimal-cadre"] .ts-badge::before { display: none; }
+.ts-lower[data-model="minimal-cadre"] .ts-badge-ar,
+.ts-lower[data-model="minimal-cadre"] .ts-badge-la {
+    color: var(--ts-border1); font-size: 22px;
+}
+.ts-lower[data-model="minimal-cadre"] .ts-panel { padding: 25px 50px; gap: 15px; }
+.ts-lower[data-model="minimal-cadre"] .ts-panel::before {
+    transform: none; border: 3px solid var(--ts-border1);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.4); border-radius: 0;
+}
+.ts-lower[data-model="minimal-cadre"] .ts-panel::after { display: none; }
+.ts-lower[data-model="minimal-cadre"] .ts-name {
+    font-size: calc(var(--ts-name-size, 72px) * 0.9);
+    font-weight: 600;
+}
+.ts-lower[data-model="minimal-cadre"] .ts-role {
+    font-size: calc(var(--ts-role-size, 36px) * 0.9);
+}
+
+/* ---- 3. MINIMAL VERTICAL (Ligne gauche épaisse) ---- */
+.ts-lower[data-model="minimal-vertical"] .ts-badge { display: none; }
+.ts-lower[data-model="minimal-vertical"] .ts-panel { padding: 5px 0 5px 25px; gap: 5px; }
+.ts-lower[data-model="minimal-vertical"] .ts-panel::before {
+    transform: none; border: none; border-left: 8px solid var(--ts-border1);
+    border-radius: 0; box-shadow: -5px 0px 15px rgba(0,0,0,0.5);
+}
+.ts-lower[data-model="minimal-vertical"] .ts-panel::after { display: none; }
+.ts-lower[data-model="minimal-vertical"] .ts-name {
+    font-size: var(--ts-name-size, 70px); font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: normal;
+}
+.ts-lower[data-model="minimal-vertical"] .ts-role {
+    font-size: var(--ts-role-size, 35px); font-weight: 300;
+    color: var(--ts-role-c);
+}
+
+
+
+/* ==========================================================================
+   NOUVEAU TITRE INDÉPENDANT (BROADCAST BAND)
+   ========================================================================== */
+
+.ts-titleband {
+    position: absolute;
+    bottom: var(--ts-title-pos-y, 120px);
+    top: auto;
+    left: 0;
+    right: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    text-align: center;
+    z-index: 10;
+}
+
+.ts-titleband-top {
+    position: relative;
+    height: calc(var(--ts-title-band-top-h, 90) * 1px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* overflow: hidden; */ /* Ne pas cacher le texte qui dépasse */
+}
+.ts-titleband-top::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--ts-title-bg-top, #16082B);
+    opacity: calc(var(--ts-title-bg-top-alpha, 95) / 100);
+    z-index: 0;
+}
+
+.ts-titleband-separator {
+    position: relative;
+    height: var(--ts-title-separator-h, 1px);
+    background-color: var(--ts-title-separator, #00E5FF);
+    opacity: 0.4; /* Séparateur plus discret / moins lumineux */
+    z-index: 2;
+}
+
+.ts-titleband-bottom {
+    position: relative;
+    height: calc(var(--ts-title-band-bottom-h, 60) * 1px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.ts-titleband-bottom::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--ts-title-bg-bottom, #000000);
+    opacity: calc(var(--ts-title-bg-bottom-alpha, 50) / 100);
+    z-index: 0;
+}
+
+.ts-titleband-main {
+    position: relative;
+    z-index: 1;
+    font-weight: 700;
+    font-size: calc(var(--ts-title-main-size, 60) * 1px);
+    line-height: 1.2; /* Plus d'air autour du texte */
+    padding-bottom: 0.1em; /* Ajustement optique vertical Kufi */
+    color: var(--ts-title-text-main, #FFFFFF);
+    white-space: nowrap;
+    
+    /* WASH TEXT SHADOW 100% force */
+    text-shadow: 
+        0 1px calc(var(--ts-wash-radius) * 0.33) rgba(0,0,0, calc(var(--ts-wash-intensity) * 0.0070)),
+        0 2px var(--ts-wash-radius)              rgba(0,0,0, calc(var(--ts-wash-intensity) * 0.0032)),
+        0 0   calc(var(--ts-wash-radius) * 2.33) rgba(0,0,0, calc(var(--ts-wash-intensity) * 0.0016));
+}
+
+.ts-titleband-sub {
+    position: relative;
+    z-index: 1;
+    font-weight: 600;
+    font-size: calc(var(--ts-title-sub-size, 36) * 1px);
+    line-height: 1.2;
+    padding-bottom: 0.15em; /* Centrage vertical optique pour sous-titre */
+    color: var(--ts-title-text-sub, #FFFFFF);
+    white-space: nowrap;
+
+    /* WASH TEXT SHADOW ~65% force */
+    text-shadow: 
+        0 1px calc(var(--ts-wash-radius) * 0.33) rgba(0,0,0, calc(var(--ts-wash-intensity) * 0.0045)),
+        0 2px var(--ts-wash-radius)              rgba(0,0,0, calc(var(--ts-wash-intensity) * 0.0020)),
+        0 0   calc(var(--ts-wash-radius) * 2.33) rgba(0,0,0, calc(var(--ts-wash-intensity) * 0.0010));
+}
+
+/* Modificateur ŒIL : cache complètement le haut et le séparateur */
+.ts-titleband.hide-top .ts-titleband-top,
+.ts-titleband.hide-top .ts-titleband-separator {
+    display: none;
+}
+
+/* ==========================================================================
+   NOUVEAU TITRE INDÉPENDANT (BROADCAST BAND)
+   ========================================================================== */
+
+.ts-titleband {
+    position: absolute;
+    bottom: var(--ts-title-pos-y, 120px);
+    top: auto;
+    left: 0;
+    right: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    text-align: center;
+    z-index: 10;
+}
+
+/* Léger overlay de profondeur unifiant tout le bandeau */
+.ts-titleband::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(0, 0, 0, 0.15) 100%);
+    z-index: 1;
+    pointer-events: none;
+}
+
+.ts-titleband-top {
+    position: relative;
+    height: var(--ts-title-band-top-h, 105px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.ts-titleband-top::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--ts-title-bg-top, #182855);
+    opacity: calc(var(--ts-title-bg-top-alpha, 85) / 100);
+    z-index: 0;
+}
+
+.ts-titleband-separator {
+    position: relative;
+    height: var(--ts-title-separator-h, 1px);
+    background-color: var(--ts-title-separator, #FFFFFF);
+    opacity: 0.3; /* Ligne fine et très discrète */
+    z-index: 2;
+}
+
+.ts-titleband-bottom {
+    position: relative;
+    height: var(--ts-title-band-bottom-h, 55px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.ts-titleband-bottom::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--ts-title-bg-bottom, #0C142A);
+    opacity: calc(var(--ts-title-bg-bottom-alpha, 85) / 100);
+    z-index: 0;
+}
+
+.ts-titleband-main {
+    position: relative;
+    z-index: 2; /* Au-dessus de l'overlay global */
+    font-weight: 700;
+    font-size: var(--ts-title-main-size, 68px);
+    line-height: 1.15;
+    padding-bottom: 0.1em;
+    color: var(--ts-title-text-main, #FFFFFF);
+    white-space: nowrap;
+    
+    text-shadow: 
+        0 1px calc(var(--ts-wash-radius) * 0.33) rgba(0,0,0, calc(var(--ts-wash-intensity) * 0.0070)),
+        0 2px var(--ts-wash-radius)              rgba(0,0,0, calc(var(--ts-wash-intensity) * 0.0032)),
+        0 0   calc(var(--ts-wash-radius) * 2.33) rgba(0,0,0, calc(var(--ts-wash-intensity) * 0.0016));
+}
+
+.ts-titleband-sub {
+    position: relative;
+    z-index: 2;
+    font-weight: 600;
+    font-size: var(--ts-title-sub-size, 34px);
+    line-height: 1.15;
+    padding-bottom: 0.12em;
+    color: var(--ts-title-text-sub, #FFFFFF);
+    white-space: nowrap;
+
+    text-shadow: 
+        0 1px calc(var(--ts-wash-radius) * 0.33) rgba(0,0,0, calc(var(--ts-wash-intensity) * 0.0045)),
+        0 2px var(--ts-wash-radius)              rgba(0,0,0, calc(var(--ts-wash-intensity) * 0.0020)),
+        0 0   calc(var(--ts-wash-radius) * 2.33) rgba(0,0,0, calc(var(--ts-wash-intensity) * 0.0010));
+}
+
+/* Modificateur ŒIL : cache complètement le haut et le séparateur */
+.ts-titleband.hide-top .ts-titleband-top,
+.ts-titleband.hide-top .ts-titleband-separator {
+    display: none;
+}
+/* Recentre optiquement si le bas est seul */
+.ts-titleband.hide-top .ts-titleband-sub {
+    padding-bottom: 0.15em;
+}
