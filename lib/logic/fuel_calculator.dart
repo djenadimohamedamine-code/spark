@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class FuelCalculator {
@@ -10,32 +11,45 @@ class FuelCalculator {
   static const double _fuelDensity = 750.0;  // g/L essence SP95
   static const double _afr = 14.7;           // Air-Fuel Ratio stœchiométrique
   DateTime _lastSave = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _isInitialized = false;
+  Future<void>? _initFuture;
+  Future<void> _writeQueue = Future<void>.value();
 
   // Initialise en chargeant la dernière valeur sauvegardée
-  Future<void> init() async {
+  Future<void> init() => _initFuture ??= _initialize();
+
+  Future<void> _initialize() async {
     final prefs = await SharedPreferences.getInstance();
     final savedFuel = prefs.getDouble('last_fuel_level');
-    final lastOdoKm = prefs.getDouble('last_odometer_km') ?? 0.0;
-    final lastTimestamp = prefs.getInt('last_session_timestamp') ?? 0;
-
-    if (savedFuel != null) {
-      currentLiters = savedFuel.clamp(0.0, _tankCapacity);
+    final legacyFuel = savedFuel == null ? prefs.getDouble('fuel_calibration') : null;
+    currentLiters = (savedFuel ?? legacyFuel ?? 15.0).clamp(0.0, _tankCapacity);
+    if (savedFuel == null) {
+      await _enqueueSave(currentLiters);
     }
-    await _save();
+    _isInitialized = true;
   }
 
   // Calibrage manuel par l'utilisateur (bouton dans le menu)
   Future<void> calibrate(double liters) async {
-    currentLiters = liters.clamp(0.0, _tankCapacity);
+    await init();
+    if (!liters.isFinite) throw ArgumentError.value(liters, 'liters');
+    final previous = currentLiters;
+    final calibrated = liters.clamp(0.0, _tankCapacity);
+    currentLiters = calibrated;
+    try {
+      await _enqueueSave(calibrated);
+    } catch (_) {
+      if (currentLiters == calibrated) currentLiters = previous;
+      rethrow;
+    }
     lowFuelAlerted = false;
     _lastAlertedKm = -1;
-    await _save();
-    print("Niveau essence calé à ${liters.toStringAsFixed(1)} litres.");
+    print('Niveau essence calibré.');
   }
 
   // Mise à jour par la consommation calculée (MAF ou MAP)
   void updateVirtualFuel(double lph, double secondsPassed) {
-    if (lph <= 0 || secondsPassed <= 0) return;
+    if (!_isInitialized || !lph.isFinite || !secondsPassed.isFinite || lph <= 0 || secondsPassed <= 0) return;
     double consumedLiters = (lph / 3600.0) * secondsPassed;
     currentLiters = (currentLiters - consumedLiters).clamp(0.0, _tankCapacity);
     _saveAsync();
@@ -69,24 +83,42 @@ class FuelCalculator {
 
   // Mise à jour directe si le PID 012F répond (rare sur Spark)
   void updateRealFuelLevel(double levelPercent, double capacity) {
-    currentLiters = (levelPercent / 100.0) * capacity;
+    if (!_isInitialized || !levelPercent.isFinite || !capacity.isFinite || levelPercent < 0 || levelPercent > 100 || capacity <= 0) return;
+    currentLiters = ((levelPercent / 100.0) * capacity).clamp(0.0, _tankCapacity);
     _saveAsync();
   }
 
   // Km restants estimés selon la consommation configurée
   int get kmRestants => (currentLiters / _consumptionL100 * 100).toInt();
 
-  Future<void> _save() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('last_fuel_level', currentLiters);
-    await prefs.setInt('last_session_timestamp', DateTime.now().millisecondsSinceEpoch);
+  Future<void> save() async {
+    await init();
+    return _enqueueSave(currentLiters);
+  }
+
+  Future<void> _enqueueSave(double litersToSave) {
+    final Future<void> operation = _writeQueue.then((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      if (!await prefs.setDouble('last_fuel_level', litersToSave)) {
+        throw StateError('Fuel level was not saved');
+      }
+      if (!await prefs.setInt('last_session_timestamp', DateTime.now().millisecondsSinceEpoch)) {
+        throw StateError('Fuel timestamp was not saved');
+      }
+    });
+    _writeQueue = operation.then<void>((_) {}, onError: (Object error, StackTrace stack) {});
+    return operation;
   }
 
   void _saveAsync() {
     final now = DateTime.now();
-    if (now.difference(_lastSave).inSeconds >= 30) {
+    if (now.difference(_lastSave) >= const Duration(seconds: 30)) {
       _lastSave = now;
-      _save();
+      unawaited(save().catchError((Object error, StackTrace stack) {
+        _lastSave = DateTime.fromMillisecondsSinceEpoch(0);
+        print('Erreur sauvegarde carburant: $error');
+      }));
     }
   }
+
 }
