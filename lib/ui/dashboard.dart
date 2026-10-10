@@ -76,6 +76,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   StreamSubscription<String>? _obdSubscription;
   Timer? _dataSyncTimer;
+  Timer? _startupTimer;
+  DateTime? _lastSpeedTime;
+  DateTime? _lastRpmTime;
 
   // Ride Tracking (gardé pour compatibilité voix)
   bool isRideActive = false;
@@ -112,16 +115,19 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WakelockPlus.enable();
-    _fuelCalculator.init().catchError((e) => _addLog("FuelCalc init: $e"));
-    _loadFuelCalibration();
+    _fuelCalculator.init().then((_) {
+      if (mounted) setState(() {});
+    }).catchError((Object error) {
+      if (mounted) _addLog('FuelCalc init: $error');
+    });
     _startDataSync();
     _voiceService.init().catchError((e) => _addLog("Voice init: $e"));
     _addLog("MIMO_OBD Démarré");
     
     // On attend 2 secondes pour activer le bouclier puis connecter l'OBD
-    Timer(const Duration(seconds: 2), () async {
+    _startupTimer = Timer(const Duration(seconds: 2), () async {
       await _activateNativeShield();
-      _connectObd();
+      if (mounted) _connectObd();
     });
 
     // Vérifier s'il y a eu un crash précédent
@@ -188,56 +194,25 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   }
 
   void _startDataSync() {
-    _dataSyncTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) async {
-      final prefs = await SharedPreferences.getInstance();
-      
-      if (mounted) {
-        setState(() {
-          rpm = prefs.getDouble(SparkServiceKeys.rpm) ?? rpm;
-          speed = prefs.getDouble(SparkServiceKeys.speed) ?? speed;
-          temperature = prefs.getDouble(SparkServiceKeys.temp) ?? temperature;
-          tension = prefs.getDouble(SparkServiceKeys.voltage) ?? tension;
-          
-          // Update Gear
-          currentGear = (speed < 5 || rpm < 1000) ? 'N' : GearCalculator.calculateGear(rpm.toInt(), speed.toInt());
-          
-          // Update Fuel from Service Lph
-          double lph = prefs.getDouble(SparkServiceKeys.fuelLph) ?? 0.0;
-          if (lph > 0) {
-             _fuelCalculator.updateVirtualFuel(lph, 0.5); 
-          }
-
-          // Update Ride Distance if active
-          if (isRideActive && speed > 0) {
-            rideDistance += (speed * (0.5 / 3600.0));
-          }
-          // Sync raw telegram for Scan DTC / Logs
-          String? raw = prefs.getString(SparkServiceKeys.rawTelegram);
-          if (raw != null && _obdService.socket == null) {
-             _appendLog(raw);
-             _parseObdData(raw);
-          }
-        });
-        
-        // Clear to avoid duplicate processing (must be outside setState)
-        String? raw = prefs.getString(SparkServiceKeys.rawTelegram);
-        if (raw != null && _obdService.socket == null) {
-             await prefs.remove(SparkServiceKeys.rawTelegram);
+    _dataSyncTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+      if (!mounted) return;
+      final now = DateTime.now();
+      final speedAge = _lastSpeedTime == null ? null : now.difference(_lastSpeedTime!);
+      final rpmAge = _lastRpmTime == null ? null : now.difference(_lastRpmTime!);
+      final speedFresh = speedAge != null && speedAge >= Duration.zero &&
+          speedAge <= const Duration(seconds: 2);
+      final rpmFresh = rpmAge != null && rpmAge >= Duration.zero &&
+          rpmAge <= const Duration(seconds: 6);
+      final validSpeed = speedFresh ? speed : 0.0;
+      setState(() {
+        currentGear = (!rpmFresh || validSpeed < 5 || rpm < 1000)
+            ? 'N'
+            : GearCalculator.calculateGear(rpm.toInt(), validSpeed.toInt());
+        if (isRideActive && validSpeed > 0) {
+          rideDistance += validSpeed * (0.5 / 3600.0);
         }
-      }
+      });
     });
-  }
-
-  Future<void> _loadFuelCalibration() async {
-    final prefs = await SharedPreferences.getInstance();
-    double savedFuel = prefs.getDouble('fuel_calibration') ?? 15.0; // 15L par défaut
-    _fuelCalculator.calibrate(savedFuel);
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _saveFuelCalibration(double val) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('fuel_calibration', val);
   }
 
   bool _wasPaused = false;
@@ -246,6 +221,13 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
       _wasPaused = true;
+      _lastSpeedTime = null;
+      _lastRpmTime = null;
+      _smoothLph = 0.0;
+      lastMafTime = DateTime.now();
+      unawaited(_fuelCalculator.save().catchError((Object error, StackTrace stack) {
+        debugPrint('Sauvegarde carburant cycle de vie: $error');
+      }));
     }
     if (state == AppLifecycleState.resumed && _wasPaused) {
       _wasPaused = false;
@@ -330,10 +312,14 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
               style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
               onPressed: () async {
                 Navigator.pop(ctx);
-                _fuelCalculator.calibrate(tempFuel);
-                await _saveFuelCalibration(tempFuel); // Sauvegarde persistante
-                setState(() {}); 
-                _addLog("Calibrage du carburant enregistré.");
+                try {
+                  await _fuelCalculator.calibrate(tempFuel);
+                  if (!mounted) return;
+                  setState(() {});
+                  _addLog('Calibrage du carburant enregistré.');
+                } catch (error) {
+                  if (mounted) _addLog('Calibrage non enregistré: $error');
+                }
               },
               child: const Text('CALER AIGUILLE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
             ),
@@ -347,7 +333,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   void _connectObd() async {
     bool connected = await _obdService.connect();
-    if (connected) {
+    if (connected && mounted) {
       _obdSubscription?.cancel();
       _obdSubscription = _obdService.dataStream.listen((data) {
         if (mounted) {
@@ -394,12 +380,15 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
         switch (pid) {
           case '0C': // RPM (2 octets)
             if (i + 3 < parts.length) {
-              int a = int.tryParse(parts[i + 2], radix: 16) ?? 0;
-              int b = int.tryParse(parts[i + 3], radix: 16) ?? 0;
-              double newRpm = ((a * 256) + b) / 4.0;
-              _buffer['rpm'] = newRpm;
-              _buffer['gear'] = (speed < 5 || newRpm < 1000) ? 'N' : GearCalculator.calculateGear(newRpm.toInt(), speed.toInt());
-              _checkAlert("RPM_HIGH", newRpm, 3500, 7, "Mimo, réduit les gaz, 3500 tours !");
+              final a = int.tryParse(parts[i + 2], radix: 16);
+              final b = int.tryParse(parts[i + 3], radix: 16);
+              if (a != null && b != null && a >= 0 && b >= 0 && a <= 255 && b <= 255) {
+                final double newRpm = ((a * 256) + b) / 4.0;
+                _lastRpmTime = DateTime.now();
+                _buffer['rpm'] = newRpm;
+                _buffer['gear'] = (speed < 5 || newRpm < 1000) ? 'N' : GearCalculator.calculateGear(newRpm.toInt(), speed.toInt());
+                _checkAlert("RPM_HIGH", newRpm, 3500, 7, "Mimo, réduit les gaz, 3500 tours !");
+              }
             }
             break;
 
@@ -418,32 +407,51 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
           case '0D': // SPEED (1 octet) - valeur brute OBD2
             if (i + 2 < parts.length) {
-              double rawSpeed = (int.tryParse(parts[i + 2], radix: 16) ?? 0).toDouble();
-              _buffer['speed'] = rawSpeed;
+              final parsedSpeed = int.tryParse(parts[i + 2], radix: 16);
+              if (parsedSpeed != null && parsedSpeed >= 0 && parsedSpeed <= 255) {
+                _buffer['speed'] = parsedSpeed.toDouble();
+                _lastSpeedTime = DateTime.now();
+              }
             }
             break;
 
           case '0F': // IAT (Température d'admission d'air)
             if (i + 2 < parts.length) {
-              _iat = (int.tryParse(parts[i + 2], radix: 16) ?? 40).toDouble() - 40.0;
+              final parsedIat = int.tryParse(parts[i + 2], radix: 16);
+              if (parsedIat != null && parsedIat >= 0 && parsedIat <= 255) {
+                _iat = parsedIat.toDouble() - 40.0;
+              }
             }
             break;
 
           case '0B': // MAP (pour MAF Virtuel)
             if (i + 2 < parts.length) {
-              int mapKpa = int.tryParse(parts[i + 2], radix: 16) ?? 0;
-              final double currentRpm = _buffer['rpm'] ?? rpm;
-              final double tempK = _iat + 273.15; // Utilise la vraie IAT (temp d'admission)
-              double ve = 0.75 + (currentRpm / 10000.0); // VE dynamique estimée pour Spark
-              // Cylindrée de 0.8L (multiplié par 0.8)
-              double mafGs = (currentRpm * mapKpa / 120.0) * ve * (28.97 / 8.314) / tempK * 0.8;
-              double rawLph = _fuelCalculator.calculateConsumptionLph(mafGs);
-              _smoothLph = (_smoothLph == 0) ? rawLph : (_smoothLph * 0.9) + (rawLph * 0.1);
-              
-              DateTime now = DateTime.now();
-              double delta = now.difference(lastMafTime).inMilliseconds / 1000.0;
+              final parsedMap = int.tryParse(parts[i + 2], radix: 16);
+              if (parsedMap == null || parsedMap <= 0 || parsedMap > 255) break;
+              final now = DateTime.now();
+              final delta = now.difference(lastMafTime).inMilliseconds / 1000.0;
               lastMafTime = now;
-              _fuelCalculator.updateVirtualFuel(_smoothLph, delta);
+              final rpmAge = _lastRpmTime == null ? null : now.difference(_lastRpmTime!);
+              final rpmFresh = rpmAge != null && rpmAge >= Duration.zero &&
+                  rpmAge <= const Duration(seconds: 6);
+              final double currentRpm = _buffer['rpm'] ?? rpm;
+              if (!rpmFresh || currentRpm <= 0) {
+                _smoothLph = 0.0;
+                break;
+              }
+              final double tempK = _iat + 273.15;
+              final double ve = 0.75 + (currentRpm / 10000.0);
+              final double mafGs = (currentRpm * parsedMap / 120.0) * ve *
+                  (28.97 / 8.314) / tempK * 0.8;
+              final double rawLph = _fuelCalculator.calculateConsumptionLph(mafGs);
+              if (delta <= 0 || delta > 3.0) {
+                _smoothLph = rawLph;
+              } else {
+                _smoothLph = (_smoothLph == 0)
+                    ? rawLph
+                    : (_smoothLph * 0.9) + (rawLph * 0.1);
+                _fuelCalculator.updateVirtualFuel(_smoothLph, delta);
+              }
             }
             break;
         }
@@ -1228,10 +1236,16 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     WakelockPlus.disable();
+    _startupTimer?.cancel();
     _uiTimer?.cancel();
+    _dataSyncTimer?.cancel();
     _obdSubscription?.cancel();
     _obdService.dispose();
+    unawaited(_fuelCalculator.save().catchError((Object error, StackTrace stack) {
+      debugPrint('Sauvegarde carburant fermeture: $error');
+    }));
     super.dispose();
   }
 }
