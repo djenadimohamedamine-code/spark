@@ -1,7 +1,7 @@
-name: Mimo-Spark-iOS-Build-IPA
+name: MVS7000-iOS-Build-IPA
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "mvs7000_simulator" ]
   workflow_dispatch:
 
 jobs:
@@ -22,29 +22,6 @@ jobs:
           rm -rf ios
           flutter create --platforms=ios .
 
-      - name: Inject_iOS_Permissions
-        run: |
-          PLIST="ios/Runner/Info.plist"
-          # GPS / Localisation
-          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Mimo Spark utilise votre position pour la navigation GPS et le suivi de trajet'" $PLIST
-          /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Mimo Spark utilise votre position en arriere-plan pour le suivi GPS'" $PLIST
-          /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysUsageDescription string 'Navigation requise en arriere-plan pour la vue satellite'" $PLIST
-          # Reseau local (OBD2 WiFi)
-          /usr/libexec/PlistBuddy -c "Add :NSLocalNetworkUsageDescription string 'Requis pour communiquer avec le dongle OBD2 WiFi'" $PLIST
-          # Microphone et Reconnaissance vocale
-          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Mimo Spark utilise le microphone pour l assistant vocal'" $PLIST
-          /usr/libexec/PlistBuddy -c "Add :NSSpeechRecognitionUsageDescription string 'Reconnaissance vocale pour les commandes mains-libres'" $PLIST
-          # Bluetooth (OBD2)
-          /usr/libexec/PlistBuddy -c "Add :NSBluetoothAlwaysUsageDescription string 'Connexion Bluetooth a l adaptateur OBD2'" $PLIST
-          /usr/libexec/PlistBuddy -c "Add :NSBluetoothPeripheralUsageDescription string 'Connexion Bluetooth a l adaptateur OBD2'" $PLIST
-          # Camera (HUD)
-          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Mimo Spark utilise la camera pour le scan HUD'" $PLIST
-          # Modes background
-          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" $PLIST
-          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string location" $PLIST
-          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" $PLIST
-          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:2 string processing" $PLIST
-
       - name: Get_Deps
         run: |
           flutter config --enable-ios
@@ -58,10 +35,10 @@ jobs:
           cd build/ios/iphoneos
           mkdir -p Payload
           cp -r Runner.app Payload/
-          zip -r MIMO_SPARK.ipa Payload
+          zip -r MVS7000_SIMULATOR.ipa Payload
 
       - name: Upload_Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mimo-spark-ipa
-          path: build/ios/iphoneos/MIMO_SPARK.ipa
+          name: MVS7000-iOS-IPA
+          path: build/ios/iphoneos/MVS7000_SIMULATOR.ipa
