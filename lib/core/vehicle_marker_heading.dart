@@ -18,6 +18,11 @@ class VehicleMarkerHeading {
     return rotation < 0 ? rotation + 360.0 : rotation;
   }
 
+  /// Rotate the map against the heading while following, so the direction
+  /// of travel is up. Markers already inherit this rotation from flutter_map.
+  static double followingCameraDegrees(double gpsHeadingDegrees) =>
+      -((gpsHeadingDegrees % 360 + 360) % 360);
+
   static double rotationRadians(double gpsHeadingDegrees) =>
       rotationDegrees(gpsHeadingDegrees) * math.pi / 180.0;
 }

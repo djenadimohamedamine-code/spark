@@ -166,7 +166,11 @@ class _MapPageState extends State<MapPage> {
     if (!mounted) return;
     double targetZoom = (speedKmh > 80) ? 16.0 : (speedKmh > 40) ? 17.0 : 18.2;
     // A fixed northward offset misplaces the car when heading south.
-    _mapController.move(LatLng(pos.latitude, pos.longitude), targetZoom);
+    _mapController.moveAndRotate(
+      LatLng(pos.latitude, pos.longitude),
+      targetZoom,
+      VehicleMarkerHeading.followingCameraDegrees(_lastHeading),
+    );
   }
 
   // Après un déplacement manuel, ne pas laisser le suivi GPS désactivé

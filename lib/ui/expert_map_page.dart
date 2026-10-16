@@ -168,9 +168,7 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
             (targetMap.latitude - currentMap.latitude) * 0.1;
         final lngMap = currentMap.longitude +
             (targetMap.longitude - currentMap.longitude) * 0.1;
-        double rotMap = (-_lastHeading) % 360;
-        if (rotMap > 180) rotMap -= 360;
-        if (rotMap < -180) rotMap += 360;
+        final rotMap = VehicleMarkerHeading.followingCameraDegrees(_lastHeading);
         _mapController.moveAndRotate(LatLng(latMap, lngMap), _zoomMap, rotMap);
         mapDone = (latMap - targetMap.latitude).abs() < 0.000001 &&
             (lngMap - targetMap.longitude).abs() < 0.000001;

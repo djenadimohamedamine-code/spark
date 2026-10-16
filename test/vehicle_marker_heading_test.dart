@@ -116,5 +116,21 @@ void main() {
         closeTo(65 * 3.141592653589793 / 180, 0.000001),
       );
     });
+    test('following camera keeps photo upright and nose forward for every cap', () {
+      for (var heading = 0; heading < 360; heading++) {
+        final camera = VehicleMarkerHeading.followingCameraDegrees(
+          heading.toDouble(),
+        );
+        final sprite = VehicleMarkerHeading.rotationDegrees(heading.toDouble());
+        // The photo stays at its north-facing correction on screen, even
+        // when travelling south. Do not subtract the camera a second time.
+        final screenRotation = (camera + sprite + 360) % 360;
+        expect(screenRotation, closeTo(65, 0.001));
+        final noseOnScreen = (screenRotation +
+            VehicleMarkerHeading.spriteNoseBearingDegrees) % 360;
+        expect(noseOnScreen, closeTo(0, 0.001));
+      }
+    });
+
   });
 }
