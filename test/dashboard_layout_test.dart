@@ -105,6 +105,13 @@ void main() {
       expect(find.byKey(const Key('landscape_add_fuel_button')), findsOneWidget);
       expect(find.byKey(const Key('landscape_fuel_calibration')), findsOneWidget);
       expect(find.byType(FuelGaugeWidget), findsOneWidget);
+      final fuel = tester.getRect(find.byKey(const Key('landscape_fuel_pole')));
+      final speed = tester.getRect(find.byKey(const Key('landscape_speed_pole')));
+      final rpm = tester.getRect(find.byKey(const Key('landscape_rpm_pole')));
+      // Les trois pôles ne se chevauchent pas et le cadran central est prioritaire.
+      expect(fuel.right, lessThanOrEqualTo(speed.left + 1));
+      expect(speed.right, lessThanOrEqualTo(rpm.left + 1));
+      expect(speed.width, greaterThan(fuel.width));
       expect(tester.takeException(), isNull);
     });
   });

@@ -912,6 +912,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                           children: [
                             Expanded(
                               child: Center(
+                                key: const Key('landscape_speed_pole'),
                                 child: _buildSpeedGauge(
                                   isLandscape: true,
                                   heightOverride: speedHeight,
@@ -953,6 +954,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                       Expanded(
                         flex: 33,
                         child: Center(
+                          key: const Key('landscape_rpm_pole'),
                           child: _buildRpmGauge(
                             isLandscape: true,
                             heightOverride: rpmHeight,
@@ -979,6 +981,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     final fuelLiters = _fuelCalculator.currentLiters;
 
     return Container(
+      key: const Key('landscape_fuel_pole'),
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       decoration: BoxDecoration(
