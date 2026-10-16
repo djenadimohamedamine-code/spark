@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mimo_spark/logic/fuel_calculator.dart';
+import 'package:mimo_spark/data/database_helper.dart';
+import 'helpers/fake_database.dart';
 
 // FuelCalculator uses an estimated fuel level, not a direct tank measurement.
 // Real-time OBD integration and the gauge appearance still need iPhone testing.
@@ -13,6 +15,10 @@ double expectedNeedleAngle(double liters) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    DatabaseHelper().setDatabaseForTesting(FakeDatabase());
+  });
 
   group('Fuel gauge geometry (mathematical reference)', () {
     test('0 L E, 17.5 L middle, 35 L F', () {
@@ -38,6 +44,7 @@ void main() {
   group('FuelCalculator with mocked SharedPreferences', () {
     setUp(() {
       SharedPreferences.setMockInitialValues(<String, Object>{});
+      DatabaseHelper().setDatabaseForTesting(FakeDatabase());
     });
 
     test('initializes in uncalibrated state when no value exists (no arbitrary guess)', () async {
@@ -146,6 +153,7 @@ void main() {
   group('Fuel refill (Fonctionnalité 1 — V3.1)', () {
     setUp(() {
       SharedPreferences.setMockInitialValues(<String, Object>{});
+      DatabaseHelper().setDatabaseForTesting(FakeDatabase());
     });
 
     test('Ajout de 10 L à 9,3 L donne exactement 19,3 L', () async {

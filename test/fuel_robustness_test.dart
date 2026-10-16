@@ -12,8 +12,9 @@ void main() {
   group('MIMO SPARK V3.1 — Tests de Robustesse Carburant & SQLite Source de Vérité', () {
     setUp(() {
       SharedPreferences.setMockInitialValues(<String, Object>{});
-      DatabaseHelper().setDatabaseForTesting(null);
+      DatabaseHelper().setDatabaseForTesting(FakeDatabase());
     });
+
 
     tearDown(() {
       DatabaseHelper().setDatabaseForTesting(null);
@@ -359,12 +360,13 @@ void main() {
       expect(sessionBefore['total_spent'], 800.0); // 500 (plein) + 300 (lavage)
 
       // 3. Annulation du plein après archivage de la session
-      final cancelSuccess = await DatabaseHelper().cancelFuelRefill(refill.id, deductLiters: false);
-      expect(cancelSuccess, isTrue);
+      final cancelResult = await DatabaseHelper().cancelFuelRefill(refill.id, deductLiters: false);
+      expect(cancelResult.success, isTrue);
 
       // Tentative de ré-annulation (test d'idempotence stricte)
       final secondCancel = await DatabaseHelper().cancelFuelRefill(refill.id, deductLiters: false);
-      expect(secondCancel, isFalse);
+      expect(secondCancel.success, isFalse);
+      expect(secondCancel.alreadyCanceled, isTrue);
 
       // 4. Contrôles comptables et de traçabilité
       // La dépense originale de 500 DA est préservée pour l'historique

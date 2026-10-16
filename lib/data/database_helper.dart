@@ -3,6 +3,22 @@ import 'package:path/path.dart';
 import 'ride_model.dart';
 import 'fuel_refill_model.dart';
 
+class CancelRefillResult {
+  final bool success;
+  final bool alreadyCanceled;
+  final bool deductLitersApplied;
+  final double? newFuelLevel;
+  final double? litersDeducted;
+
+  CancelRefillResult({
+    required this.success,
+    this.alreadyCanceled = false,
+    this.deductLitersApplied = false,
+    this.newFuelLevel,
+    this.litersDeducted,
+  });
+}
+
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
   factory DatabaseHelper() => _instance;
@@ -24,11 +40,12 @@ class DatabaseHelper {
     final path = join(await getDatabasesPath(), 'mimo_spark.db');
     return openDatabase(
       path,
-      version: 5, // Montée en version 5 pour la persistance durable du carburant (fuel_state)
+      version: 6, // Version 6 : état non calibré persistant et intégrité comptable
       onCreate: createTables,
       onUpgrade: upgradeTables,
     );
   }
+
 
   static Future<void> createTables(Database db, int version) async {
     await db.execute('''
@@ -74,8 +91,8 @@ class DatabaseHelper {
         liters          REAL NOT NULL,
         price_per_liter REAL NOT NULL,
         total_amount    REAL NOT NULL,
-        level_before    REAL NOT NULL,
-        level_after     REAL NOT NULL,
+        level_before    REAL,
+        level_after     REAL,
         status          TEXT NOT NULL DEFAULT 'committed',
         canceled        INTEGER NOT NULL DEFAULT 0,
         expense_id      INTEGER
@@ -88,7 +105,8 @@ class DatabaseHelper {
         updated_at    INTEGER NOT NULL,
         event_type    TEXT NOT NULL,
         reference_id  TEXT,
-        last_calib_ts INTEGER NOT NULL DEFAULT 0
+        last_calib_ts INTEGER NOT NULL DEFAULT 0,
+        is_calibrated INTEGER NOT NULL DEFAULT 0
       )
     ''');
   }
@@ -111,8 +129,8 @@ class DatabaseHelper {
           liters          REAL NOT NULL,
           price_per_liter REAL NOT NULL,
           total_amount    REAL NOT NULL,
-          level_before    REAL NOT NULL,
-          level_after     REAL NOT NULL,
+          level_before    REAL,
+          level_after     REAL,
           status          TEXT NOT NULL DEFAULT 'committed',
           canceled        INTEGER NOT NULL DEFAULT 0,
           expense_id      INTEGER
@@ -137,9 +155,50 @@ class DatabaseHelper {
           updated_at    INTEGER NOT NULL,
           event_type    TEXT NOT NULL,
           reference_id  TEXT,
-          last_calib_ts INTEGER NOT NULL DEFAULT 0
+          last_calib_ts INTEGER NOT NULL DEFAULT 0,
+          is_calibrated INTEGER NOT NULL DEFAULT 0
         )
       ''');
+    }
+    if (oldVersion < 6) {
+      // 1. Rendre level_before et level_after nullables si créés avec NOT NULL (v4/v5)
+      final refillCols = await db.rawQuery('PRAGMA table_info(fuel_refills)');
+      final levelBeforeCol = refillCols.firstWhere(
+        (c) => c['name'] == 'level_before',
+        orElse: () => <String, Object?>{},
+      );
+      if (levelBeforeCol['notnull'] == 1) {
+        await db.execute('''
+          CREATE TABLE fuel_refills_v6 (
+            id              TEXT PRIMARY KEY,
+            timestamp       INTEGER NOT NULL,
+            date            TEXT NOT NULL,
+            liters          REAL NOT NULL,
+            price_per_liter REAL NOT NULL,
+            total_amount    REAL NOT NULL,
+            level_before    REAL,
+            level_after     REAL,
+            status          TEXT NOT NULL DEFAULT 'committed',
+            canceled        INTEGER NOT NULL DEFAULT 0,
+            expense_id      INTEGER
+          )
+        ''');
+        await db.execute('''
+          INSERT INTO fuel_refills_v6 (id, timestamp, date, liters, price_per_liter, total_amount, level_before, level_after, status, canceled, expense_id)
+          SELECT id, timestamp, date, liters, price_per_liter, total_amount, level_before, level_after, status, canceled, expense_id
+          FROM fuel_refills
+        ''');
+        await db.execute('DROP TABLE fuel_refills');
+        await db.execute('ALTER TABLE fuel_refills_v6 RENAME TO fuel_refills');
+      }
+
+      // 2. Ajouter is_calibrated à fuel_state si absent
+      final stateCols = await db.rawQuery('PRAGMA table_info(fuel_state)');
+      final hasIsCalibrated = stateCols.any((c) => c['name'] == 'is_calibrated');
+      if (!hasIsCalibrated) {
+        await db.execute('ALTER TABLE fuel_state ADD COLUMN is_calibrated INTEGER NOT NULL DEFAULT 0');
+      }
+      await db.execute("UPDATE fuel_state SET is_calibrated = CASE WHEN event_type = 'UNCALIBRATED' THEN 0 ELSE 1 END WHERE is_calibrated = 0");
     }
   }
 
@@ -257,12 +316,56 @@ class DatabaseHelper {
     return db.query('expenses', where: 'session_id = ?', whereArgs: [sessionId]);
   }
 
-  Future<void> deleteExpense(int id) async {
+  Future<bool> deleteExpense(int id) async {
     final db = await database;
-    await db.transaction((txn) async {
-      await txn.update('fuel_refills', {'canceled': 1, 'status': 'canceled'}, where: 'expense_id = ?', whereArgs: [id]);
-      await txn.delete('expenses', where: 'id = ?', whereArgs: [id]);
+    return await db.transaction<bool>((txn) async {
+      return await _deleteExpenseInTxn(txn, id);
     });
+  }
+
+  Future<bool> _deleteExpenseInTxn(DatabaseExecutor txn, int id) async {
+    final rows = await txn.query('expenses', where: 'id = ?', whereArgs: [id], limit: 1);
+    if (rows.isEmpty) return false;
+    final expense = rows.first;
+    final type = expense['type'] as String;
+    final amount = (expense['amount_da'] as num).toDouble();
+    final sessionId = expense['session_id'] as int?;
+
+    // 1. Interdiction absolue de supprimer directement une contre-passation d'annulation
+    if (type == 'FUEL_CANCEL') {
+      throw StateError("Impossible de supprimer une contre-passation d'annulation (FUEL_CANCEL) : intégrité comptable protégée.");
+    }
+
+    // 2. Si c'est une dépense de carburant (FUEL), vérifier si un plein fuel_refills est associé
+    if (type == 'FUEL') {
+      final refillRows = await txn.query('fuel_refills', where: 'expense_id = ?', whereArgs: [id], limit: 1);
+      if (refillRows.isNotEmpty) {
+        final refillId = refillRows.first['id'] as String;
+        final result = await _cancelFuelRefillInTxn(txn, refillId, deductLiters: false);
+        return result.success;
+      }
+      // Dépense FUEL historique sans fuel_refills associé : suppression financière simple
+    }
+
+    // 3. Pour toute dépense (ordinaire ou FUEL historique), si elle appartient à une session archivée,
+    // ajuster atomiquement sessions.total_spent pour maintenir la stricte cohérence comptable !
+    if (sessionId != null) {
+      await txn.rawUpdate(
+        'UPDATE sessions SET total_spent = total_spent - ? WHERE id = ?',
+        [amount, sessionId],
+      );
+    }
+
+    await txn.delete('expenses', where: 'id = ?', whereArgs: [id]);
+    return true;
+  }
+
+  /// Récupère un plein via l'identifiant de la dépense associée.
+  Future<FuelRefill?> getFuelRefillByExpenseId(int expenseId) async {
+    final db = await database;
+    final maps = await db.query('fuel_refills', where: 'expense_id = ?', whereArgs: [expenseId]);
+    if (maps.isEmpty) return null;
+    return FuelRefill.fromMap(maps.first);
   }
 
   // ── Source de vérité durable du carburant (fuel_state) ───────────────────
@@ -277,29 +380,48 @@ class DatabaseHelper {
 
   /// Met à jour l'état persistant du carburant de manière durable et strictement atomique.
   /// Protège contre l'écrasement par des écritures asynchrones obsolètes (now < updated_at).
-  /// Exécute un UPDATE conditionnel atomique (WHERE id = 1 AND updated_at <= now) dans une transaction SQLite,
-  /// garantissant qu'aucun SELECT séparé ne peut introduire de faille de concurrence.
+  /// En cas d'égalité (updated_at == now), REFILL et CALIBRATION ont la priorité absolue sur OBD_SYNC.
   Future<bool> setFuelState({
     required double liters,
     required String eventType,
     String? referenceId,
     int? lastCalibTs,
+    bool? isCalibrated,
     int? updatedAt,
   }) async {
     final db = await database;
     final now = updatedAt ?? DateTime.now().millisecondsSinceEpoch;
+    final isCalibratedInt = isCalibrated == null ? null : (isCalibrated ? 1 : 0);
 
     return await db.transaction<bool>((txn) async {
-      // 1. UPDATE atomique conditionnel : uniquement si updated_at <= now
+      // 1. UPDATE atomique conditionnel : uniquement si updated_at < now OU
+      // si updated_at == now avec priorité aux événements métier majeurs
       final rowsUpdated = await txn.rawUpdate('''
         UPDATE fuel_state
         SET liters = ?,
             updated_at = ?,
             event_type = ?,
             reference_id = ?,
-            last_calib_ts = CASE WHEN ? IS NOT NULL THEN ? ELSE last_calib_ts END
-        WHERE id = 1 AND updated_at <= ?
-      ''', [liters, now, eventType, referenceId, lastCalibTs, lastCalibTs ?? 0, now]);
+            last_calib_ts = CASE WHEN ? IS NOT NULL THEN ? ELSE last_calib_ts END,
+            is_calibrated = CASE WHEN ? IS NOT NULL THEN ? ELSE is_calibrated END
+        WHERE id = 1 AND (
+          updated_at < ? OR
+          (updated_at = ? AND (event_type != 'REFILL' AND event_type != 'CALIBRATION' OR ? = 'REFILL' OR ? = 'CALIBRATION'))
+        )
+      ''', [
+        liters,
+        now,
+        eventType,
+        referenceId,
+        lastCalibTs,
+        lastCalibTs ?? 0,
+        isCalibratedInt,
+        isCalibratedInt ?? 0,
+        now,
+        now,
+        eventType,
+        eventType,
+      ]);
 
       if (rowsUpdated > 0) {
         return true;
@@ -308,7 +430,7 @@ class DatabaseHelper {
       // 2. Si aucune ligne n'a été modifiée, vérifier si la ligne id = 1 existe déjà
       final existing = await txn.query('fuel_state', where: 'id = 1', limit: 1);
       if (existing.isNotEmpty) {
-        // La ligne existe avec un updated_at plus récent (> now) : rejet atomique sans course
+        // La ligne existe avec un updated_at plus récent (> now) ou priorité plus haute : rejet atomique
         return false;
       }
 
@@ -320,6 +442,7 @@ class DatabaseHelper {
         'event_type': eventType,
         'reference_id': referenceId,
         'last_calib_ts': lastCalibTs ?? 0,
+        'is_calibrated': isCalibratedInt ?? (eventType == 'UNCALIBRATED' ? 0 : 1),
       });
       return true;
     });
@@ -345,14 +468,17 @@ class DatabaseHelper {
   Future<FuelRefill> recordFuelRefill({
     required double liters,
     required double pricePerLiter,
-    required double levelBefore,
-    required double levelAfter,
+    double? levelBefore,
+    double? levelAfter,
     int? lastCalibTs,
     String? customId,
+    int? timestamp,
+    bool isCalibrated = true,
+    String eventType = 'REFILL',
   }) async {
     final db = await database;
-    final now = DateTime.now();
-    final nowMs = now.millisecondsSinceEpoch;
+    final nowMs = timestamp ?? DateTime.now().millisecondsSinceEpoch;
+    final now = DateTime.fromMillisecondsSinceEpoch(nowMs);
     final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
     final totalAmount = liters * pricePerLiter;
     final refillId = customId ?? 'refill_$nowMs';
@@ -394,13 +520,16 @@ class DatabaseHelper {
         }
       }
 
+      final stateLiters = levelAfter ?? (existingState.isNotEmpty ? (existingState.first['liters'] as num).toDouble() : 0.0);
+
       await txn.insert('fuel_state', {
         'id': 1,
-        'liters': levelAfter,
+        'liters': stateLiters,
         'updated_at': refillCommitTs,
-        'event_type': 'REFILL',
+        'event_type': eventType,
         'reference_id': refillId,
         'last_calib_ts': currentCalibTs,
+        'is_calibrated': isCalibrated ? 1 : 0,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
     });
 
@@ -425,87 +554,120 @@ class DatabaseHelper {
   /// - Si la session associée est archivée : contre-passation traçable dans `expenses` (`type = 'FUEL_CANCEL'`, `amount_da = -totalAmount`)
   ///   et ajustement arithmétique rigoureux de `sessions.total_spent = total_spent - totalAmount`.
   /// - Si `deductLiters == true` et qu'aucun calibrage manuel n'a eu lieu après le plein, ajuste également `fuel_state`.
-  Future<bool> cancelFuelRefill(
+  Future<CancelRefillResult> cancelFuelRefill(
     String refillId, {
     bool deductLiters = false,
+    int? timestamp,
   }) async {
     final db = await database;
-    final now = DateTime.now();
-    final nowMs = now.millisecondsSinceEpoch;
+    return await db.transaction<CancelRefillResult>((txn) async {
+      return await _cancelFuelRefillInTxn(
+        txn,
+        refillId,
+        deductLiters: deductLiters,
+        timestamp: timestamp,
+      );
+    });
+  }
+
+  Future<CancelRefillResult> _cancelFuelRefillInTxn(
+    DatabaseExecutor txn,
+    String refillId, {
+    bool deductLiters = false,
+    int? timestamp,
+  }) async {
+    final nowMs = timestamp ?? DateTime.now().millisecondsSinceEpoch;
+    final now = DateTime.fromMillisecondsSinceEpoch(nowMs);
     final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
-    return await db.transaction<bool>((txn) async {
-      // 1. Verrouillage atomique anti-double annulation (WHERE id = ? AND canceled = 0)
-      final rowsAffected = await txn.update(
-        'fuel_refills',
-        {'canceled': 1, 'status': 'canceled'},
-        where: 'id = ? AND canceled = 0',
-        whereArgs: [refillId],
-      );
-      if (rowsAffected == 0) return false; // Déjà annulé ou inexistant (idempotent)
+    // 1. Verrouillage atomique anti-double annulation (WHERE id = ? AND canceled = 0)
+    final rowsAffected = await txn.update(
+      'fuel_refills',
+      {'canceled': 1, 'status': 'canceled'},
+      where: 'id = ? AND canceled = 0',
+      whereArgs: [refillId],
+    );
+    if (rowsAffected == 0) {
+      // Déjà annulé ou inexistant : opération strictement idempotente
+      return CancelRefillResult(success: false, alreadyCanceled: true);
+    }
 
-      final maps = await txn.query('fuel_refills', where: 'id = ?', whereArgs: [refillId], limit: 1);
-      if (maps.isEmpty) return false;
-      final refill = FuelRefill.fromMap(maps.first);
+    final maps = await txn.query('fuel_refills', where: 'id = ?', whereArgs: [refillId], limit: 1);
+    if (maps.isEmpty) {
+      return CancelRefillResult(success: false, alreadyCanceled: true);
+    }
+    final refill = FuelRefill.fromMap(maps.first);
 
-      // 2. Traitement de la dépense financière
-      if (refill.expenseId != null) {
-        final expenseRows = await txn.query('expenses', where: 'id = ?', whereArgs: [refill.expenseId], limit: 1);
-        if (expenseRows.isNotEmpty) {
-          final expense = expenseRows.first;
-          final sessionId = expense['session_id'] as int?;
+    // 2. Traitement financier de la dépense
+    if (refill.expenseId != null) {
+      final expenseRows = await txn.query('expenses', where: 'id = ?', whereArgs: [refill.expenseId], limit: 1);
+      if (expenseRows.isNotEmpty) {
+        final expense = expenseRows.first;
+        final sessionId = expense['session_id'] as int?;
 
-          if (sessionId == null) {
-            // Session active en cours : suppression directe de la dépense
-            await txn.delete('expenses', where: 'id = ?', whereArgs: [refill.expenseId]);
-          } else {
-            // Session archivée : conservation de la trace et insertion d'une contre-passation
-            await txn.insert('expenses', {
-              'date': dateStr,
-              'type': 'FUEL_CANCEL',
-              'amount_da': -refill.totalAmount, // Montant négatif traçable
-              'timestamp': nowMs,
-              'session_id': sessionId,
-            });
+        if (sessionId == null) {
+          // Session active en cours : suppression directe de la dépense
+          await txn.delete('expenses', where: 'id = ?', whereArgs: [refill.expenseId]);
+        } else {
+          // Session archivée : conservation de la trace et insertion d'une contre-passation
+          await txn.insert('expenses', {
+            'date': dateStr,
+            'type': 'FUEL_CANCEL',
+            'amount_da': -refill.totalAmount, // Montant négatif traçable
+            'timestamp': nowMs,
+            'session_id': sessionId,
+          });
 
-            // Ajustement rigoureusement exact de la session archivée (sans artifice max(0, ...))
-            await txn.rawUpdate(
-              'UPDATE sessions SET total_spent = total_spent - ? WHERE id = ?',
-              [refill.totalAmount, sessionId],
-            );
-          }
+          // Ajustement rigoureusement exact de la session archivée (sans artifice max(0, ...))
+          await txn.rawUpdate(
+            'UPDATE sessions SET total_spent = total_spent - ? WHERE id = ?',
+            [refill.totalAmount, sessionId],
+          );
         }
       }
+    }
 
-      // 3. Traitement de la jauge physique si explicitement demandé
-      if (deductLiters) {
-        final stateRows = await txn.query('fuel_state', where: 'id = 1', limit: 1);
-        if (stateRows.isNotEmpty) {
-          final state = stateRows.first;
-          final lastCalibTs = state['last_calib_ts'] as int? ?? 0;
-          // Si un calibrage manuel a eu lieu après le plein, la vérité physique observée prime : interdiction de toucher à la jauge
-          if (lastCalibTs <= refill.timestamp) {
-            final currentLiters = (state['liters'] as num).toDouble();
-            final newLiters = (currentLiters - refill.liters).clamp(0.0, 35.0);
-            int cancelCommitTs = nowMs;
-            final existingTs = state['updated_at'] as int? ?? 0;
-            if (cancelCommitTs <= existingTs) {
-              cancelCommitTs = existingTs + 1;
-            }
-            await txn.insert('fuel_state', {
-              'id': 1,
-              'liters': newLiters,
-              'updated_at': cancelCommitTs,
-              'event_type': 'REFILL_CANCEL',
-              'reference_id': refillId,
-              'last_calib_ts': lastCalibTs,
-            }, conflictAlgorithm: ConflictAlgorithm.replace);
+    // 3. Traitement de la jauge physique si explicitement demandé (deductLiters == true)
+    bool deductLitersApplied = false;
+    double? newFuelLevel;
+
+    if (deductLiters) {
+      final stateRows = await txn.query('fuel_state', where: 'id = 1', limit: 1);
+      if (stateRows.isNotEmpty) {
+        final state = stateRows.first;
+        final lastCalibTs = state['last_calib_ts'] as int? ?? 0;
+        final isCalibrated = (state['is_calibrated'] as int? ?? 0) == 1;
+
+        // Si la jauge est calibrée ET qu'aucun calibrage manuel n'a eu lieu après le plein
+        if (isCalibrated && lastCalibTs <= refill.timestamp) {
+          final currentLiters = (state['liters'] as num).toDouble();
+          newFuelLevel = (currentLiters - refill.liters).clamp(0.0, 35.0);
+          int cancelCommitTs = nowMs;
+          final existingTs = state['updated_at'] as int? ?? 0;
+          if (cancelCommitTs <= existingTs) {
+            cancelCommitTs = existingTs + 1;
           }
+          await txn.insert('fuel_state', {
+            'id': 1,
+            'liters': newFuelLevel,
+            'updated_at': cancelCommitTs,
+            'event_type': 'REFILL_CANCEL',
+            'reference_id': refillId,
+            'last_calib_ts': lastCalibTs,
+            'is_calibrated': 1,
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+          deductLitersApplied = true;
         }
       }
+    }
 
-      return true;
-    });
+    return CancelRefillResult(
+      success: true,
+      alreadyCanceled: false,
+      deductLitersApplied: deductLitersApplied,
+      newFuelLevel: newFuelLevel,
+      litersDeducted: deductLitersApplied ? refill.liters : 0.0,
+    );
   }
 
   /// Récupère l'ensemble des pleins enregistrés par ordre chronologique décroissant.

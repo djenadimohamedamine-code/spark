@@ -44,6 +44,7 @@ class _AddFuelDialogState extends State<AddFuelDialog> {
   String? _errorMessage;
   bool _showHistory = false;
   List<FuelRefill> _refillsHistory = [];
+  bool _isFullTank = false;
 
   @override
   void initState() {
@@ -84,6 +85,8 @@ class _AddFuelDialogState extends State<AddFuelDialog> {
   double get _currentPrice => _parseDecimal(_priceController.text) ?? _pricePerLiter;
 
   double get _projectedLiters {
+    if (_isFullTank) return FuelCalculator.tankCapacity;
+    if (!widget.fuelCalculator.isCalibrated) return 0.0;
     final added = _litersAdded;
     if (added == null || added <= 0) return _currentLiters;
     return _currentLiters + added;
@@ -99,7 +102,7 @@ class _AddFuelDialogState extends State<AddFuelDialog> {
     return (liters / 7.5 * 100).toInt();
   }
 
-  bool get _isExceedingTank => _projectedLiters > FuelCalculator.tankCapacity + 1e-6;
+  bool get _isExceedingTank => widget.fuelCalculator.isCalibrated && _projectedLiters > FuelCalculator.tankCapacity + 1e-6;
 
   bool get _isValidInput {
     final added = _litersAdded;
@@ -136,6 +139,7 @@ class _AddFuelDialogState extends State<AddFuelDialog> {
       final levelAfter = await widget.fuelCalculator.addFuel(
         added,
         pricePerLiter: price,
+        isFullTank: _isFullTank,
       );
 
       widget.onFuelUpdated();
@@ -143,11 +147,16 @@ class _AddFuelDialogState extends State<AddFuelDialog> {
       if (!mounted) return;
       Navigator.of(context).pop();
 
+      final isNowCalibrated = _isFullTank || widget.fuelCalculator.isCalibrated;
+      final String confirmationText = isNowCalibrated
+          ? "⛽ Plein validé : +${added.toStringAsFixed(1)} L (${(added * price).toStringAsFixed(0)} DA) → Nouveau niveau : ${levelAfter.toStringAsFixed(1)} L"
+          : "⛽ Plein enregistré : +${added.toStringAsFixed(1)} L (${(added * price).toStringAsFixed(0)} DA). Jauge non calibrée.";
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: const Color(0xFF1B5E20),
           content: Text(
-            "⛽ Plein validé : +${added.toStringAsFixed(1)} L (${(added * price).toStringAsFixed(0)} DA) → Nouveau niveau : ${levelAfter.toStringAsFixed(1)} L",
+            confirmationText,
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           duration: const Duration(seconds: 4),
@@ -161,6 +170,7 @@ class _AddFuelDialogState extends State<AddFuelDialog> {
       });
     }
   }
+
 
   Future<void> _cancelPreviousRefill(FuelRefill refill) async {
     final hasManualCalibAfter = widget.fuelCalculator.lastCalibTs > refill.timestamp;
@@ -384,6 +394,7 @@ class _AddFuelDialogState extends State<AddFuelDialog> {
   }
 
   Widget _buildFormView() {
+    final isCalibrated = widget.fuelCalculator.isCalibrated;
     final currentKm = _estimateKm(_currentLiters);
     final projectedKm = _estimateKm(_projectedLiters.clamp(0.0, FuelCalculator.tankCapacity));
     final maxAddable = widget.fuelCalculator.maxAddableLiters;
@@ -410,12 +421,16 @@ class _AddFuelDialogState extends State<AddFuelDialog> {
                       const Text("NIVEAU ACTUEL", style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 2),
                       Text(
-                        "${_currentLiters.toStringAsFixed(1)} L",
-                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                        isCalibrated ? "${_currentLiters.toStringAsFixed(1)} L" : "Inconnu",
+                        style: TextStyle(
+                          color: isCalibrated ? Colors.white : Colors.amberAccent,
+                          fontSize: isCalibrated ? 20 : 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       Text(
-                        "Autonomie : ~$currentKm km",
-                        style: const TextStyle(color: Colors.white54, fontSize: 11),
+                        isCalibrated ? "Autonomie : ~$currentKm km" : "Non calibré",
+                        style: TextStyle(color: isCalibrated ? Colors.white54 : Colors.amberAccent.withOpacity(0.7), fontSize: 11),
                       ),
                     ],
                   ),
@@ -426,19 +441,19 @@ class _AddFuelDialogState extends State<AddFuelDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("PLACE RESTANTE", style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
+                      Text(isCalibrated ? "PLACE RESTANTE" : "CAPACITÉ", style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 2),
                       Text(
-                        "${maxAddable.toStringAsFixed(1)} L",
+                        isCalibrated ? "${maxAddable.toStringAsFixed(1)} L" : "35.0 L",
                         style: TextStyle(
-                          color: maxAddable > 5.0 ? Colors.greenAccent : Colors.orangeAccent,
+                          color: isCalibrated ? (maxAddable > 5.0 ? Colors.greenAccent : Colors.orangeAccent) : Colors.white70,
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const Text(
-                        "Réservoir : 35 L",
-                        style: TextStyle(color: Colors.white54, fontSize: 11),
+                      Text(
+                        isCalibrated ? "Réservoir : 35 L" : "Réservoir max",
+                        style: const TextStyle(color: Colors.white54, fontSize: 11),
                       ),
                     ],
                   ),
@@ -446,6 +461,59 @@ class _AddFuelDialogState extends State<AddFuelDialog> {
               ],
             ),
           ),
+
+          const SizedBox(height: 14),
+
+          // P1 : Si jauge non calibrée, option explicite de confirmation plein complet
+          if (!isCalibrated)
+            Container(
+              margin: const EdgeInsets.only(bottom: 14),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.amber.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.amberAccent.withOpacity(0.4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.amberAccent, size: 16),
+                      SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          "Niveau actuel inconnu : ajouter des litres sans plein complet n'établira pas d'autonomie fictive.",
+                          style: TextStyle(color: Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    activeColor: Colors.greenAccent,
+                    checkColor: Colors.black,
+                    title: const Text(
+                      "Le réservoir est maintenant plein (35 L)",
+                      style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: const Text(
+                      "Cochez si vous avez fait le plein complet pour calibrer la jauge à 35.0 L.",
+                      style: TextStyle(color: Colors.white54, fontSize: 10),
+                    ),
+                    value: _isFullTank,
+                    onChanged: (val) {
+                      setState(() {
+                        _isFullTank = val ?? false;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+
 
           const SizedBox(height: 16),
 
@@ -559,14 +627,16 @@ class _AddFuelDialogState extends State<AddFuelDialog> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      "NIVEAU PROJETÉ APRÈS PLEIN",
-                      style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
+                    Text(
+                      _isFullTank ? "RÉSERVOIR PLEIN" : "NIVEAU PROJETÉ APRÈS PLEIN",
+                      style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      "${_projectedLiters.toStringAsFixed(1)} / 35 L",
+                      _isFullTank
+                          ? "35.0 / 35 L"
+                          : (isCalibrated ? "${_projectedLiters.toStringAsFixed(1)} / 35 L" : "Inconnu (non calibré)"),
                       style: TextStyle(
-                        color: _isExceedingTank ? Colors.redAccent : Colors.greenAccent,
+                        color: _isExceedingTank ? Colors.redAccent : (_isFullTank || isCalibrated ? Colors.greenAccent : Colors.amberAccent),
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
                       ),
@@ -577,7 +647,7 @@ class _AddFuelDialogState extends State<AddFuelDialog> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(3),
                   child: LinearProgressIndicator(
-                    value: (_projectedLiters / 35.0).clamp(0.0, 1.0),
+                    value: _isFullTank ? 1.0 : (isCalibrated ? (_projectedLiters / 35.0).clamp(0.0, 1.0) : 0.0),
                     backgroundColor: Colors.white10,
                     valueColor: AlwaysStoppedAnimation<Color>(
                       _isExceedingTank ? Colors.redAccent : Colors.greenAccent,
@@ -587,8 +657,10 @@ class _AddFuelDialogState extends State<AddFuelDialog> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  "Nouvelle autonomie estimée : ~$projectedKm km",
-                  style: const TextStyle(color: Colors.white54, fontSize: 11),
+                  _isFullTank
+                      ? "Nouvelle autonomie estimée : ~466 km"
+                      : (isCalibrated ? "Nouvelle autonomie estimée : ~$projectedKm km" : "Autonomie non calculable (jauge non calibrée)"),
+                  style: TextStyle(color: isCalibrated || _isFullTank ? Colors.white54 : Colors.amberAccent.withOpacity(0.7), fontSize: 11),
                 ),
               ],
             ),
@@ -646,6 +718,8 @@ class _AddFuelDialogState extends State<AddFuelDialog> {
         itemBuilder: (ctx, index) {
           final item = _refillsHistory[index];
           final timeStr = DateFormat('dd/MM HH:mm').format(DateTime.fromMillisecondsSinceEpoch(item.timestamp));
+          final beforeStr = item.levelBefore != null ? "${item.levelBefore!.toStringAsFixed(1)} L" : "Inconnu";
+          final afterStr = item.levelAfter != null ? "${item.levelAfter!.toStringAsFixed(1)} L" : "Inconnu";
 
           return ListTile(
             dense: true,
@@ -664,7 +738,7 @@ class _AddFuelDialogState extends State<AddFuelDialog> {
               ),
             ),
             subtitle: Text(
-              "$timeStr • ${item.levelBefore.toStringAsFixed(1)}L → ${item.levelAfter.toStringAsFixed(1)}L${item.isCanceled ? ' [ANNULÉ]' : ''}",
+              "$timeStr • $beforeStr → $afterStr${item.isCanceled ? ' [ANNULÉ]' : ''}",
               style: TextStyle(
                 color: item.isCanceled ? Colors.redAccent.withOpacity(0.6) : Colors.white54,
                 fontSize: 10,
@@ -682,4 +756,5 @@ class _AddFuelDialogState extends State<AddFuelDialog> {
       ),
     );
   }
+
 }

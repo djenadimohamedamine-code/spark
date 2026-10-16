@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mimo_spark/ui/dashboard.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mimo_spark/data/database_helper.dart';
+import 'helpers/fake_database.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -11,6 +13,7 @@ void main() {
       'last_fuel_level': 19.3,
       'fuel_price_da': 50.0,
     });
+    DatabaseHelper().setDatabaseForTesting(FakeDatabase());
   });
 
   group('Dashboard Layout V3.1 — Sans grande horloge', () {
@@ -24,8 +27,9 @@ void main() {
       });
 
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Dashboard(),
+        MaterialApp(
+          theme: ThemeData(splashFactory: InkRipple.splashFactory),
+          home: const Dashboard(),
         ),
       );
 
@@ -52,8 +56,9 @@ void main() {
       });
 
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Dashboard(),
+        MaterialApp(
+          theme: ThemeData(splashFactory: InkRipple.splashFactory),
+          home: const Dashboard(),
         ),
       );
 

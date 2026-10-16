@@ -269,6 +269,131 @@ def run_tests():
     assert sum_expenses == session_spent == 400.0, f"Écart comptable détecté: sum={sum_expenses}, session={session_spent}"
     print(f"  -> Égalité comptable absolue vérifiée sur SQLite natif : sum(expenses)={sum_expenses} DA == session.total_spent={session_spent} DA.")
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # 5. TEST MIGRATION v5 -> v6 (COLONNE is_calibrated & NULLABILITY REFILLS)
+    # ──────────────────────────────────────────────────────────────────────────
+    print("\n[TEST 5] Migration v5 -> v6 avec is_calibrated et niveaux nullables...")
+    cur.execute("PRAGMA table_info(fuel_state)")
+    state_cols = [row[1] for row in cur.fetchall()]
+    assert 'is_calibrated' not in state_cols, "Avant migration v6, is_calibrated ne doit pas exister"
+
+    # Vérification que fuel_refills avait level_before NOT NULL
+    cur.execute("PRAGMA table_info(fuel_refills)")
+    refill_cols = cur.fetchall()
+    level_before_col = next((c for c in refill_cols if c[1] == 'level_before'), None)
+    assert level_before_col is not None and level_before_col[3] == 1, "Avant migration, level_before doit avoir notnull == 1"
+
+    # Exécution migration v5 -> v6 exacte de DatabaseHelper
+    if level_before_col[3] == 1:
+        cur.execute("""
+          CREATE TABLE fuel_refills_v6 (
+            id              TEXT PRIMARY KEY,
+            timestamp       INTEGER NOT NULL,
+            date            TEXT NOT NULL,
+            liters          REAL NOT NULL,
+            price_per_liter REAL NOT NULL,
+            total_amount    REAL NOT NULL,
+            level_before    REAL,
+            level_after     REAL,
+            status          TEXT NOT NULL DEFAULT 'committed',
+            canceled        INTEGER NOT NULL DEFAULT 0,
+            expense_id      INTEGER
+          )
+        """)
+        cur.execute("""
+          INSERT INTO fuel_refills_v6 (id, timestamp, date, liters, price_per_liter, total_amount, level_before, level_after, status, canceled, expense_id)
+          SELECT id, timestamp, date, liters, price_per_liter, total_amount, level_before, level_after, status, canceled, expense_id
+          FROM fuel_refills
+        """)
+        cur.execute("DROP TABLE fuel_refills")
+        cur.execute("ALTER TABLE fuel_refills_v6 RENAME TO fuel_refills")
+
+    cur.execute("ALTER TABLE fuel_state ADD COLUMN is_calibrated INTEGER NOT NULL DEFAULT 0")
+    cur.execute("UPDATE fuel_state SET is_calibrated = CASE WHEN event_type = 'UNCALIBRATED' THEN 0 ELSE 1 END WHERE is_calibrated = 0")
+    conn.commit()
+
+    cur.execute("PRAGMA table_info(fuel_state)")
+    state_cols_v6 = [row[1] for row in cur.fetchall()]
+    assert 'is_calibrated' in state_cols_v6, "Après migration v6, is_calibrated doit exister"
+
+    # Insertion d'un plein sur jauge non calibrée avec level_before/after NULL
+    cur.execute("""
+      INSERT INTO fuel_refills (id, timestamp, date, liters, price_per_liter, total_amount, level_before, level_after, status, canceled, expense_id)
+      VALUES ('refill_uncalibrated', 5000, '2026-10-16', 12.0, 50.0, 600.0, NULL, NULL, 'committed', 0, NULL)
+    """)
+    conn.commit()
+
+    cur.execute("SELECT id, level_before, level_after FROM fuel_refills WHERE id = 'refill_uncalibrated'")
+    uncalib_row = cur.fetchone()
+    assert uncalib_row == ('refill_uncalibrated', None, None), f"Plein non calibré incorrect: {uncalib_row}"
+    print("  -> Migration v5 -> v6 réussie : is_calibrated ajouté et pleins non calibrés (NULL) acceptés.")
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # 6. TEST PRIORITÉ À TIMESTAMP ÉGAL (REFILL/CALIBRATION vs OBD_SYNC)
+    # ──────────────────────────────────────────────────────────────────────────
+    print("\n[TEST 6] Priorité stricte lors d'écritures au même timestamp...")
+    # État actuel: 24.8 L à T = 2500, type 'OBD_SYNC'
+    # Un plein arrive exactement à T = 2500 avec 30.0 L
+    cur.execute("""
+      UPDATE fuel_state
+      SET liters = ?,
+          updated_at = ?,
+          event_type = ?,
+          reference_id = ?,
+          last_calib_ts = CASE WHEN ? IS NOT NULL THEN ? ELSE last_calib_ts END,
+          is_calibrated = ?
+      WHERE id = 1 AND (updated_at < ? OR (updated_at = ? AND ? != 'OBD_SYNC'))
+    """, (30.0, 2500, 'REFILL', 'refill_same_ts', None, 0, 1, 2500, 2500, 'REFILL'))
+    conn.commit()
+    assert cur.rowcount == 1, "Le REFILL à timestamp égal doit supplanter un OBD_SYNC existant"
+
+    # Vérification: 30.0 L à T = 2500
+    cur.execute("SELECT liters, event_type FROM fuel_state WHERE id = 1")
+    assert cur.fetchone() == (30.0, 'REFILL')
+
+    # Maintenant, un OBD_SYNC retardé tente d'écrire exactement à T = 2500 avec 24.5 L
+    cur.execute("""
+      UPDATE fuel_state
+      SET liters = ?,
+          updated_at = ?,
+          event_type = ?,
+          reference_id = ?,
+          last_calib_ts = CASE WHEN ? IS NOT NULL THEN ? ELSE last_calib_ts END,
+          is_calibrated = ?
+      WHERE id = 1 AND (updated_at < ? OR (updated_at = ? AND ? != 'OBD_SYNC'))
+    """, (24.5, 2500, 'OBD_SYNC', None, None, 0, 1, 2500, 2500, 'OBD_SYNC'))
+    conn.commit()
+    assert cur.rowcount == 0, "Un OBD_SYNC au même timestamp ne doit JAMAIS écraser un REFILL"
+
+    cur.execute("SELECT liters, event_type FROM fuel_state WHERE id = 1")
+    assert cur.fetchone() == (30.0, 'REFILL'), "Le REFILL doit être rigoureusement préservé"
+    print("  -> Arbitrage SQLite au même timestamp validé : REFILL prioritaire, OBD_SYNC retardé rejeté.")
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # 7. TEST SUPPRESSION D'UNE DÉPENSE HISTORIQUE SANS REFILL
+    # ──────────────────────────────────────────────────────────────────────────
+    print("\n[TEST 7] Suppression d'une dépense historique sans fuel_refill dans session archivée...")
+    cur.execute("INSERT INTO expenses (date, type, amount_da, timestamp, session_id) VALUES ('2026-10-15', 'FUEL', 1000.0, 1500, 1)")
+    hist_exp_id = cur.lastrowid
+    cur.execute("UPDATE sessions SET total_spent = total_spent + 1000.0 WHERE id = 1")
+    conn.commit()
+
+    # Vérifier total_spent avant suppression
+    cur.execute("SELECT total_spent FROM sessions WHERE id = 1")
+    assert cur.fetchone()[0] == 2800.0
+
+    # Suppression de la dépense historique selon la logique DatabaseHelper.deleteExpense
+    cur.execute("SELECT type, session_id, amount_da FROM expenses WHERE id = ?", (hist_exp_id,))
+    exp_info = cur.fetchone()
+    assert exp_info[0] == 'FUEL' and exp_info[1] == 1
+    cur.execute("DELETE FROM expenses WHERE id = ?", (hist_exp_id,))
+    cur.execute("UPDATE sessions SET total_spent = total_spent - ? WHERE id = ?", (exp_info[2], exp_info[1]))
+    conn.commit()
+
+    cur.execute("SELECT total_spent FROM sessions WHERE id = 1")
+    assert cur.fetchone()[0] == 1800.0, "La session archivée doit décrémenter fidèlement son total_spent"
+    print("  -> Suppression de dépense FUEL historique validée : total_spent de la session restauré à 1800 DA.")
+
     conn.close()
 
     # Nettoyage des bases temporaires de test

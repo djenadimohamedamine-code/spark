@@ -600,9 +600,94 @@ class _ExpensesPageState extends State<ExpensesPage> {
                 fontSize: 16),
           ),
           onLongPress: () async {
-            await DatabaseHelper().deleteExpense(e['id']);
-            _refresh();
+            if (isCancel) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  backgroundColor: Colors.blueGrey,
+                  content: Text(
+                    "Une contre-passation d'annulation (FUEL_CANCEL) ne peut pas être supprimée pour garantir la traçabilité comptable.",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              );
+              return;
+            }
+
+            if (isFuel) {
+              final refill = await DatabaseHelper().getFuelRefillByExpenseId(e['id']);
+              if (!mounted) return;
+              if (refill != null) {
+                if (refill.isCanceled) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      backgroundColor: Colors.orangeAccent,
+                      content: Text("Ce plein a déjà été annulé.", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                    ),
+                  );
+                  return;
+                }
+
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    backgroundColor: const Color(0xFF151828),
+                    title: const Text("Annuler ce plein ?", style: TextStyle(color: Colors.white)),
+                    content: Text(
+                      "Plein de ${refill.liters.toStringAsFixed(1)} L (${refill.totalAmount.toStringAsFixed(0)} DA) du ${refill.date}.\n\nLa dépense financière sera retirée.",
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text("NON", style: TextStyle(color: Colors.grey)),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text("ANNULER LE PLEIN", style: TextStyle(color: Colors.white)),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirm == true) {
+                  await DatabaseHelper().cancelFuelRefill(refill.id, deductLiters: false);
+                  _refresh();
+                }
+                return;
+              }
+            }
+
+            // Pour les autres dépenses ou dépenses FUEL sans fuel_refill :
+            final confirm = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: const Color(0xFF151828),
+                title: const Text("Supprimer la dépense ?", style: TextStyle(color: Colors.white)),
+                content: Text(
+                  "Montant : ${amount.toStringAsFixed(0)} DA (${title}).",
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text("ANNULER", style: TextStyle(color: Colors.grey)),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text("SUPPRIMER", style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+            );
+
+            if (confirm == true) {
+              await DatabaseHelper().deleteExpense(e['id']);
+              _refresh();
+            }
           },
+
         );
       },
     );

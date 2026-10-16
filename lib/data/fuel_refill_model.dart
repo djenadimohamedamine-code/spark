@@ -5,8 +5,8 @@ class FuelRefill {
   final double liters;
   final double pricePerLiter;
   final double totalAmount;
-  final double levelBefore;
-  final double levelAfter;
+  final double? levelBefore;
+  final double? levelAfter;
   final bool isCanceled;
   final String status;
   final int? expenseId;
@@ -18,8 +18,8 @@ class FuelRefill {
     required this.liters,
     required this.pricePerLiter,
     required this.totalAmount,
-    required this.levelBefore,
-    required this.levelAfter,
+    this.levelBefore,
+    this.levelAfter,
     this.isCanceled = false,
     String? status,
     this.expenseId,
@@ -52,8 +52,8 @@ class FuelRefill {
       liters: (map['liters'] as num).toDouble(),
       pricePerLiter: (map['price_per_liter'] as num).toDouble(),
       totalAmount: (map['total_amount'] as num).toDouble(),
-      levelBefore: (map['level_before'] as num).toDouble(),
-      levelAfter: (map['level_after'] as num).toDouble(),
+      levelBefore: map['level_before'] != null ? (map['level_before'] as num).toDouble() : null,
+      levelAfter: map['level_after'] != null ? (map['level_after'] as num).toDouble() : null,
       isCanceled: isCanceledBool,
       status: statusStr,
       expenseId: map['expense_id'] as int?,

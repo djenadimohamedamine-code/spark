@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/database_helper.dart';
+import '../data/fuel_refill_model.dart';
 
 class FuelCalculator {
   double currentLiters = 0.0;
@@ -25,7 +26,44 @@ class FuelCalculator {
   DateTime _lastSave = DateTime.fromMillisecondsSinceEpoch(0);
   bool _isInitialized = false;
   Future<void>? _initFuture;
+
+  // File d'attente strictement séquentielle pour TOUTES les écritures de carburant (FIFO sans interférence)
   Future<void> _writeQueue = Future<void>.value();
+  int _lastWrittenTs = 0;
+
+  /// Génère un timestamp strictement croissant et unique pour éliminer tout conflit ou égalité.
+  int _getMonotonicTimestamp() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now <= _lastWrittenTs) {
+      _lastWrittenTs++;
+    } else {
+      _lastWrittenTs = now;
+    }
+    return _lastWrittenTs;
+  }
+
+  /// Exécute une opération de persistance de manière strictement sérialisée dans la file FIFO.
+  /// Empêche tout interblocage (deadlock) : les méthodes internes exécutées ne doivent jamais se remettre en file.
+  Future<T> _enqueueExclusive<T>(Future<T> Function() operation) {
+    final completer = Completer<T>();
+    _writeQueue = _writeQueue.then((_) async {
+      try {
+        final result = await operation();
+        completer.complete(result);
+      } catch (e, st) {
+        completer.completeError(e, st);
+      }
+    }, onError: (_) async {
+      // Même en cas d'erreur de l'opération précédente, exécuter la suivante
+      try {
+        final result = await operation();
+        completer.complete(result);
+      } catch (e, st) {
+        completer.completeError(e, st);
+      }
+    });
+    return completer.future;
+  }
 
   // Initialise en chargeant la source de vérité SQLite durable ou SharedPreferences en premier import
   Future<void> init() => _initFuture ??= _initialize();
@@ -40,9 +78,12 @@ class FuelCalculator {
     }
 
     if (fuelState != null) {
+      final isCalibratedInt = fuelState['is_calibrated'] as int?;
       final eventType = fuelState['event_type'] as String?;
       final calibTs = (fuelState['last_calib_ts'] as int?) ?? 0;
-      if (eventType == 'UNCALIBRATED') {
+
+      // P1 : Ne pas déduire isCalibrated uniquement de l'event_type (ex: OBD_SYNC sur non calibré)
+      if (isCalibratedInt == 0 || eventType == 'UNCALIBRATED' || eventType == 'REFILL_UNCALIBRATED') {
         _isCalibrated = false;
         currentLiters = 0.0;
         _lastCalibTs = 0;
@@ -79,6 +120,7 @@ class FuelCalculator {
             liters: initialLiters,
             eventType: 'MIGRATION_INIT',
             lastCalibTs: _lastCalibTs,
+            isCalibrated: true,
           );
         } catch (_) {}
 
@@ -96,6 +138,7 @@ class FuelCalculator {
             liters: 0.0,
             eventType: 'UNCALIBRATED',
             lastCalibTs: 0,
+            isCalibrated: false,
           );
         } catch (_) {}
       }
@@ -104,109 +147,205 @@ class FuelCalculator {
   }
 
   // Calibrage manuel par l'utilisateur (bouton dans le menu ou tactile)
-  Future<void> calibrate(double liters) async {
+  Future<void> calibrate(double liters) {
+    return _enqueueExclusive(() => _calibrateInternal(liters));
+  }
+
+  Future<void> _calibrateInternal(double liters) async {
     await init();
     if (!liters.isFinite) throw ArgumentError.value(liters, 'liters');
-    final previous = currentLiters;
+    final previousLiters = currentLiters;
     final wasCalibrated = _isCalibrated;
+    final previousCalibTs = _lastCalibTs;
     final calibrated = liters.clamp(0.0, _tankCapacity);
-    final nowMs = DateTime.now().millisecondsSinceEpoch;
-    _lastCalibTs = nowMs;
-    currentLiters = calibrated;
-    _isCalibrated = true;
+    final nowMs = _getMonotonicTimestamp();
 
     try {
-      await _enqueueSave(calibrated, eventType: 'CALIBRATION', calibTs: nowMs);
-    } catch (_) {
-      if (currentLiters == calibrated) {
-        currentLiters = previous;
-        _isCalibrated = wasCalibrated;
+      final ok = await DatabaseHelper().setFuelState(
+        liters: calibrated,
+        eventType: 'CALIBRATION',
+        lastCalibTs: nowMs,
+        isCalibrated: true,
+        updatedAt: nowMs,
+      );
+      if (!ok) {
+        throw StateError("Échec de mise à jour SQLite lors de la calibration.");
       }
+
+      currentLiters = calibrated;
+      _isCalibrated = true;
+      _lastCalibTs = nowMs;
+      lowFuelAlerted = false;
+      _lastAlertedKm = -1;
+
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setDouble('last_fuel_level', calibrated);
+        await prefs.setInt('last_calibration_timestamp', nowMs);
+      } catch (_) {}
+
+      print('Niveau essence calibré.');
+    } catch (e) {
+      // P0 : Restauration intégrale de l'ancien état en cas d'échec SQLite
+      currentLiters = previousLiters;
+      _isCalibrated = wasCalibrated;
+      _lastCalibTs = previousCalibTs;
       rethrow;
     }
-    lowFuelAlerted = false;
-    _lastAlertedKm = -1;
-    print('Niveau essence calibré.');
   }
 
   /// Capacité maximale du réservoir (35 litres pour la Spark 0.8L).
   static const double tankCapacity = _tankCapacity;
 
   /// Litres maximum pouvant encore être ajoutés sans déborder du réservoir.
-  double get maxAddableLiters => (_tankCapacity - currentLiters).clamp(0.0, _tankCapacity);
+  double get maxAddableLiters => _isCalibrated ? (_tankCapacity - currentLiters).clamp(0.0, _tankCapacity) : _tankCapacity;
 
   /// Ajoute une quantité exacte de carburant en litres de manière atomique :
+  /// - Exécuté dans la file FIFO unique pour garantir l'absence de conflit.
   /// - Verrouille les calculs OBD2 sans perte de consommation via `_pendingConsumptionLiters`.
   /// - Met à jour atomiquement `fuel_refills`, `expenses` et `fuel_state` dans SQLite.
-  /// - Déduit la consommation cumulée survenue pendant l'I/O SQLite.
-  /// - Persiste le résultat final dans SQLite et met à jour le cache SharedPreferences.
+  /// - Si `isCalibrated == false` et `!isFullTank` : enregistre la dépense mais conserve la jauge non calibrée (P1).
+  /// - Si `isFullTank == true` : calibre le niveau à 35 L avec certitude.
   Future<double> addFuel(
     double litersAdded, {
     double pricePerLiter = 50.0,
     String? customId,
+    bool isFullTank = false,
+  }) {
+    return _enqueueExclusive(() => _addFuelInternal(
+      litersAdded,
+      pricePerLiter: pricePerLiter,
+      customId: customId,
+      isFullTank: isFullTank,
+    ));
+  }
+
+  Future<double> _addFuelInternal(
+    double litersAdded, {
+    double pricePerLiter = 50.0,
+    String? customId,
+    bool isFullTank = false,
   }) async {
     await init();
     if (!litersAdded.isFinite || litersAdded.isNaN || litersAdded <= 0) {
       throw ArgumentError.value(litersAdded, 'litersAdded', 'La quantité de carburant doit être positive et finie.');
     }
 
-    final projected = currentLiters + litersAdded;
-    if (projected > _tankCapacity + 1e-6) {
-      throw StateError(
-        'Le plein ($projected L) dépasse la capacité maximale du réservoir ($_tankCapacity L).',
-      );
+    final double? levelBefore;
+    final double? levelAfter;
+    final bool newCalibrated;
+    final nowMs = _getMonotonicTimestamp();
+
+    if (isFullTank) {
+      levelBefore = _isCalibrated ? currentLiters : null;
+      levelAfter = _tankCapacity;
+      newCalibrated = true;
+      _lastCalibTs = nowMs;
+    } else if (!_isCalibrated) {
+      // P1 : Si la jauge n'est pas calibrée, ajouter X litres ne permet pas de connaître le total.
+      // On n'invente pas un niveau initial à 0.0 L, on enregistre la dépense et on garde la jauge non calibrée.
+      levelBefore = null;
+      levelAfter = null;
+      newCalibrated = false;
+    } else {
+      final projected = currentLiters + litersAdded;
+      if (projected > _tankCapacity + 1e-6) {
+        throw StateError(
+          'Le plein ($projected L) dépasse la capacité maximale du réservoir ($_tankCapacity L).',
+        );
+      }
+      levelBefore = currentLiters;
+      levelAfter = projected.clamp(0.0, _tankCapacity);
+      newCalibrated = true;
     }
 
-    final levelBefore = currentLiters;
-    final levelAfter = projected.clamp(0.0, _tankCapacity);
-
-    // Verrouillage anti-concurrence OBD2
+    // Verrouillage anti-concurrence OBD2 pour capturer la consommation survenue pendant l'I/O SQLite
     _isRefilling = true;
     _pendingConsumptionLiters = 0.0;
 
+    FuelRefill refill;
     try {
-      // Écriture atomique dans SQLite (fuel_refills + expenses + fuel_state)
-      try {
-        await DatabaseHelper().recordFuelRefill(
-          liters: litersAdded,
-          pricePerLiter: pricePerLiter,
-          levelBefore: levelBefore,
-          levelAfter: levelAfter,
-          lastCalibTs: _lastCalibTs,
-          customId: customId,
-        );
-      } catch (e) {
-        // En cas d'erreur SQLite réelle, propager
-        if (!e.toString().contains('databaseFactory') && !e.toString().contains('MissingPluginException')) {
-          rethrow;
-        }
-      }
-
-      // Succès de la transaction SQLite : application de la consommation mesurée pendant l'opération
-      currentLiters = (levelAfter - _pendingConsumptionLiters).clamp(0.0, _tankCapacity);
-      _pendingConsumptionLiters = 0.0;
-      _isRefilling = false;
-      _isCalibrated = true;
-
-      // Mise à jour finale durable si de la consommation a été déduite
-      await _enqueueSave(currentLiters, eventType: 'REFILL');
+      // 1. Écriture atomique dans SQLite (fuel_refills + expenses + fuel_state)
+      // P0 : Toute exception SQLite est PROPAGÉE (jamais masquée ou considérée comme succès)
+      refill = await DatabaseHelper().recordFuelRefill(
+        liters: litersAdded,
+        pricePerLiter: pricePerLiter,
+        levelBefore: levelBefore,
+        levelAfter: levelAfter,
+        lastCalibTs: _lastCalibTs,
+        customId: customId,
+        timestamp: nowMs,
+        isCalibrated: newCalibrated,
+        eventType: newCalibrated ? 'REFILL' : 'REFILL_UNCALIBRATED',
+      );
     } catch (e) {
-      // Rollback SQLite : le plein a échoué, mais la consommation mesurée n'est pas perdue !
-      currentLiters = (currentLiters - _pendingConsumptionLiters).clamp(0.0, _tankCapacity);
+      // En cas d'échec SQLite, le plein n'a pas été commité.
+      // La consommation mesurée pendant l'I/O n'est pas perdue pour autant si la jauge était calibrée
+      if (_isCalibrated) {
+        currentLiters = (currentLiters - _pendingConsumptionLiters).clamp(0.0, _tankCapacity);
+      }
       _pendingConsumptionLiters = 0.0;
       _isRefilling = false;
       rethrow;
     }
+
+    // 2. À ce stade, la transaction SQLite a RÉELLEMENT été validée et commité durablement.
+    _isRefilling = false;
+    if (newCalibrated && levelAfter != null) {
+      currentLiters = (levelAfter - _pendingConsumptionLiters).clamp(0.0, _tankCapacity);
+      _isCalibrated = true;
+    } else {
+      currentLiters = 0.0;
+      _isCalibrated = false;
+    }
+    _pendingConsumptionLiters = 0.0;
+
+    // Mise à jour SQLite si de la consommation OBD2 mesurée pendant l'écriture a été déduite
+    if (newCalibrated && levelAfter != null && currentLiters != levelAfter) {
+      final saveTs = _getMonotonicTimestamp();
+      await DatabaseHelper().setFuelState(
+        liters: currentLiters,
+        eventType: 'REFILL_POST_CONSUMPTION',
+        lastCalibTs: _lastCalibTs,
+        isCalibrated: true,
+        updatedAt: saveTs,
+      );
+    }
+
+    // 3. Mise à jour du miroir/cache SharedPreferences
+    // Si SharedPreferences échoue après le commit SQLite, on ne fait pas échouer le plein commité !
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (_isCalibrated) {
+        await prefs.setDouble('last_fuel_level', currentLiters);
+      }
+      await prefs.setInt('last_session_timestamp', nowMs);
+    } catch (_) {}
 
     lowFuelAlerted = false;
     _lastAlertedKm = -1;
     return currentLiters;
   }
 
-  /// Annule un plein précédent.
-  /// - L'annulation financière est déléguée à DatabaseHelper.
-  /// - Si `deductLiters == true` ou si `levelBefore` est fourni, la jauge est ajustée seulement si aucun calibrage manuel postérieur n'a eu lieu.
+  /// Annule un plein précédent de manière strictement idempotente.
+  /// La transaction SQLite est la référence unique pour le résultat et la déduction.
   Future<double> cancelFuelRefill(
+    double litersAdded, {
+    bool deductLiters = true,
+    String? refillId,
+    int? refillTimestamp,
+    double? levelBefore,
+  }) {
+    return _enqueueExclusive(() => _cancelFuelRefillInternal(
+      litersAdded,
+      deductLiters: deductLiters,
+      refillId: refillId,
+      refillTimestamp: refillTimestamp,
+      levelBefore: levelBefore,
+    ));
+  }
+
+  Future<double> _cancelFuelRefillInternal(
     double litersAdded, {
     bool deductLiters = true,
     String? refillId,
@@ -221,41 +360,45 @@ class FuelCalculator {
     final shouldDeduct = deductLiters || levelBefore != null;
 
     if (refillId != null) {
-      try {
-        await DatabaseHelper().cancelFuelRefill(refillId, deductLiters: shouldDeduct);
-      } catch (e) {
-        if (!e.toString().contains('databaseFactory') && !e.toString().contains('MissingPluginException')) {
-          rethrow;
-        }
-      }
-    }
+      final nowMs = _getMonotonicTimestamp();
+      final result = await DatabaseHelper().cancelFuelRefill(
+        refillId,
+        deductLiters: shouldDeduct,
+        timestamp: nowMs,
+      );
 
-    if (shouldDeduct) {
-      // Si un calibrage manuel a eu lieu après le plein, la vérité physique prime : interdiction de toucher à la jauge
-      if (refillTimestamp != null && _lastCalibTs > refillTimestamp) {
-        print('Jauge non modifiée : calibrage manuel postérieur au plein.');
+      // Si le plein était déjà annulé : idempotence stricte, aucune action sur la mémoire
+      if (result.alreadyCanceled || !result.success) {
         return currentLiters;
       }
 
-      double newLevel;
+      // Si SQLite a appliqué la déduction, synchroniser DIRECTEMENT la mémoire avec SQLite
+      // (évite toute double déduction entre DatabaseHelper et FuelCalculator)
+      if (result.deductLitersApplied && result.newFuelLevel != null) {
+        currentLiters = result.newFuelLevel!;
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setDouble('last_fuel_level', currentLiters);
+        } catch (_) {}
+      }
+    } else if (shouldDeduct && _isCalibrated) {
+      if (refillTimestamp != null && _lastCalibTs > refillTimestamp) {
+        return currentLiters;
+      }
       if (levelBefore != null && (currentLiters - (levelBefore + litersAdded)).abs() < 1e-4) {
-        newLevel = levelBefore.clamp(0.0, _tankCapacity);
+        currentLiters = levelBefore.clamp(0.0, _tankCapacity);
       } else {
-        newLevel = (currentLiters - litersAdded).clamp(0.0, _tankCapacity);
+        currentLiters = (currentLiters - litersAdded).clamp(0.0, _tankCapacity);
       }
-
-      final previous = currentLiters;
-      currentLiters = newLevel;
       try {
-        await _enqueueSave(currentLiters, eventType: 'REFILL_CANCEL');
-      } catch (_) {
-        currentLiters = previous;
-        rethrow;
-      }
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setDouble('last_fuel_level', currentLiters);
+      } catch (_) {}
     }
 
     return currentLiters;
   }
+
 
   // Mise à jour par la consommation calculée (MAF ou MAP)
   void updateVirtualFuel(double lph, double secondsPassed) {
@@ -265,29 +408,31 @@ class FuelCalculator {
     if (_isRefilling) {
       // Si un plein est en cours d'enregistrement SQLite, mettre la consommation en tampon
       _pendingConsumptionLiters += consumedLiters;
-    } else {
+    } else if (_isCalibrated) {
       currentLiters = (currentLiters - consumedLiters).clamp(0.0, _tankCapacity);
       _saveAsync();
     }
 
-    // Alerte originale si 0 L
-    if (currentLiters <= 5.0 && !lowFuelAlerted) {
-      print('Critique, carburant très bas !');
-      lowFuelAlerted = true;
-    } else if (currentLiters > 5.0) {
-      lowFuelAlerted = false;
-    }
-
-    // Nouvelles Alertes KMs (Sous 100 km, tous les 10 km)
-    int km = kmRestants;
-    if (km <= 100 && km > 0) {
-      int alertDecade = (km / 10).floor() * 10;
-      if (_lastAlertedKm == -1 || alertDecade < _lastAlertedKm) {
-        print('Mimo, autonomie basse à $alertDecade kilomètres.');
-        _lastAlertedKm = alertDecade;
+    if (_isCalibrated) {
+      // Alerte originale si 0 L
+      if (currentLiters <= 5.0 && !lowFuelAlerted) {
+        print('Critique, carburant très bas !');
+        lowFuelAlerted = true;
+      } else if (currentLiters > 5.0) {
+        lowFuelAlerted = false;
       }
-    } else if (km > 110) {
-      _lastAlertedKm = -1;
+
+      // Nouvelles Alertes KMs (Sous 100 km, tous les 10 km)
+      int km = kmRestants;
+      if (km <= 100 && km > 0) {
+        int alertDecade = (km / 10).floor() * 10;
+        if (_lastAlertedKm == -1 || alertDecade < _lastAlertedKm) {
+          print('Mimo, autonomie basse à $alertDecade kilomètres.');
+          _lastAlertedKm = alertDecade;
+        }
+      } else if (km > 110) {
+        _lastAlertedKm = -1;
+      }
     }
   }
 
@@ -301,42 +446,41 @@ class FuelCalculator {
   void updateRealFuelLevel(double levelPercent, double capacity) {
     if (!_isInitialized || !levelPercent.isFinite || !capacity.isFinite || levelPercent < 0 || levelPercent > 100 || capacity <= 0) return;
     currentLiters = ((levelPercent / 100.0) * capacity).clamp(0.0, _tankCapacity);
+    _isCalibrated = true;
     _saveAsync();
   }
 
   // Km restants estimés selon la consommation configurée (0 si jauge non calibrée)
   int get kmRestants => _isCalibrated ? (currentLiters / _consumptionL100 * 100).toInt() : 0;
 
-  Future<void> save() async {
-    await init();
-    return _enqueueSave(currentLiters, eventType: 'MANUAL_SAVE');
+  Future<void> save() {
+    return _enqueueExclusive(() => _saveInternal());
   }
 
-  Future<void> _enqueueSave(
-    double litersToSave, {
-    String eventType = 'OBD_SYNC',
-    int? calibTs,
-  }) {
-    final Future<void> operation = _writeQueue.then((_) async {
-      // 1. Sauvegarde durable dans la source de vérité SQLite
-      try {
-        await DatabaseHelper().setFuelState(
-          liters: litersToSave,
-          eventType: eventType,
-          lastCalibTs: calibTs ?? _lastCalibTs,
-        );
-      } catch (_) {}
+  Future<void> _saveInternal() async {
+    await init();
+    // P1 : Ne jamais sauvegarder une jauge non calibrée comme si elle était à 0.0 L réel
+    if (!_isCalibrated) return;
 
-      // 2. Mise à jour du miroir/cache SharedPreferences
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setDouble('last_fuel_level', litersToSave);
-      await prefs.setInt('last_session_timestamp', DateTime.now().millisecondsSinceEpoch);
-      if (calibTs != null) {
-        await prefs.setInt('last_calibration_timestamp', calibTs);
-      }
-    });
-    _writeQueue = operation.then<void>((_) {}, onError: (Object error, StackTrace stack) {});
-    return operation;
+    final nowMs = _getMonotonicTimestamp();
+    final litersToSave = currentLiters;
+
+    // 1. Sauvegarde durable dans la source de vérité SQLite avec vérification de retour
+    final ok = await DatabaseHelper().setFuelState(
+      liters: litersToSave,
+      eventType: 'OBD_SYNC',
+      lastCalibTs: _lastCalibTs,
+      isCalibrated: true,
+      updatedAt: nowMs,
+    );
+    if (!ok) {
+      throw StateError("Écriture OBD2 rejetée par SQLite (obsolète ou conflit d'horodatage).");
+    }
+
+    // 2. Mise à jour du miroir/cache SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('last_fuel_level', litersToSave);
+    await prefs.setInt('last_session_timestamp', nowMs);
   }
 
   void _saveAsync() {

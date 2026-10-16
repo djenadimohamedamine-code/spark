@@ -39,6 +39,19 @@ class FakeDatabase implements Database {
           row['status'] = 'canceled';
         }
       }
+    } else if (sql.contains('ALTER TABLE fuel_state ADD COLUMN is_calibrated')) {
+      tables['_has_is_calibrated_col'] = [];
+      for (var row in tables['fuel_state'] ?? []) {
+        row.putIfAbsent('is_calibrated', () => 0);
+      }
+    } else if (sql.contains('UPDATE fuel_state SET is_calibrated = CASE WHEN event_type =')) {
+      for (var row in tables['fuel_state'] ?? []) {
+        if (row['event_type'] == 'UNCALIBRATED') {
+          row['is_calibrated'] = 0;
+        } else {
+          row['is_calibrated'] = 1;
+        }
+      }
     }
   }
 
@@ -58,6 +71,20 @@ class FakeDatabase implements Database {
       ];
       if (sample.containsKey('status') || tables.containsKey('_has_status_col')) {
         cols.add({'name': 'status'});
+      }
+      return cols;
+    } else if (sql.contains('PRAGMA table_info(fuel_state)')) {
+      final sample = tables['fuel_state']?.isNotEmpty == true ? tables['fuel_state']!.first : <String, dynamic>{};
+      final cols = <Map<String, Object?>>[
+        {'name': 'id'},
+        {'name': 'liters'},
+        {'name': 'updated_at'},
+        {'name': 'event_type'},
+        {'name': 'reference_id'},
+        {'name': 'last_calib_ts'},
+      ];
+      if (sample.containsKey('is_calibrated') || tables.containsKey('_has_is_calibrated_col')) {
+        cols.add({'name': 'is_calibrated'});
       }
       return cols;
     }
@@ -80,19 +107,39 @@ class FakeDatabase implements Database {
       for (var row in list) {
         if (row['id'] == 1) {
           final existingTs = row['updated_at'] as int? ?? 0;
-          final newTs = arguments![1] as int;
-          final conditionTs = arguments.last as int;
-          if (existingTs <= conditionTs) {
-            row['liters'] = (arguments[0] as num).toDouble();
+          final existingEvent = row['event_type'] as String? ?? '';
+          final newLiters = (arguments![0] as num).toDouble();
+          final newTs = arguments[1] as int;
+          final newEvent = arguments[2] as String;
+          final newRef = arguments[3] as String?;
+          final calibArg = arguments[4] as int?;
+          final isCalibratedArg = arguments[6] as int?;
+
+          bool allowed = false;
+          if (newTs > existingTs) {
+            allowed = true;
+          } else if (newTs == existingTs) {
+            final isNewPriority = (newEvent == 'REFILL' || newEvent == 'CALIBRATION');
+            final isExistingPriority = (existingEvent == 'REFILL' || existingEvent == 'CALIBRATION');
+            if (isNewPriority || !isExistingPriority) {
+              allowed = true;
+            }
+          }
+
+          if (allowed) {
+            row['liters'] = newLiters;
             row['updated_at'] = newTs;
-            row['event_type'] = arguments[2] as String;
-            row['reference_id'] = arguments[3] as String?;
-            final calibArg = arguments[4] as int?;
+            row['event_type'] = newEvent;
+            row['reference_id'] = newRef;
             if (calibArg != null) {
               row['last_calib_ts'] = calibArg;
             }
+            if (isCalibratedArg != null) {
+              row['is_calibrated'] = isCalibratedArg;
+            }
             return 1;
           }
+          return 0;
         }
       }
     }
@@ -145,6 +192,7 @@ class FakeDatabase implements Database {
       if (where == null) return true;
       if (where == 'id = 1') return row['id'] == 1;
       if (where == 'id = ?') return row['id'] == whereArgs![0];
+      if (where == 'expense_id = ?') return row['expense_id'] == whereArgs![0];
       if (where == 'session_id IS NULL') return row['session_id'] == null;
       if (where == 'session_id = ?') return row['session_id'] == whereArgs![0];
       if (where == 'canceled = 0') return row['canceled'] == 0;
@@ -158,6 +206,7 @@ class FakeDatabase implements Database {
     if (limit != null && results.length > limit) {
       results = results.sublist(0, limit);
     }
+
     return results;
   }
 
