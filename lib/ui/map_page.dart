@@ -26,6 +26,10 @@ class _MapPageState extends State<MapPage> {
   double _smoothedSpeed = 0;
 
   bool _satelliteMode = false;
+  int _tileRefreshVersion = 0;
+  DateTime? _tileErrorWindowStart;
+  int _tileErrorsInWindow = 0;
+  bool _tileRetryVisible = false;
   bool _isFollowing = true;
   Timer? _autoResumeFollowingTimer;
   static const Duration _followRecoveryDelay = Duration(seconds: 12);
@@ -168,6 +172,35 @@ class _MapPageState extends State<MapPage> {
       if (!mounted) return;
       _resumeFollowing();
     });
+  }
+
+  void _onMapTileError() {
+    if (!mounted || _tileRetryVisible) return;
+    final now = DateTime.now();
+    if (_tileErrorWindowStart == null ||
+        now.difference(_tileErrorWindowStart!) > const Duration(seconds: 20)) {
+      _tileErrorWindowStart = now;
+      _tileErrorsInWindow = 0;
+    }
+    _tileErrorsInWindow++;
+    if (_tileErrorsInWindow == 3) {
+      if (GpsDebugLogger.enabled) GpsDebugLogger.mark('MAP_TILES_DOWNLOAD_FAILED');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _tileRetryVisible) return;
+        setState(() => _tileRetryVisible = true);
+      });
+    }
+  }
+
+  void _refreshMapTiles({bool toggleSatellite = false}) {
+    setState(() {
+      if (toggleSatellite) _satelliteMode = !_satelliteMode;
+      _tileRefreshVersion++;
+      _tileRetryVisible = false;
+      _tileErrorsInWindow = 0;
+      _tileErrorWindowStart = null;
+    });
+    if (GpsDebugLogger.enabled) GpsDebugLogger.mark('MAP_TILES_MANUAL_REFRESH');
   }
 
   void _resumeFollowing() {
@@ -374,9 +407,11 @@ class _MapPageState extends State<MapPage> {
             ),
             children: [
               TileLayer(
+                key: ValueKey('map_tiles_${_satelliteMode}_$_tileRefreshVersion'),
                 urlTemplate: _satelliteMode ? _esriSatelliteUrl : _osmTileUrl,
                 userAgentPackageName: 'com.mimo.spark',
                 maxZoom: 19,
+                errorTileCallback: (tile, error, stack) => _onMapTileError(),
               ),
               if (_routePoints.isNotEmpty)
                 PolylineLayer(
@@ -514,9 +549,7 @@ class _MapPageState extends State<MapPage> {
                       _satelliteMode ? Icons.map_outlined : Icons.satellite_alt_outlined,
                       color: Colors.white,
                     ),
-                    onPressed: () {
-                      setState(() => _satelliteMode = !_satelliteMode);
-                    },
+                    onPressed: () => _refreshMapTiles(toggleSatellite: true),
                   ),
                 ),
               ),
@@ -598,6 +631,39 @@ class _MapPageState extends State<MapPage> {
                   });
                 },
                 child: const Icon(Icons.close, color: Colors.white),
+              ),
+            ),
+
+          // Si plusieurs tuiles échouent, informer et proposer une action
+          // volontaire ; ne jamais relancer des requêtes réseau en boucle.
+          if (_tileRetryVisible)
+            Positioned(
+              bottom: 120,
+              left: 16,
+              right: 16,
+              child: Material(
+                color: Colors.black87,
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.wifi_off, color: Colors.orangeAccent, size: 20),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Carte partiellement indisponible',
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ),
+                      TextButton(
+                        key: const Key('map_retry_tiles_button'),
+                        onPressed: _refreshMapTiles,
+                        child: const Text('Réessayer'),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
 
