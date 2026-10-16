@@ -78,5 +78,42 @@ void main() {
       expect(next.source, 'frozen');
       expect(next.headingDegrees, 0);
     });
+    test('native U-turn converges quickly instead of pointing backwards', () {
+      final t = GpsHeadingTracker();
+      t.update(fix(36.8, 3.05, heading: 0));
+      final first = t.update(fix(36.79995, 3.05, heading: 180));
+      expect(first.headingDegrees, greaterThan(90));
+      final second = t.update(fix(36.79990, 3.05, heading: 180));
+      expect((180 - second.headingDegrees).abs(), lessThan(30));
+    });
+
+    test('turn across north follows shortest arc in both directions', () {
+      for (final headings in [[330.0, 50.0], [30.0, 310.0]]) {
+        final t = GpsHeadingTracker();
+        t.update(fix(36.8, 3.05, heading: headings[0]));
+        final next = t.update(fix(36.80005, 3.05, heading: headings[1]));
+        var error = (next.headingDegrees - headings[1]).abs();
+        if (error > 180) error = 360 - error;
+        expect(error, lessThan(30));
+      }
+    });
+
+    test('invalid fix does not poison distance or fallback anchor', () {
+      final t = GpsHeadingTracker();
+      t.update(fix(36.8, 3.05, heading: 90));
+      for (final bad in [
+        fix(double.nan, 3.05), fix(36.8, double.infinity),
+        fix(91, 3.05), fix(36.8, -181),
+      ]) {
+        expect(bad.hasValidCoordinates, isFalse);
+        expect(t.update(bad).source, 'invalid_fix');
+        expect(t.heading, 90);
+      }
+      final next = t.update(fix(36.8001, 3.05));
+      expect(next.source, 'anchor_bearing');
+      expect(next.stepMeters, inInclusiveRange(10, 12));
+      expect(next.headingDegrees.isFinite, isTrue);
+    });
+
   });
 }

@@ -61,6 +61,14 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
     super.dispose();
   }
 
+  bool _hasValidCoordinates(Position position) => GpsFix(
+    latitude: position.latitude,
+    longitude: position.longitude,
+    speedKmh: 0,
+    headingDegrees: 0,
+    accuracyMeters: position.accuracy,
+  ).hasValidCoordinates;
+
   GpsHeadingUpdate _trackHeading(Position position) {
     final rawSpeedKmh = position.speed * 3.6;
     final speedKmh = rawSpeedKmh.isFinite && rawSpeedKmh > 0
@@ -88,6 +96,9 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
     try {
       Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
       if (!mounted) return;
+      if (!_hasValidCoordinates(pos)) {
+        throw const FormatException('Invalid initial GPS coordinates');
+      }
       setState(() {
         _currentPosition = pos;
         _lastHeading = _trackHeading(pos).headingDegrees;
@@ -101,7 +112,7 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
     _positionStream = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 5),
     ).listen((Position pos) {
-      if (!mounted) return;
+      if (!mounted || !_hasValidCoordinates(pos)) return;
       final rawSpeedKmh = pos.speed * 3.6;
       final speedKmh = rawSpeedKmh.isFinite && rawSpeedKmh > 0
           ? rawSpeedKmh : 0.0;

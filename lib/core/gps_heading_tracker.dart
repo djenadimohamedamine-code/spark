@@ -19,6 +19,11 @@ class GpsFix {
     required this.headingDegrees,
     required this.accuracyMeters,
   });
+
+  /// Shared by the filter and map consumers: rejected coordinates must never
+  /// reach a marker, camera, or route calculation.
+  bool get hasValidCoordinates => latitude.isFinite && longitude.isFinite &&
+      latitude.abs() <= 90 && longitude.abs() <= 180;
 }
 
 class GpsHeadingUpdate {
@@ -52,7 +57,10 @@ class GpsHeadingTracker {
     var delta = _normalize(target) - previous;
     if (delta > 180) delta -= 360;
     if (delta < -180) delta += 360;
-    return _normalize(previous + delta * alpha);
+    // Keep small GPS fluctuations damped, but do not spend several fixes
+    // pointing backwards after a real turn. Always take the shortest arc.
+    final effectiveAlpha = delta.abs() >= 60 ? math.max(alpha, 0.65) : alpha;
+    return _normalize(previous + delta * effectiveAlpha);
   }
 
   static double _distanceMeters(GpsFix a, GpsFix b) {
@@ -78,8 +86,7 @@ class GpsHeadingTracker {
   }
 
   GpsHeadingUpdate update(GpsFix fix) {
-    if (!fix.latitude.isFinite || !fix.longitude.isFinite ||
-        fix.latitude.abs() > 90 || fix.longitude.abs() > 180) {
+    if (!fix.hasValidCoordinates) {
       return GpsHeadingUpdate(
         headingDegrees: _heading, stepMeters: 0,
         anchorMeters: _traveledFromAnchor, source: 'invalid_fix',
