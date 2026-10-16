@@ -1,7 +1,7 @@
 name: Mimo-Spark-iOS-Build-IPA
 on:
   push:
-    branches: [ "main", "master", "spark-v3-integration" ]
+    branches: [ "spark-v3.1-ipa-test" ]
   workflow_dispatch:
 
 jobs:
