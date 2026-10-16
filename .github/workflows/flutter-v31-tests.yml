@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - spark-v3.1-compat-tests
+      - spark-v3.1-gps-hardening
   workflow_dispatch:
 
 permissions:

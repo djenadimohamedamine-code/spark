@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import '../core/vehicle_marker_heading.dart';
+import '../core/gps_heading_tracker.dart';
 
 class ExpertMapPage extends StatefulWidget {
   const ExpertMapPage({super.key});
@@ -21,6 +22,7 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
 
   Position? _currentPosition;
   double _lastHeading = 0;
+  final GpsHeadingTracker _headingTracker = GpsHeadingTracker();
   double _smoothedSpeed = 0;
   double _distanceKm = 0.0; // Distance placeholder or calculated
   
@@ -59,12 +61,17 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
     super.dispose();
   }
 
-  double _smoothAngle(double current, double target) {
-    double diff = target - current;
-    while (diff > 180) diff -= 360;
-    while (diff < -180) diff += 360;
-    final smoothed = current + diff * 0.25;
-    return (smoothed % 360 + 360) % 360;
+  GpsHeadingUpdate _trackHeading(Position position) {
+    final rawSpeedKmh = position.speed * 3.6;
+    final speedKmh = rawSpeedKmh.isFinite && rawSpeedKmh > 0
+        ? rawSpeedKmh : 0.0;
+    return _headingTracker.update(GpsFix(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      speedKmh: speedKmh,
+      headingDegrees: position.heading,
+      accuracyMeters: position.accuracy,
+    ));
   }
 
   Future<void> _startLocationTracking() async {
@@ -77,42 +84,33 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
       if (permission == LocationPermission.denied) return;
     }
 
+    if (permission == LocationPermission.deniedForever) return;
     try {
       Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
       if (!mounted) return;
       setState(() {
         _currentPosition = pos;
-        _lastHeading = pos.heading >= 0 ? pos.heading : 0;
-        _smoothedSpeed = pos.speed * 3.6;
+        _lastHeading = _trackHeading(pos).headingDegrees;
+        _smoothedSpeed = (pos.speed.isFinite && pos.speed > 0)
+            ? pos.speed * 3.6 : 0;
       });
       _moveSmooth(pos, _smoothedSpeed);
     } catch (_) {}
 
+    if (!mounted) return;
     _positionStream = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 5),
     ).listen((Position pos) {
       if (!mounted) return;
-      double speedKmh = pos.speed * 3.6;
-      _smoothedSpeed = _smoothedSpeed + ((speedKmh - _smoothedSpeed) * 0.1);
-
-      // On ne met à jour le cap (heading) que si la voiture roule (éviter qu'elle tourne sur elle-même au feu rouge)
-      double currentHeading = _lastHeading;
-      if (speedKmh > 3.0 && pos.heading >= 0 && pos.heading.isFinite) {
-        currentHeading = pos.heading;
-      }
-      
-      double smoothed = _smoothAngle(_lastHeading, currentHeading);
-
-      double traveledMeters = 0.0;
-      if (_currentPosition != null) {
-        traveledMeters = Geolocator.distanceBetween(
-          _currentPosition!.latitude, _currentPosition!.longitude,
-          pos.latitude, pos.longitude,
-        );
-      }
+      final rawSpeedKmh = pos.speed * 3.6;
+      final speedKmh = rawSpeedKmh.isFinite && rawSpeedKmh > 0
+          ? rawSpeedKmh : 0.0;
+      _smoothedSpeed += (speedKmh - _smoothedSpeed) * 0.1;
+      final update = _trackHeading(pos);
+      final traveledMeters = update.stepMeters;
       setState(() {
         _currentPosition = pos;
-        _lastHeading = smoothed;
+        _lastHeading = update.headingDegrees;
         // Count only plausible GPS movement, never a simulated fixed increment.
         if (speedKmh > 2 && pos.accuracy <= 30 &&
             traveledMeters > 2 && traveledMeters < 150) {
@@ -123,6 +121,8 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
       if (_smoothedSpeed > 2) {
         _moveSmooth(pos, _smoothedSpeed);
       }
+    }, onError: (Object error) {
+      debugPrint('GPS ExpertMapPage: erreur flux localisation : $error');
     });
   }
 

@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'dart:async';
 import '../core/vehicle_marker_heading.dart';
+import '../core/gps_heading_tracker.dart';
 import '../core/gps_debug_logger.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -20,6 +21,7 @@ class _MapPageState extends State<MapPage> {
 
   Position? _currentPosition;
   double _lastHeading = 0;
+  final GpsHeadingTracker _headingTracker = GpsHeadingTracker();
   double _smoothedSpeed = 0;
 
   bool _satelliteMode = false;
@@ -39,10 +41,6 @@ class _MapPageState extends State<MapPage> {
   // --- ÉLÉMENTS NAVIGATION AVANCÉS --- 
 
   StreamSubscription<Position>? _positionStream;
-
-  // Variable de suivi pour la journalisation diagnostique uniquement.
-  // Ne modifie pas la logique GPS. Retirer avec GpsDebugLogger quand enabled=false.
-  double _logAnchorDist = 0;
 
   // Public key-free sources. Neither contains real-time traffic data.
   static const String _osmTileUrl =
@@ -64,12 +62,17 @@ class _MapPageState extends State<MapPage> {
     super.dispose();
   }
 
-  double _smoothAngle(double current, double target) {
-    double diff = target - current;
-    while (diff > 180) diff -= 360;
-    while (diff < -180) diff += 360;
-    final smoothed = current + diff * 0.25;
-    return (smoothed % 360 + 360) % 360;
+  GpsHeadingUpdate _trackHeading(Position position) {
+    final rawSpeedKmh = position.speed * 3.6;
+    final speedKmh = rawSpeedKmh.isFinite && rawSpeedKmh > 0
+        ? rawSpeedKmh : 0.0;
+    return _headingTracker.update(GpsFix(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      speedKmh: speedKmh,
+      headingDegrees: position.heading,
+      accuracyMeters: position.accuracy,
+    ));
   }
 
   Future<void> _startLocationTracking() async {
@@ -82,82 +85,48 @@ class _MapPageState extends State<MapPage> {
       if (permission == LocationPermission.denied) return;
     }
 
+    if (permission == LocationPermission.deniedForever) return;
     try {
       Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
       if (!mounted) return;
       setState(() {
         _currentPosition = pos;
-        _lastHeading = pos.heading >= 0 ? pos.heading : 0;
-        _smoothedSpeed = pos.speed * 3.6;
+        _lastHeading = _trackHeading(pos).headingDegrees;
+        _smoothedSpeed = (pos.speed.isFinite && pos.speed > 0)
+            ? pos.speed * 3.6 : 0;
       });
       if (_isFollowing) _followPosition(pos, _smoothedSpeed);
     } catch (_) {}
 
+    if (!mounted) return;
     _positionStream = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 1),
     ).listen((Position pos) {
       if (!mounted) return;
-      double speedKmh = pos.speed * 3.6;
-      _smoothedSpeed = _smoothedSpeed + ((speedKmh - _smoothedSpeed) * 0.1);
+      final rawSpeedKmh = pos.speed * 3.6;
+      final speedKmh = rawSpeedKmh.isFinite && rawSpeedKmh > 0
+          ? rawSpeedKmh : 0.0;
+      _smoothedSpeed += (speedKmh - _smoothedSpeed) * 0.1;
+      final headingUpdate = _trackHeading(pos);
 
-      double currentHeading = _lastHeading;
-      // On baisse la limite à 1.5 km/h pour que la voiture tourne même à très faible allure
-      if (speedKmh > 1.5) {
-        // 0° is a valid north heading, not an invalid/missing GPS measurement.
-        if (pos.heading >= 0.0 && pos.heading.isFinite) {
-          currentHeading = pos.heading;
-        } else if (_currentPosition != null &&
-            Geolocator.distanceBetween(
-              _currentPosition!.latitude, _currentPosition!.longitude,
-              pos.latitude, pos.longitude,
-            ) > 3.0) {
-          currentHeading = Geolocator.bearingBetween(
-            _currentPosition!.latitude, _currentPosition!.longitude,
-            pos.latitude, pos.longitude,
-          );
-        }
-      }
-      
-      double smoothed = _smoothAngle(_lastHeading, currentHeading);
-
-      // ── Log GPS diagnostic (temporaire — P0-GPS) ─────────────────────────
-      // Ce bloc ne modifie aucune variable de la logique GPS.
-      // Retirer quand GpsDebugLogger.enabled = false.
-      if (GpsDebugLogger.enabled && _currentPosition != null) {
-        final double stepDist = Geolocator.distanceBetween(
-          _currentPosition!.latitude, _currentPosition!.longitude,
-          pos.latitude, pos.longitude,
-        );
-        if (pos.heading >= 0.0 && pos.heading.isFinite) {
-          _logAnchorDist = 0;
-        } else {
-          _logAnchorDist += stepDist;
-        }
-        final String logSource;
-        if (pos.heading >= 0.0 && pos.heading.isFinite) {
-          logSource = 'ios_direct';
-        } else if (speedKmh <= 1.5) {
-          logSource = 'frozen_slow';
-        } else {
-          logSource = 'frozen';
-        }
+      if (GpsDebugLogger.enabled) {
         GpsDebugLogger.log(
           timestampMs: DateTime.now().millisecondsSinceEpoch,
           speedKmh: speedKmh,
           headingRaw: pos.heading,
           accuracyM: pos.accuracy,
-          distPrevM: stepDist,
-          distAnchorM: _logAnchorDist,
-          source: logSource,
-          smoothedDeg: smoothed,
+          distPrevM: headingUpdate.stepMeters,
+          distAnchorM: headingUpdate.anchorMeters,
+          source: headingUpdate.source,
+          smoothedDeg: headingUpdate.headingDegrees,
           page: 'MapPage',
         );
       }
-      // ── Fin log GPS ────────────────────────────────────────────────────────
+
 
       setState(() {
         _currentPosition = pos;
-        _lastHeading = smoothed;
+        _lastHeading = headingUpdate.headingDegrees;
       });
 
       if (_destination != null && _routePoints.isNotEmpty) {
@@ -167,6 +136,8 @@ class _MapPageState extends State<MapPage> {
       if (_isFollowing) {
         _followPosition(pos, _smoothedSpeed);
       }
+    }, onError: (Object error) {
+      debugPrint('GPS MapPage: erreur flux localisation : $error');
     });
   }
 
