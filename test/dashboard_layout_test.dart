@@ -88,5 +88,24 @@ void main() {
       await tester.scrollUntilVisible(clockFinder, 50, scrollable: find.byType(Scrollable).last);
       expect(clockFinder, findsOneWidget);
     });
+
+    testWidgets('Dashboard paysage iPhone 11 Pro : trois pôles avec carburant et retour menu', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(812 * 3, 375 * 3);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(const MaterialApp(home: Dashboard()));
+      await tester.pump();
+
+      expect(find.text('MIMO SPARK'), findsOneWidget);
+      expect(find.text('CARBURANT'), findsOneWidget);
+      expect(find.byKey(const Key('landscape_add_fuel_button')), findsOneWidget);
+      expect(find.byKey(const Key('landscape_fuel_calibration')), findsOneWidget);
+      expect(find.byType(FuelGaugeWidget), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 }

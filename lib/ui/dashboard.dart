@@ -854,71 +854,197 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
         ),
       ),
       child: SafeArea(
-        child: Stack(
-          children: [
-            Column(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Espace REEL après la SafeArea, y compris les encoches latérales iPhone.
+            const headerHeight = 42.0;
+            final cockpitHeight = (constraints.maxHeight - headerHeight)
+                .clamp(200.0, 420.0).toDouble();
+            final speedHeight = (cockpitHeight - 68.0)
+                .clamp(140.0, 352.0).toDouble();
+            final rpmHeight = (cockpitHeight - 20.0)
+                .clamp(180.0, 400.0).toDouble();
+
+            return Column(
               children: [
-                // Top Row: Température (L) | RPM (R)
-                Expanded(
-                  flex: 4,
+                SizedBox(
+                  height: headerHeight,
                   child: Row(
                     children: [
-                      Expanded(child: _buildTempGauge(isLandscape: true)),
+                      const SizedBox(width: 12),
+                      Icon(
+                        Icons.circle,
+                        color: _obdService.socket != null
+                            ? Colors.greenAccent
+                            : Colors.redAccent,
+                        size: 9,
+                      ),
                       const SizedBox(width: 8),
-                      Expanded(child: _buildRpmGauge(isLandscape: true)),
+                      const Text('MIMO SPARK',
+                          style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2)),
+                      const Spacer(),
+                      Builder(builder: (context) {
+                        return IconButton(
+                          icon: const Icon(Icons.menu,
+                              color: Color(0xFFFF3333), size: 26),
+                          onPressed: () => Scaffold.of(context).openEndDrawer(),
+                        );
+                      }),
+                      const SizedBox(width: 6),
                     ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                // Bottom Row: Carburant (L) | Consommation + Batterie (C) | Vitesse (R)
                 Expanded(
-                  flex: 4,
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Expanded(
-                        flex: 4,
-                        child: _buildFuelGauge(isLandscape: true),
+                        flex: 28,
+                        child: _buildLandscapeFuelPanel(cockpitHeight),
                       ),
-                      const SizedBox(width: 8),
                       Expanded(
-                        flex: 3,
+                        flex: 39,
                         child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            _buildFuelConsumptionMini(isLandscape: true),
-                            const SizedBox(height: 8),
-                            _buildBatteryMini(isLandscape: true),
+                            Expanded(
+                              child: Center(
+                                child: _buildSpeedGauge(
+                                  isLandscape: true,
+                                  heightOverride: speedHeight,
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              height: 50,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.thermostat,
+                                        size: 15,
+                                        color: temperature > 108
+                                            ? Colors.redAccent
+                                            : Colors.greenAccent),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      temperature > 0
+                                          ? '${temperature.toStringAsFixed(0)}°C'
+                                          : '--°C',
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    _buildFuelConsumptionMini(),
+                                    _buildBatteryMini(),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                      const SizedBox(width: 8),
                       Expanded(
-                        flex: 4,
-                        child: _buildSpeedGauge(isLandscape: true),
+                        flex: 33,
+                        child: Center(
+                          child: _buildRpmGauge(
+                            isLandscape: true,
+                            heightOverride: rpmHeight,
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ),
               ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // Pôle gauche du cockpit paysage : indépendant du panneau portrait.
+  // Conserve le widget photographique et la logique de calibrage existants.
+  Widget _buildLandscapeFuelPanel(double availableHeight) {
+    final gaugeSize = (availableHeight * 0.39)
+        .clamp(92.0, 130.0).toDouble();
+    final calibrated = _fuelCalculator.isCalibrated;
+    final fuelLiters = _fuelCalculator.currentLiters;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A0A0A).withOpacity(0.9),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+            color: const Color(0xFFFF3333).withOpacity(0.35),
+            width: 1.5),
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('CARBURANT',
+                style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1)),
+            const SizedBox(height: 3),
+            InkWell(
+              key: const Key('landscape_fuel_calibration'),
+              onTap: _showFuelCalibrationDialog,
+              child: FuelGaugeWidget(
+                fuelLiters: fuelLiters,
+                size: gaugeSize,
+                showGlow: true,
+              ),
             ),
-            // Floating Menu Button for Landscape
-            Positioned(
-              top: 10,
-              right: 10,
-              child: Builder(builder: (context) {
-                return IconButton(
-                  icon: const Icon(Icons.menu, color: const Color(0xFFFF3333), size: 30),
-                  onPressed: () => Scaffold.of(context).openEndDrawer(),
-                );
-              }),
+            Text(
+              calibrated ? '${fuelLiters.toStringAsFixed(1)} L / 35 L' : '-- L / 35 L',
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold),
+            ),
+            Text(
+              calibrated
+                  ? '${_fuelCalculator.kmRestants} KM ESTIMÉS'
+                  : 'À CALIBRER',
+              style: TextStyle(
+                  color: calibrated ? Colors.greenAccent : Colors.orangeAccent,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            SizedBox(
+              height: 30,
+              child: TextButton.icon(
+                key: const Key('landscape_add_fuel_button'),
+                onPressed: _showAddFuelDialog,
+                icon: const Icon(Icons.add, color: Colors.greenAccent, size: 14),
+                label: const Text('+ Plein',
+                    style: TextStyle(color: Colors.greenAccent, fontSize: 12)),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  backgroundColor: Colors.greenAccent.withOpacity(0.12),
+                ),
+              ),
             ),
           ],
         ),
       ),
     );
   }
-
-
 
   Widget _buildBatteryMini({bool isLandscape = false}) {
     return Container(
@@ -1585,9 +1711,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildRpmGauge({bool isLandscape = false}) {
+  Widget _buildRpmGauge({bool isLandscape = false, double? heightOverride}) {
     return _buildGlassCard(
-      height: isLandscape ? 180 : (isHudMode ? 320 : 220),
+      height: heightOverride ?? (isLandscape ? 180 : (isHudMode ? 320 : 220)),
       margin: isLandscape ? const EdgeInsets.all(8) : const EdgeInsets.all(4),
       child: SfRadialGauge(
         axes: <RadialAxis>[
@@ -1648,9 +1774,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildSpeedGauge({bool isLandscape = false}) {
+  Widget _buildSpeedGauge({bool isLandscape = false, double? heightOverride}) {
     return _buildGlassCard(
-      height: isLandscape ? 180 : (isHudMode ? 320 : 220),
+      height: heightOverride ?? (isLandscape ? 180 : (isHudMode ? 320 : 220)),
       margin: isLandscape ? const EdgeInsets.all(8) : const EdgeInsets.all(4),
       child: SfRadialGauge(
         axes: <RadialAxis>[
