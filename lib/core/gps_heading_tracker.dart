@@ -48,11 +48,11 @@ class GpsHeadingTracker {
 
   static double _normalize(double angle) => (angle % 360 + 360) % 360;
 
-  static double _smooth(double previous, double target) {
+  static double _smooth(double previous, double target, {double alpha = 0.25}) {
     var delta = _normalize(target) - previous;
     if (delta > 180) delta -= 360;
     if (delta < -180) delta += 360;
-    return _normalize(previous + delta * 0.25);
+    return _normalize(previous + delta * alpha);
   }
 
   static double _distanceMeters(GpsFix a, GpsFix b) {
@@ -135,7 +135,7 @@ class GpsHeadingTracker {
       if (_traveledFromAnchor >= minDistance && netDistance >= minDistance) {
         final fallbackHeading = _bearingDegrees(_anchor!, fix);
         _heading = _hasReliableHeading
-            ? _smooth(_heading, fallbackHeading)
+            ? _smooth(_heading, fallbackHeading, alpha: 0.5)
             : fallbackHeading;
         _hasReliableHeading = true;
         // Glisser l'ancre après chaque mesure fiable pour suivre les virages.

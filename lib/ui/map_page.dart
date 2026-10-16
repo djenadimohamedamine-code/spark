@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'dart:async';
 import '../core/vehicle_marker_heading.dart';
 import '../core/gps_heading_tracker.dart';
+import '../core/gps_route_geometry.dart';
 import '../core/gps_debug_logger.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -37,6 +38,7 @@ class _MapPageState extends State<MapPage> {
   double _distanceToNextStep = 0;
   IconData _nextManeuverIcon = Icons.navigation;
   DateTime? _lastRecalculateTime;
+  final GpsRouteRequestGuard _routeRequestGuard = GpsRouteRequestGuard();
 
   // --- ÉLÉMENTS NAVIGATION AVANCÉS --- 
 
@@ -58,6 +60,7 @@ class _MapPageState extends State<MapPage> {
   @override
   void dispose() {
     _positionStream?.cancel();
+    _routeRequestGuard.invalidate();
     GpsDebugLogger.close();
     super.dispose();
   }
@@ -155,6 +158,7 @@ class _MapPageState extends State<MapPage> {
       _routePoints = [];
       _navigationSteps = [];
       _currentStepIndex = 0;
+      _lastRecalculateTime = null;
       _isFollowing = true;
     });
     _getRoute(
@@ -164,54 +168,53 @@ class _MapPageState extends State<MapPage> {
   }
 
   Future<void> _getRoute(LatLng start, LatLng end) async {
+    final requestId = _routeRequestGuard.begin();
     try {
       final url = Uri.parse('https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=polyline&steps=true&languages=fr');
-      final response = await http.get(url);
+      final response = await http.get(url).timeout(const Duration(seconds: 12));
+      if (!mounted || !_routeRequestGuard.isCurrent(requestId)) return;
+      final destination = _destination;
+      if (destination == null ||
+          destination.latitude != end.latitude ||
+          destination.longitude != end.longitude) return;
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['routes'] != null && data['routes'].isNotEmpty) {
-          final route = data['routes'][0];
-          final geometry = route['geometry'];
-          final points = _decodePolyline(geometry);
-          
-          setState(() {
-            _routePoints = points;
-            _navigationSteps = route['legs'][0]['steps'];
-            _currentStepIndex = 0;
-            _updateManeuverInfo();
-            _isFollowing = true; 
-          });
-        }
+      if (response.statusCode != 200) {
+        debugPrint('GPS routing: HTTP ${response.statusCode}');
+        return;
       }
-    } catch (e) {
-      print("Routing Error: $e");
-    }
-  }
 
-  LatLng _projectOnRoute(LatLng current, List<LatLng> route) {
-    if (route.isEmpty) return current;
-    LatLng closest = route.first;
-    double minDist = double.infinity;
-    for (final p in route) {
-      final d = Geolocator.distanceBetween(current.latitude, current.longitude, p.latitude, p.longitude);
-      if (d < minDist) { minDist = d; closest = p; }
+      final data = json.decode(response.body);
+      if (data['routes'] == null || data['routes'].isEmpty) return;
+      final route = data['routes'][0];
+      final points = _decodePolyline(route['geometry'] as String);
+      final steps = route['legs'][0]['steps'] as List<dynamic>;
+      if (points.isEmpty || steps.isEmpty) return;
+
+      setState(() {
+        _routePoints = points;
+        _navigationSteps = steps;
+        _currentStepIndex = 0;
+        _distanceToNextStep = 0;
+        _updateManeuverInfo();
+      });
+    } catch (error) {
+      if (mounted && _routeRequestGuard.isCurrent(requestId)) {
+        debugPrint('GPS routing: impossible de calculer la route : $error');
+      }
     }
-    return closest;
   }
 
   void _updateNavigation(Position currentPos) {
     if (_navigationSteps.isEmpty || _routePoints.isEmpty) return;
 
     final currentPoint = LatLng(currentPos.latitude, currentPos.longitude);
-    final projected = _projectOnRoute(currentPoint, _routePoints);
-
-    double distanceToRoute = Geolocator.distanceBetween(
-      currentPoint.latitude, currentPoint.longitude,
-      projected.latitude, projected.longitude
+    // Le GPS peut être loin des sommets tout en étant SUR la route.
+    final distanceToRoute = GpsRouteGeometry.distanceMetersToPolyline(
+      currentPoint, _routePoints,
     );
 
-    if (distanceToRoute > 70) {
+    if (distanceToRoute > 70 &&
+        currentPos.accuracy.isFinite && currentPos.accuracy <= 50) {
       final now = DateTime.now();
       if (_lastRecalculateTime == null || now.difference(_lastRecalculateTime!).inSeconds > 12) {
         _lastRecalculateTime = now;
@@ -243,11 +246,12 @@ class _MapPageState extends State<MapPage> {
 
   void _updateManeuverInfo() {
     if (_navigationSteps.isEmpty) return;
-    var step = _navigationSteps[_currentStepIndex];
-    setState(() {
-      _nextInstruction = _formatManeuver(step);
-      _nextManeuverIcon = _getManeuverIcon(step['maneuver']['type'], step['maneuver']['modifier'] ?? "");
-    });
+    final step = _navigationSteps[_currentStepIndex];
+    // Appelé DANS setState par la navigation : aucun setState imbriqué.
+    _nextInstruction = _formatManeuver(step);
+    _nextManeuverIcon = _getManeuverIcon(
+      step['maneuver']['type'], step['maneuver']['modifier'] ?? '',
+    );
   }
 
   // OSRM v1 returns maneuver.type/modifier, not maneuver.instruction.
@@ -554,7 +558,18 @@ class _MapPageState extends State<MapPage> {
               bottom: 30, right: 16,
               child: FloatingActionButton(
                 heroTag: 'stop', mini: true, backgroundColor: Colors.redAccent,
-                onPressed: () => setState(() { _destination = null; _routePoints = []; _navigationSteps = []; }),
+                onPressed: () {
+                  _routeRequestGuard.invalidate();
+                  setState(() {
+                    _destination = null;
+                    _routePoints = [];
+                    _navigationSteps = [];
+                    _currentStepIndex = 0;
+                    _distanceToNextStep = 0;
+                    _nextInstruction = 'Suivez la route';
+                    _lastRecalculateTime = null;
+                  });
+                },
                 child: const Icon(Icons.close, color: Colors.white),
               ),
             ),

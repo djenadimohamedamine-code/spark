@@ -19,7 +19,10 @@ void main() {
       expect(first.headingDegrees, 0);
       expect(t.update(fix(36.80001, 3.05, heading: 359)).headingDegrees, greaterThan(350));
       final wrap = t.update(fix(36.80002, 3.05, heading: 1));
-      expect(wrap.headingDegrees, greaterThan(350));
+      // 359° et 1° sont voisins : le lissage doit rester près du nord.
+      final distanceToNorth = wrap.headingDegrees < 180
+          ? wrap.headingDegrees : 360 - wrap.headingDegrees;
+      expect(distanceToNorth, lessThan(2));
     });
 
     test('reprise de cap apres demi-tour avec fixes de seulement 1m', () {
