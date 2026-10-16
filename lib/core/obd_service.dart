@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
-import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'dtc_scanner.dart';
 

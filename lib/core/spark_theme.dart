@@ -49,7 +49,7 @@ class SparkTheme {
         foregroundColor: Colors.white,
       ),
     ),
-    tabBarTheme: const TabBarTheme(
+    tabBarTheme: const TabBarThemeData(
       labelColor: primary,
       indicatorColor: primary,
     ),

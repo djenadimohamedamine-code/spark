@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/database_helper.dart';
-import '../data/fuel_refill_model.dart';
 
 class FuelCalculator {
   double currentLiters = 0.0;
@@ -271,11 +270,10 @@ class FuelCalculator {
     _isRefilling = true;
     _pendingConsumptionLiters = 0.0;
 
-    FuelRefill refill;
     try {
       // 1. Écriture atomique dans SQLite (fuel_refills + expenses + fuel_state)
       // P0 : Toute exception SQLite est PROPAGÉE (jamais masquée ou considérée comme succès)
-      refill = await DatabaseHelper().recordFuelRefill(
+      await DatabaseHelper().recordFuelRefill(
         liters: litersAdded,
         pricePerLiter: pricePerLiter,
         levelBefore: levelBefore,

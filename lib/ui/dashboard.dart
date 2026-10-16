@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_gauges/gauges.dart';
@@ -19,7 +18,6 @@ import 'engine_data_page.dart';
 import 'performance_page.dart';
 import 'fuel_gauge_widget.dart';
 import 'add_fuel_dialog.dart';
-import '../core/background_service.dart';
 import '../vocal/voice_service.dart';
 import '../vocal/tts_service.dart';
 import '../core/gps_debug_logger.dart';
@@ -169,28 +167,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
           ],
         ),
       );
-    }
-  }
-
-  void _handleVoiceCommand(String cmd) {
-    if (!mounted) return;
-
-    switch (cmd) {
-      case 'MAP':
-        _addLog("Affichage de la carte.");
-        Navigator.push(
-            context, MaterialPageRoute(builder: (context) => const MapPage()));
-        break;
-      case 'DASHBOARD':
-        _addLog("Retour au tableau de bord.");
-        break;
-      case 'TOGGLE_SATELLITE':
-        _addLog("Mode satellite.");
-        // Note: La commande satellite est complexe car gérée dans MapPage.
-        // On pourrait passer un paramètre si on navigue vers MapPage.
-        Navigator.push(
-            context, MaterialPageRoute(builder: (context) => const MapPage()));
-        break;
     }
   }
 
@@ -500,11 +476,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     }
 
     _scheduleUpdate();
-  }
-
-  void _shareLog() async {
-    File? logFile = await _obdService.getLogFile();
-    if (logFile != null) await Share.shareXFiles([XFile(logFile.path)], text: 'Journal de bord MIMO_OBD');
   }
 
   Widget _buildHudTransform({required Widget child}) {
@@ -1100,43 +1071,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildDistanceGauge({bool isLandscape = false}) {
-    final kmStr = rideDistance.toStringAsFixed(1);
-    if (isLandscape) {
-      return Container(
-        margin: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: const Color(0xFF121212).withOpacity(0.7),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.08)),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 15, offset: const Offset(0, 5))
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.straighten, color: Colors.purpleAccent, size: 18),
-            const SizedBox(height: 6),
-            Text(kmStr, style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold)),
-            const Text("KM", style: TextStyle(color: Colors.purpleAccent, fontSize: 10, letterSpacing: 3, fontWeight: FontWeight.bold)),
-          ],
-        ),
-      );
-    }
-    return _buildGlassCard(
-      height: 180,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text("KM PARCOURUS", style: TextStyle(color: Colors.white54, fontSize: 12)),
-          const SizedBox(height: 10),
-          Text(kmStr, style: const TextStyle(color: Colors.white, fontSize: 42, fontWeight: FontWeight.bold)),
-        ],
-      )
-    );
-  }
-
   void toggleRide() {
     setState(() => isRideActive = !isRideActive);
     if (isRideActive) {
@@ -1168,115 +1102,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
       ),
       child: child,
     );
-  }
-
-  Widget _buildFuelGauge({bool isLandscape = false}) {
-    double fuelVal = _fuelCalculator.currentLiters;
-    int kmRestants = (fuelVal / 7.5 * 100).toInt();
-
-    final Color statusColor = kmRestants <= 70
-        ? Colors.redAccent
-        : (kmRestants <= 120 ? Colors.orangeAccent : Colors.greenAccent);
-
-    if (isLandscape) {
-      return _buildGlassCard(
-        height: 160,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(24),
-          onTap: _showFuelCalibrationDialog,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
-            child: Row(
-              children: [
-                FuelGaugeWidget(
-                  fuelLiters: fuelVal,
-                  size: 110,
-                  showGlow: true,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.local_gas_station, color: statusColor, size: 16),
-                          const SizedBox(width: 4),
-                          const Text(
-                            "CARBURANT",
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 10,
-                              letterSpacing: 1.5,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const Spacer(),
-                          GestureDetector(
-                            onTap: _showAddFuelDialog,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.greenAccent.withOpacity(0.18),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: Colors.greenAccent.withOpacity(0.4), width: 1.0),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.add, color: Colors.greenAccent, size: 10),
-                                  SizedBox(width: 2),
-                                  Text(
-                                    "+ Plein",
-                                    style: TextStyle(color: Colors.greenAccent, fontSize: 8.5, fontWeight: FontWeight.bold),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          const Icon(Icons.tune, color: Colors.white38, size: 14),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '$kmRestants KM',
-                        style: TextStyle(
-                          color: statusColor,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Text(
-                            '${fuelVal.toStringAsFixed(1)} L',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const Text(
-                            ' / 35L',
-                            style: TextStyle(color: Colors.white38, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    return _buildFuelHeroCard();
   }
 
   Widget _buildCompactTempWidget() {
@@ -1672,45 +1497,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildTempGauge({bool isLandscape = false}) {
-    if (!isLandscape) {
-      return _buildCompactTempWidget();
-    }
-    return _buildGlassCard(
-      height: 160, 
-      child: SfRadialGauge(
-        axes: <RadialAxis>[
-          RadialAxis(
-            minimum: 50, maximum: 130,
-            startAngle: 160, endAngle: 20,
-            showLabels: false, showTicks: false,
-            axisLineStyle: const AxisLineStyle(thickness: 12, cornerStyle: CornerStyle.bothCurve, color: Colors.white10),
-            pointers: <GaugePointer>[
-              RangePointer(
-                value: temperature == 0 ? 50 : temperature, width: 12, cornerStyle: CornerStyle.bothCurve,
-                gradient: const SweepGradient(colors: [Colors.lightBlue, Colors.orange, Colors.redAccent], stops: [0.3, 0.7, 0.9]),
-              ),
-              MarkerPointer(value: temperature == 0 ? 50 : temperature, markerType: MarkerType.circle, color: Colors.white, markerHeight: 15, markerWidth: 15)
-            ],
-            annotations: <GaugeAnnotation>[
-              GaugeAnnotation(
-                widget: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.thermostat, color: Colors.white70, size: 16),
-                    const SizedBox(height: 4),
-                    Text('${temperature.toStringAsFixed(0)}°C', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                angle: 90, positionFactor: 0.1
-              )
-            ],
-          )
-        ],
-      )
     );
   }
 
