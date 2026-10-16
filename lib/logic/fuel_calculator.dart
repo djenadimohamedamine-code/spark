@@ -41,6 +41,21 @@ class FuelCalculator {
     return _lastWrittenTs;
   }
 
+  /// Réaligne l'horloge FIFO sur le timestamp réellement COMMITÉ dans SQLite.
+  /// recordFuelRefill peut avancer updated_at en cas de collisions millisecondes.
+  /// Une lecture échouée ne transforme pas un plein déjà commité en faux échec.
+  Future<void> _syncTimestampFromDatabase() async {
+    try {
+      final state = await DatabaseHelper().getFuelState();
+      final storedTs = (state?['updated_at'] as num?)?.toInt();
+      if (storedTs != null && storedTs > _lastWrittenTs) {
+        _lastWrittenTs = storedTs;
+      }
+    } catch (error) {
+      print('Horodatage SQLite non disponible pour synchronisation : $error');
+    }
+  }
+
   /// Exécute une opération de persistance de manière strictement sérialisée dans la file FIFO.
   /// Empêche tout interblocage (deadlock) : les méthodes internes exécutées ne doivent jamais se remettre en file.
   Future<T> _enqueueExclusive<T>(Future<T> Function() operation) {
@@ -144,6 +159,7 @@ class FuelCalculator {
         } catch (_) {}
       }
     }
+    await _syncTimestampFromDatabase();
     _isInitialized = true;
   }
 
@@ -297,7 +313,9 @@ class FuelCalculator {
       rethrow;
     }
 
-    // 2. À ce stade, la transaction SQLite a RÉELLEMENT été validée et commité durablement.
+    // 2. La transaction est commitée : conserver son véritable timestamp SQLite
+    // avant tout OBD_SYNC suivant, même si SQLite a dû l'avancer de +1 ms.
+    await _syncTimestampFromDatabase();
     _isRefilling = false;
     if (newCalibrated && levelAfter != null) {
       currentLiters = (levelAfter - _pendingConsumptionLiters).clamp(0.0, _tankCapacity);

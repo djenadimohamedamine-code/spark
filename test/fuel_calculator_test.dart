@@ -241,6 +241,31 @@ void main() {
       expect(calculator.currentLiters, 0.0);
     });
 
+    test('Timestamp avance par SQLite : sauvegarde apres plein reste possible', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{'last_fuel_level': 9.3});
+      final calculator = FuelCalculator();
+      await calculator.init();
+
+      // Reproduit un timestamp persisté plus récent que l'horloge courante.
+      final futureTs = DateTime.now().millisecondsSinceEpoch + 60000;
+      await DatabaseHelper().setFuelState(
+        liters: 9.3,
+        eventType: 'MIGRATION_INIT',
+        isCalibrated: true,
+        updatedAt: futureTs,
+      );
+
+      await calculator.addFuel(10.0);
+      await calculator.save();
+      final persisted = await DatabaseHelper().getFuelState();
+      expect(persisted, isNotNull);
+      expect(persisted!['liters'], closeTo(19.3, 1e-9));
+      expect(persisted['updated_at'] as int, greaterThan(futureTs));
+      final restarted = FuelCalculator();
+      await restarted.init();
+      expect(restarted.currentLiters, closeTo(19.3, 1e-9));
+    });
+
     test('Redémarrage de l\'application : le niveau après plein est restauré', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{'last_fuel_level': 9.3});
       final appSession1 = FuelCalculator();
