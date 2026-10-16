@@ -1,0 +1,51 @@
+name: MIMO SPARK V3.1 - Flutter Tests Only
+
+# Exécute exclusivement l'analyse et les tests sur la branche isolée.
+# Aucune étape de compilation IPA/APK, ni modification de branches stables.
+on:
+  push:
+    branches:
+      - spark-v3.1-compat-tests
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spark-v31-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-and-test:
+    name: Flutter 3.41 analysis + tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact branch commit
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter 3.41
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.0'
+          channel: stable
+          cache: true
+
+      - name: Set up Python for native SQLite migration test
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Check toolchain versions
+        run: |
+          flutter --version
+          python3 --version
+
+      - name: Resolve Flutter dependencies
+        run: flutter pub get
+
+      - name: Analyze application and tests
+        run: flutter analyze --no-pub --no-fatal-infos lib test
+
+      - name: Run all Flutter tests
+        run: flutter test --no-pub
