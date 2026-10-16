@@ -143,6 +143,23 @@ void main() {
       expect(calculator.lastCalibTs, 12345);
     });
 
+    test('14. Réservoir 35 L : refus de plus de 35 L même avec jauge inconnue', () async {
+      final calculator = FuelCalculator();
+      await calculator.init();
+      expect(calculator.isCalibrated, isFalse);
+
+      await expectLater(
+        calculator.addFuel(36.0, isFullTank: true),
+        throwsA(isA<ArgumentError>()),
+      );
+      await expectLater(
+        calculator.addFuel(10.0, pricePerLiter: double.nan),
+        throwsA(isA<ArgumentError>()),
+      );
+      expect(fakeDb.tables['fuel_refills']?.isEmpty ?? true, isTrue);
+      expect(fakeDb.tables['expenses']?.isEmpty ?? true, isTrue);
+    });
+
     // ── Test 3 : P0 — Sérialisation stricte : ancienne sauvegarde OBD2 retardée ──
     test('3. Ancienne sauvegarde OBD2 retardée : ordonnancement FIFO strict sans écrasement', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{'last_fuel_level': 10.0});

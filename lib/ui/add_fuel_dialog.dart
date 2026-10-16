@@ -102,7 +102,10 @@ class _AddFuelDialogState extends State<AddFuelDialog> {
     return (liters / 7.5 * 100).toInt();
   }
 
-  bool get _isExceedingTank => widget.fuelCalculator.isCalibrated && _projectedLiters > FuelCalculator.tankCapacity + 1e-6;
+  bool get _isExceedingTank =>
+      (_litersAdded ?? 0) > FuelCalculator.tankCapacity ||
+      (widget.fuelCalculator.isCalibrated && !_isFullTank &&
+          _projectedLiters > FuelCalculator.tankCapacity + 1e-6);
 
   bool get _isValidInput {
     final added = _litersAdded;

@@ -229,8 +229,13 @@ class FuelCalculator {
     bool isFullTank = false,
   }) async {
     await init();
-    if (!litersAdded.isFinite || litersAdded.isNaN || litersAdded <= 0) {
-      throw ArgumentError.value(litersAdded, 'litersAdded', 'La quantité de carburant doit être positive et finie.');
+    if (!litersAdded.isFinite || litersAdded <= 0 || litersAdded > _tankCapacity) {
+      throw ArgumentError.value(litersAdded, 'litersAdded',
+          'Un ajout doit être compris entre 0 et $_tankCapacity litres.');
+    }
+    if (!pricePerLiter.isFinite || pricePerLiter <= 0) {
+      throw ArgumentError.value(pricePerLiter, 'pricePerLiter',
+          'Le prix par litre doit être positif et fini.');
     }
 
     final double? levelBefore;
