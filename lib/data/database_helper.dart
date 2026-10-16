@@ -198,7 +198,15 @@ class DatabaseHelper {
       if (!hasIsCalibrated) {
         await db.execute('ALTER TABLE fuel_state ADD COLUMN is_calibrated INTEGER NOT NULL DEFAULT 0');
       }
-      await db.execute("UPDATE fuel_state SET is_calibrated = CASE WHEN event_type = 'UNCALIBRATED' THEN 0 ELSE 1 END WHERE is_calibrated = 0");
+      // Les anciens états MIGRATION_INIT / OBD_SYNC peuvent provenir d'une calibration valide.
+      // Sur un niveau 0 sans provenance, conserver le statut inconnu plutôt que l'inventer.
+      await db.execute("""UPDATE fuel_state SET is_calibrated = CASE
+          WHEN event_type IN ('UNCALIBRATED', 'REFILL_UNCALIBRATED') THEN 0
+          WHEN last_calib_ts > 0 OR liters > 0
+            OR event_type IN ('CALIBRATION', 'REFILL', 'REFILL_POST_CONSUMPTION', 'REFILL_CANCEL', 'MIGRATION_INIT')
+          THEN 1
+          ELSE 0
+        END WHERE is_calibrated = 0""");
     }
   }
 
@@ -442,7 +450,8 @@ class DatabaseHelper {
         'event_type': eventType,
         'reference_id': referenceId,
         'last_calib_ts': lastCalibTs ?? 0,
-        'is_calibrated': isCalibratedInt ?? (eventType == 'UNCALIBRATED' ? 0 : 1),
+        'is_calibrated': isCalibratedInt ??
+            (const {'CALIBRATION', 'MIGRATION_INIT', 'REFILL', 'REFILL_POST_CONSUMPTION', 'REFILL_CANCEL'}.contains(eventType) ? 1 : 0),
       });
       return true;
     });

@@ -309,12 +309,46 @@ def run_tests():
         cur.execute("ALTER TABLE fuel_refills_v6 RENAME TO fuel_refills")
 
     cur.execute("ALTER TABLE fuel_state ADD COLUMN is_calibrated INTEGER NOT NULL DEFAULT 0")
-    cur.execute("UPDATE fuel_state SET is_calibrated = CASE WHEN event_type = 'UNCALIBRATED' THEN 0 ELSE 1 END WHERE is_calibrated = 0")
+    cur.execute("""UPDATE fuel_state SET is_calibrated = CASE
+          WHEN event_type IN ('UNCALIBRATED', 'REFILL_UNCALIBRATED') THEN 0
+          WHEN last_calib_ts > 0 OR liters > 0
+            OR event_type IN ('CALIBRATION', 'REFILL', 'REFILL_POST_CONSUMPTION', 'REFILL_CANCEL', 'MIGRATION_INIT')
+          THEN 1
+          ELSE 0
+        END WHERE is_calibrated = 0""")
     conn.commit()
 
     cur.execute("PRAGMA table_info(fuel_state)")
     state_cols_v6 = [row[1] for row in cur.fetchall()]
     assert 'is_calibrated' in state_cols_v6, "Après migration v6, is_calibrated doit exister"
+
+    # Cas de migration hérités v5 : l'événement peut avoir été remplacé par OBD_SYNC.
+    legacy_cases = [
+        ("UNCALIBRATED", 0, 0.0, 0),
+        ("OBD_SYNC", 0, 0.0, 0),
+        ("OBD_SYNC", 0, 18.4, 1),
+        ("MIGRATION_INIT", 0, 18.4, 1),
+        ("MIGRATION_INIT", 0, 0.0, 1),
+        ("REFILL", 0, 35.0, 1),
+        ("CALIBRATION", 100, 0.0, 1),
+        ("OBD_SYNC", 100, 0.0, 1),
+    ]
+    for event, calib_ts, liters, expected in legacy_cases:
+        cur.execute("UPDATE fuel_state SET is_calibrated=0, event_type=?, last_calib_ts=?, liters=? WHERE id=1", (event, calib_ts, liters))
+        cur.execute("""UPDATE fuel_state SET is_calibrated = CASE
+          WHEN event_type IN ('UNCALIBRATED', 'REFILL_UNCALIBRATED') THEN 0
+          WHEN last_calib_ts > 0 OR liters > 0
+            OR event_type IN ('CALIBRATION', 'REFILL', 'REFILL_POST_CONSUMPTION', 'REFILL_CANCEL', 'MIGRATION_INIT')
+          THEN 1
+          ELSE 0
+        END WHERE is_calibrated = 0""")
+        cur.execute("SELECT is_calibrated FROM fuel_state WHERE id=1")
+        actual = cur.fetchone()[0]
+        assert actual == expected, f"Migration du cas {event}/{calib_ts}/{liters} : {actual} au lieu de {expected}"
+    # Restaurer le scénario courant pour la suite des vérifications natives.
+    cur.execute("UPDATE fuel_state SET is_calibrated=1, event_type='OBD_SYNC', last_calib_ts=500, liters=24.8 WHERE id=1")
+    conn.commit()
+
 
     # Insertion d'un plein sur jauge non calibrée avec level_before/after NULL
     cur.execute("""

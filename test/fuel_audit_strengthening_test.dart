@@ -123,6 +123,26 @@ void main() {
       expect(calculator.lastCalibTs, 1000);
     });
 
+    test('13. Échec du plein complet : dernier timestamp de calibration préservé', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'last_fuel_level': 12.0,
+        'last_calibration_timestamp': 12345,
+      });
+      final failingDb = FailingFakeDatabase();
+      DatabaseHelper().setDatabaseForTesting(failingDb);
+      final calculator = FuelCalculator();
+      await calculator.init();
+      expect(calculator.lastCalibTs, 12345);
+      failingDb.failOnRefill = true;
+      await expectLater(
+        calculator.addFuel(5.0, isFullTank: true),
+        throwsA(isA<DatabaseException>()),
+      );
+      expect(calculator.currentLiters, 12.0);
+      expect(calculator.isCalibrated, isTrue);
+      expect(calculator.lastCalibTs, 12345);
+    });
+
     // ── Test 3 : P0 — Sérialisation stricte : ancienne sauvegarde OBD2 retardée ──
     test('3. Ancienne sauvegarde OBD2 retardée : ordonnancement FIFO strict sans écrasement', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{'last_fuel_level': 10.0});

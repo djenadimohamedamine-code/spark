@@ -516,7 +516,7 @@ void main() {
     });
 
     test('Scénario 18 : Validation des migrations v3->v5, v4->v5, ALTER TABLE et transactions sur VRAI moteur natif SQLite C-Engine', () {
-      final result = Process.runSync('python', ['test/native_sqlite_migration_test.py']);
+      final result = Process.runSync(Platform.isWindows ? 'python' : 'python3', ['test/native_sqlite_migration_test.py']);
       expect(result.exitCode, 0, reason: 'Erreur lors des tests SQLite natifs : ${result.stderr}\n${result.stdout}');
       expect(result.stdout.toString(), contains('100% des tests sur véritable moteur SQLite natif validés avec succès !'));
     });

@@ -78,6 +78,8 @@ class FuelCalculator {
     }
 
     if (fuelState != null) {
+      // Le timestamp SQLite survit aux redémarrages ; la file conserve sa monotonie.
+      _lastWrittenTs = (fuelState['updated_at'] as num?)?.toInt() ?? 0;
       final isCalibratedInt = fuelState['is_calibrated'] as int?;
       final eventType = fuelState['event_type'] as String?;
       final calibTs = (fuelState['last_calib_ts'] as int?) ?? 0;
@@ -234,6 +236,7 @@ class FuelCalculator {
     final double? levelBefore;
     final double? levelAfter;
     final bool newCalibrated;
+    final previousCalibTs = _lastCalibTs;
     final nowMs = _getMonotonicTimestamp();
 
     if (isFullTank) {
@@ -279,6 +282,8 @@ class FuelCalculator {
         eventType: newCalibrated ? 'REFILL' : 'REFILL_UNCALIBRATED',
       );
     } catch (e) {
+      // Restaurer aussi le calibrage si l'utilisateur avait coché « réservoir plein ».
+      _lastCalibTs = previousCalibTs;
       // En cas d'échec SQLite, le plein n'a pas été commité.
       // La consommation mesurée pendant l'I/O n'est pas perdue pour autant si la jauge était calibrée
       if (_isCalibrated) {
@@ -303,13 +308,23 @@ class FuelCalculator {
     // Mise à jour SQLite si de la consommation OBD2 mesurée pendant l'écriture a été déduite
     if (newCalibrated && levelAfter != null && currentLiters != levelAfter) {
       final saveTs = _getMonotonicTimestamp();
-      await DatabaseHelper().setFuelState(
-        liters: currentLiters,
-        eventType: 'REFILL_POST_CONSUMPTION',
-        lastCalibTs: _lastCalibTs,
-        isCalibrated: true,
-        updatedAt: saveTs,
-      );
+      try {
+        final persisted = await DatabaseHelper().setFuelState(
+          liters: currentLiters,
+          eventType: 'REFILL_POST_CONSUMPTION',
+          lastCalibTs: _lastCalibTs,
+          isCalibrated: true,
+          updatedAt: saveTs,
+        );
+        if (!persisted) throw StateError('Synchronisation post-plein rejetée par SQLite');
+      } catch (e) {
+        // Le plein et sa dépense sont DÉJÀ commitées : ne pas afficher un faux échec
+        // qui provoquerait une deuxième saisie financière. Retenter après la file FIFO.
+        print('Plein enregistré ; synchronisation consommation différée : $e');
+        unawaited(save().catchError((Object error, StackTrace stack) {
+          print('Reprise sauvegarde consommation après plein échouée : $error');
+        }));
+      }
     }
 
     // 3. Mise à jour du miroir/cache SharedPreferences
