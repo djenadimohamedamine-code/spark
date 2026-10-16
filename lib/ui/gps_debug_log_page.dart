@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
@@ -26,6 +27,7 @@ class _GpsDebugLogPageState extends State<GpsDebugLogPage> {
   List<String> _lines = [];
   bool _autoScroll = true;
   bool _isLogging = GpsDebugLogger.enabled;
+  StreamSubscription<void>? _pollSubscription;
 
   @override
   void initState() {
@@ -39,7 +41,7 @@ class _GpsDebugLogPageState extends State<GpsDebugLogPage> {
   );
 
   void _startPolling() {
-    _poll.listen((_) {
+    _pollSubscription = _poll.listen((_) {
       if (mounted) _refresh();
     });
   }
@@ -192,6 +194,7 @@ class _GpsDebugLogPageState extends State<GpsDebugLogPage> {
 
   @override
   void dispose() {
+    _pollSubscription?.cancel();
     _scroll.dispose();
     super.dispose();
   }
@@ -253,6 +256,15 @@ class _GpsDebugLogPageState extends State<GpsDebugLogPage> {
       ),
       body: Column(
         children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: Text(
+              'Version source : ${GpsDebugLogger.buildSha}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: Colors.white54, fontSize: 11),
+            ),
+          ),
           // Barre de contrôle d'activation à chaud
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

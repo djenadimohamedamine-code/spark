@@ -16,6 +16,10 @@ class GpsDebugLogger {
   /// depuis l'interface sur l'iPhone.
   static bool enabled = false;
 
+  static const String buildSha = String.fromEnvironment(
+    'SPARK_BUILD_SHA', defaultValue: 'non identifiée',
+  );
+
   static const String _filename = 'gps_debug_log.txt';
   static const int _maxLines = 2000; // ~200 Ko — borné, ne sature pas la mémoire
 
@@ -54,6 +58,7 @@ class GpsDebugLogger {
   static String _buildHeader() {
     final now = DateTime.now();
     return '\n# GPS debug session — ${now.toIso8601String()}\n'
+        '# Build: $buildSha\n'
         '# timestamp_ms | speed_kmh | heading_raw | accuracy_m '
         '| dist_prev_m | dist_anchor_m | source | smooth_deg | page';
   }

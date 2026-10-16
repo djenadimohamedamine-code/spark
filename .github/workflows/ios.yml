@@ -1,7 +1,7 @@
 name: Mimo-Spark-iOS-Build-IPA
 on:
   push:
-    branches: [ "main", "master", "spark-v3-integration" ]
+    branches: [ "main", "master", "spark-v3-integration", "spark-v3.1-gps-sol-dev" ]
   workflow_dispatch:
 
 jobs:
@@ -64,20 +64,24 @@ jobs:
         # unrelated legacy .dart files under assets/images and its root.
         # Keep diagnostics visible; errors are fatal, pre-existing warnings
         # and infos are reported without stopping the iOS build.
-        run: flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings lib
+        run: flutter analyze --no-pub --no-fatal-infos lib test
 
       - name: Build_iOS_IPA
         run: |
-          flutter build ios --release --no-codesign
+          flutter build ios --release --no-codesign --dart-define=SPARK_BUILD_SHA=${{ github.sha }}
           
           # Create IPA
           cd build/ios/iphoneos
           mkdir -p Payload
           cp -r Runner.app Payload/
           zip -r MIMO_SPARK.ipa Payload
+          git rev-parse HEAD > build-commit.txt
+          flutter --version >> build-commit.txt
 
       - name: Upload_Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mimo-spark-ipa
-          path: build/ios/iphoneos/MIMO_SPARK.ipa
+          name: mimo-spark-ipa-${{ github.sha }}
+          path: |
+            build/ios/iphoneos/MIMO_SPARK.ipa
+            build/ios/iphoneos/build-commit.txt
