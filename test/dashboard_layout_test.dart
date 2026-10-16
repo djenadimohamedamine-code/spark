@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mimo_spark/ui/dashboard.dart';
+import 'package:mimo_spark/ui/fuel_gauge_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mimo_spark/data/database_helper.dart';
 import 'helpers/fake_database.dart';
@@ -41,6 +42,10 @@ void main() {
       expect(find.text('+ Plein'), findsOneWidget);
       expect(find.text('CAL'), findsOneWidget);
       expect(find.text('AUTONOMIE ESTIMÉE'), findsOneWidget);
+      // Sur le viewport iPhone 11 Pro, la jauge photo passe de 132 à 156 pt.
+      final heroGauge = tester.widgetList<FuelGaugeWidget>(find.byType(FuelGaugeWidget)).first;
+      expect(heroGauge.size, 156.0);
+      expect(tester.takeException(), isNull);
 
       // Vérifier que le bouton menu drawer est présent
       expect(find.byIcon(Icons.menu), findsOneWidget);

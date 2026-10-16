@@ -775,31 +775,39 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 child: Column(
                   children: [
                     Expanded(
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
-                          child: Column(
-                            children: [
-                              if (!isHudMode) ...[
-                                _buildCompactTempWidget(),
-                                const SizedBox(height: 10),
-                                _buildFuelHeroCard(),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Expanded(child: _buildRpmGauge()),
-                                    const SizedBox(width: 8),
-                                    Expanded(child: _buildSpeedGauge()),
+                      child: LayoutBuilder(
+                        builder: (context, viewport) => SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(minHeight: viewport.maxHeight),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+                              child: Column(
+                                // Occupe la hauteur libérée par l'horloge ; reste scrollable
+                                // quand le texte/accessibilité agrandit les instruments.
+                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                children: [
+                                  if (!isHudMode) ...[
+                                    _buildCompactTempWidget(),
+                                    const SizedBox(height: 10),
+                                    _buildFuelHeroCard(),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      children: [
+                                        Expanded(child: _buildRpmGauge()),
+                                        const SizedBox(width: 4),
+                                        Expanded(child: _buildSpeedGauge()),
+                                      ],
+                                    ),
+                                  ] else ...[
+                                    // Mode HUD : Uniquement Vitesse (En haut) et RPM (En bas)
+                                    _buildSpeedGauge(),
+                                    const SizedBox(height: 20),
+                                    _buildRpmGauge(),
                                   ],
-                                ),
-                              ] else ...[
-                                // Mode HUD : Uniquement Vitesse (En haut) et RPM (En bas)
-                                _buildSpeedGauge(),
-                                const SizedBox(height: 20),
-                                _buildRpmGauge(),
-                              ]
-                            ],
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -1012,10 +1020,14 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   // --- GAUGE DESIGN METRICS ---
   
-  Widget _buildGlassCard({required Widget child, required double height}) {
+  Widget _buildGlassCard({
+    required Widget child,
+    required double height,
+    EdgeInsetsGeometry margin = const EdgeInsets.all(8),
+  }) {
     return Container(
       height: height,
-      margin: const EdgeInsets.all(8),
+      margin: margin,
       decoration: BoxDecoration(
         color: const Color(0xFF0A0A0A).withOpacity(0.85),
         borderRadius: BorderRadius.circular(24),
@@ -1182,7 +1194,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 2.0),
-      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 7.0),
+      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 9.0),
       decoration: BoxDecoration(
         color: const Color(0xFF0F0F0F).withOpacity(0.85),
         borderRadius: BorderRadius.circular(16),
@@ -1215,7 +1227,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 tempText,
                 style: TextStyle(
                   color: statusColor,
-                  fontSize: 20,
+                  fontSize: 22,
                   fontWeight: FontWeight.w900,
                   letterSpacing: -0.5,
                 ),
@@ -1310,6 +1322,8 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   Widget _buildFuelHeroCard() {
     final double fuelVal = _fuelCalculator.currentLiters;
+    // 156 pt sur iPhone 11 Pro (375 pt), réduit sur les écrans étroits.
+    final double gaugeSize = (MediaQuery.of(context).size.width - 219.0).clamp(132.0, 156.0).toDouble();
     final int kmRestants = _fuelCalculator.kmRestants;
     final double fuelPercent = (fuelVal / 35.0).clamp(0.0, 1.0);
 
@@ -1325,7 +1339,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
         : '${(lph / (speed > 0 ? speed : 1.0) * 100).toStringAsFixed(1)} L/100';
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8.0),
+      margin: EdgeInsets.zero,
       decoration: BoxDecoration(
         color: const Color(0xFF0A0A0A).withOpacity(0.9),
         borderRadius: BorderRadius.circular(24),
@@ -1349,17 +1363,17 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
           borderRadius: BorderRadius.circular(24),
           onTap: _showFuelCalibrationDialog,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
+            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Jauge réelle ta.jpeg avec aiguille unique proportionnée à 132 pt pour iPhone 11 Pro
+                // Jauge photo conservée ; seul son encombrement responsive change (pivot/angles inchangés)
                 FuelGaugeWidget(
                   fuelLiters: fuelVal,
-                  size: 132,
+                  size: gaugeSize,
                   showGlow: true,
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 // Bloc télémétrique droit haute visibilité
                 Expanded(
                   child: Column(
@@ -1447,7 +1461,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                         _fuelCalculator.isCalibrated ? '$kmRestants KM' : 'À CALIBRER',
                         style: TextStyle(
                           color: _fuelCalculator.isCalibrated ? statusColor : Colors.orangeAccent,
-                          fontSize: _fuelCalculator.isCalibrated ? 24 : 19,
+                          fontSize: _fuelCalculator.isCalibrated ? 27 : 19,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0.5,
                         ),
@@ -1573,7 +1587,8 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   Widget _buildRpmGauge({bool isLandscape = false}) {
     return _buildGlassCard(
-      height: isLandscape ? 180 : (isHudMode ? 320 : 220), 
+      height: isLandscape ? 180 : (isHudMode ? 320 : 220),
+      margin: isLandscape ? const EdgeInsets.all(8) : const EdgeInsets.all(4),
       child: SfRadialGauge(
         axes: <RadialAxis>[
           RadialAxis(
@@ -1635,7 +1650,8 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   Widget _buildSpeedGauge({bool isLandscape = false}) {
     return _buildGlassCard(
-      height: isLandscape ? 180 : (isHudMode ? 320 : 220), 
+      height: isLandscape ? 180 : (isHudMode ? 320 : 220),
+      margin: isLandscape ? const EdgeInsets.all(8) : const EdgeInsets.all(4),
       child: SfRadialGauge(
         axes: <RadialAxis>[
           RadialAxis(
