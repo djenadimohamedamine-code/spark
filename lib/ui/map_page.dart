@@ -27,6 +27,8 @@ class _MapPageState extends State<MapPage> {
 
   bool _satelliteMode = false;
   bool _isFollowing = true;
+  Timer? _autoResumeFollowingTimer;
+  static const Duration _followRecoveryDelay = Duration(seconds: 12);
 
   LatLng? _destination;
   List<LatLng> _routePoints = [];
@@ -60,6 +62,7 @@ class _MapPageState extends State<MapPage> {
   @override
   void dispose() {
     _positionStream?.cancel();
+    _autoResumeFollowingTimer?.cancel();
     _routeRequestGuard.invalidate();
     GpsDebugLogger.close();
     super.dispose();
@@ -151,8 +154,37 @@ class _MapPageState extends State<MapPage> {
     _mapController.move(LatLng(pos.latitude, pos.longitude), targetZoom);
   }
 
+  // Après un déplacement manuel, ne pas laisser le suivi GPS désactivé
+  // indéfiniment : l'utilisateur retrouve sa voiture automatiquement.
+  // Un nouveau geste repousse le délai pour ne pas gêner l'exploration.
+  void _pauseFollowingForGesture() {
+    if (!_isFollowing && _autoResumeFollowingTimer == null) return;
+    if (_isFollowing) {
+      setState(() => _isFollowing = false);
+      if (GpsDebugLogger.enabled) GpsDebugLogger.mark('AUTO_FOLLOW_PAUSED');
+    }
+    _autoResumeFollowingTimer?.cancel();
+    _autoResumeFollowingTimer = Timer(_followRecoveryDelay, () {
+      if (!mounted) return;
+      _resumeFollowing();
+    });
+  }
+
+  void _resumeFollowing() {
+    _autoResumeFollowingTimer?.cancel();
+    _autoResumeFollowingTimer = null;
+    if (!_isFollowing) {
+      setState(() => _isFollowing = true);
+      if (GpsDebugLogger.enabled) GpsDebugLogger.mark('AUTO_FOLLOW_RESUMED');
+    }
+    final fix = _currentPosition;
+    if (fix != null) _followPosition(fix, _smoothedSpeed);
+  }
+
   void _chooseDestination(LatLng destination) {
     if (_currentPosition == null) return;
+    _autoResumeFollowingTimer?.cancel();
+    _autoResumeFollowingTimer = null;
     setState(() {
       _destination = destination;
       _routePoints = [];
@@ -335,10 +367,9 @@ class _MapPageState extends State<MapPage> {
               initialZoom: 18.2,
               onLongPress: (_, point) => _chooseDestination(point),
               onPositionChanged: (pos, hasGesture) {
-                // Dès que l'utilisateur touche la carte, on arrête le suivi auto définitivement
-                if (hasGesture && _isFollowing) {
-                  setState(() => _isFollowing = false);
-                }
+                // Un geste déverrouille le recentrage temporairement.
+                // Après 12 s sans nouveau geste, le suivi se réactive.
+                if (hasGesture) _pauseFollowingForGesture();
               },
             ),
             children: [
@@ -542,12 +573,8 @@ class _MapPageState extends State<MapPage> {
               child: FloatingActionButton(
                 heroTag: 'recenter',
                 backgroundColor: const Color(0xFFFF3333),
-                onPressed: () {
-                  setState(() => _isFollowing = true);
-                  if (_currentPosition != null) {
-                    _followPosition(_currentPosition!, _smoothedSpeed);
-                  }
-                },
+                tooltip: 'Recentrer et suivre ma voiture',
+                onPressed: _resumeFollowing,
                 child: const Icon(Icons.my_location, color: Colors.white),
               ),
             ),
