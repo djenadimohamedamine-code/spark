@@ -2,7 +2,6 @@ name: Mimo-Spark-Android-Build-APK
 
 # Build APK Android depuis la branche spark-v3.1-android-sync
 # Référence iOS : commit 0d3d7a25c3f7fbb65e478fbddd8b20b6f571c377
-# Ne touche pas à main, spark-v2-dev, spark-v3-integration ni au workflow iOS.
 on:
   push:
     branches:
@@ -11,94 +10,63 @@ on:
 
 jobs:
   build:
-    name: Android APK Release — V3.1 GPS Sync
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
     steps:
-      - name: Checkout exact commit
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Verify source commit (traceability)
+      - name: Verify source commit
         run: |
-          echo "=== Branche Android Sync V3.1 ==="
           echo "Commit: $(git rev-parse HEAD)"
           echo "Message: $(git log -1 --format='%s')"
-          echo "Date: $(git log -1 --format='%ci')"
 
-      - name: Setup Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Setup Flutter 3.29.3
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.29.3'
+          flutter-version: '3.22.0'
           channel: 'stable'
-          cache: true
 
-      - name: Flutter & Dart version check
-        run: |
-          flutter --version
-          dart --version
-
-      # Génère le dossier android/ complet via flutter create (ne touche pas aux fichiers existants)
-      - name: Create Android native folders
+      - name: Create Native Folders on Cloud
         run: flutter create --org com.mimo . --platforms=android --no-overwrite
 
-      # Injecte le MainActivity.kt personnalisé (network shield, etc.)
-      - name: Inject native MainActivity
+      - name: Inject Native Shield
         run: |
           mkdir -p android/app/src/main/kotlin/com/mimo/spark
           cp native/android/MainActivity.kt android/app/src/main/kotlin/com/mimo/spark/MainActivity.kt
-          echo "=== MainActivity.kt injectée ==="
-          cat android/app/src/main/kotlin/com/mimo/spark/MainActivity.kt
 
-      # Aligne la version Kotlin pour compatibilité avec les plugins Flutter
-      - name: Upgrade Kotlin to 1.9.22
+      - name: Upgrade Kotlin Version
         run: |
+          # Flutter 3.22 standard Groovy Gradle
           sed -i '1i buildscript { ext.kotlin_version = "1.9.22" }' android/build.gradle
           sed -i 's/id "org.jetbrains.kotlin.android" version ".*" apply false/id "org.jetbrains.kotlin.android" version "1.9.22" apply false/' android/settings.gradle || true
-          echo "=== build.gradle (head) ==="
-          head -5 android/build.gradle
 
-      # Remplace le Manifest générique par notre version avec toutes les permissions Android
-      # GPS, WiFi, foreground service, wake lock, notifications
-      - name: Inject Android permissions manifest
+      - name: Add Android Network Permissions & Cleartext
         run: |
           cp native/android/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
-          echo "=== AndroidManifest.xml injecté ==="
           cat android/app/src/main/AndroidManifest.xml
 
-      - name: Flutter pub get
+      - name: Flutter Pub Get
         run: flutter pub get
 
-      # Génère l'icône launcher Android uniquement (iOS: false dans pubspec.yaml)
-      - name: Generate Android launcher icons
+      - name: Generate App Icons
         run: flutter pub run flutter_launcher_icons
 
-      # Analyse Dart — warnings non fatals, erreurs fatales
-      - name: Flutter analyze (lib + test)
+      - name: Flutter Analyze
         run: flutter analyze --no-pub --no-fatal-infos lib test || true
 
-      # Build APK release universel (toutes architectures arm64/arm/x86_64)
-      - name: Build APK Release
-        run: |
-          flutter build apk --release \
-            --dart-define=SPARK_BUILD_SHA=$(git rev-parse --short HEAD)
-          echo "=== APK produit ==="
-          ls -lh build/app/outputs/flutter-apk/
+      - name: Build APK (Android)
+        run: flutter build apk --release --dart-define=SPARK_BUILD_SHA=0d3d7a25
 
-      # Upload de l'APK universel + APKs par architecture si présents
-      - name: Upload APK Release
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Mimo-Spark-Android-V3.1-GPS-${{ github.sha }}
-          path: |
-            build/app/outputs/flutter-apk/app-release.apk
-            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
-          if-no-files-found: warn
-          retention-days: 30
+          name: Mimo-Spark-Android-Build-APK-V3.1
+          path: build/app/outputs/flutter-apk/app-release.apk
