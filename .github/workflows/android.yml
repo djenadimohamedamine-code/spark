@@ -1,7 +1,7 @@
 name: Mimo-Spark-Android-Build-APK
 
 # Build APK Android depuis la branche spark-v3.1-android-sync
-# Référence iOS : commit 0d3d7a25c3f7fbb65e478fbddd8b20b6f571c377
+# Référence iOS : commit 0d3d7a25c3f7fbb65e478fbddd8b20b6f571c377 (Flutter 3.41.0)
 on:
   push:
     branches:
@@ -28,25 +28,35 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Setup Flutter
+      - name: Setup Flutter 3.41.0
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0'
+          flutter-version: '3.41.0'
           channel: 'stable'
 
       - name: Create Native Folders on Cloud
-        run: flutter create --org com.mimo . --platforms=android --no-overwrite
+        run: |
+          flutter create --org com.mimo . --platforms=android --no-overwrite
+          # Nettoyer l'éventuel widget_test.dart obsolète généré par flutter create
+          if ! git ls-files --error-unmatch test/widget_test.dart >/dev/null 2>&1; then
+            rm -f test/widget_test.dart
+          fi
 
       - name: Inject Native Shield
         run: |
           mkdir -p android/app/src/main/kotlin/com/mimo/spark
           cp native/android/MainActivity.kt android/app/src/main/kotlin/com/mimo/spark/MainActivity.kt
 
-      - name: Upgrade Kotlin Version
+      - name: Configure Gradle and Kotlin
         run: |
-          # Flutter 3.22 standard Groovy Gradle
-          sed -i '1i buildscript { ext.kotlin_version = "1.9.22" }' android/build.gradle
-          sed -i 's/id "org.jetbrains.kotlin.android" version ".*" apply false/id "org.jetbrains.kotlin.android" version "1.9.22" apply false/' android/settings.gradle || true
+          # Flutter 3.41 peut générer du KTS ou Groovy selon les options.
+          # Si build.gradle existe :
+          if [ -f "android/build.gradle" ]; then
+            sed -i '1i buildscript { ext.kotlin_version = "1.9.22" }' android/build.gradle
+          fi
+          if [ -f "android/settings.gradle" ]; then
+            sed -i 's/id "org.jetbrains.kotlin.android" version ".*" apply false/id "org.jetbrains.kotlin.android" version "1.9.22" apply false/' android/settings.gradle || true
+          fi
 
       - name: Add Android Network Permissions & Cleartext
         run: |
