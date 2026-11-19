@@ -759,6 +759,8 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                 children: [
                                   if (!isHudMode) ...[
+                                    _buildTopLphBanner(),
+                                    const SizedBox(height: 6),
                                     _buildCompactTempWidget(),
                                     const SizedBox(height: 10),
                                     _buildFuelHeroCard(),
@@ -1066,6 +1068,42 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
           const SizedBox(width: 6),
           Text(valueStr, 
                style: TextStyle(color: Colors.white, fontSize: isLandscape ? 16 : 12, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  /// Bandeau L/h affiché en haut de l'écran, dans l'espace vide entre
+  /// le point de statut OBD et la carte température.
+  Widget _buildTopLphBanner() {
+    final double lph = _smoothLph;
+    final bool isStopped = speed < 5.0;
+    final String valueStr = isStopped
+        ? '${lph.toStringAsFixed(1)} L/h'
+        : '${(lph / speed * 100).toStringAsFixed(1)} L/100';
+    final Color valueColor = lph > 8.0
+        ? Colors.redAccent
+        : lph > 5.0
+            ? Colors.orangeAccent
+            : Colors.greenAccent;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.local_gas_station, color: valueColor, size: 20),
+          const SizedBox(width: 8),
+          Text(
+            valueStr,
+            style: TextStyle(
+              color: valueColor,
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.5,
+            ),
+          ),
         ],
       ),
     );
