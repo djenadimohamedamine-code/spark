@@ -35,6 +35,9 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
   
   static const String _osmTileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
   static const String _esriSatelliteUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+  static const String _googleTrafficTileUrl = 'https://mt{s}.google.com/vt/lyrs=m,traffic&x={x}&y={y}&z={z}';
+  static const String _googleSatTrafficTileUrl = 'https://mt{s}.google.com/vt/lyrs=y,traffic&x={x}&y={y}&z={z}';
+  bool _trafficMode = true;
 
   @override
   void initState() {
@@ -285,25 +288,37 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
                 Expanded(
                   child: Row(
                     children: [
-                      // Map 1 (OSM - Waze style)
+                      // Map 1 (Waze / Google Maps style)
                       if (_viewMode == 0 || _viewMode == 1)
                         Expanded(
                           child: Stack(
                             children: [
                               _buildMapLayer(
                                 controller: _mapController,
-                                url: _osmTileUrl,
+                                url: _trafficMode ? _googleTrafficTileUrl : _osmTileUrl,
                                 zoom: _zoomMap,
                                 onZoomChange: (z) => _zoomMap = z,
+                                subdomains: _trafficMode ? const ['0', '1', '2', '3'] : const [],
                               ),
-                              const Positioned(
+                              Positioned(
                                 right: 6,
                                 bottom: 3,
                                 child: IgnorePointer(
                                   child: Text(
-                                    '© OpenStreetMap contributors — sans trafic temps réel',
-                                    style: TextStyle(fontSize: 9, color: Colors.white, shadows: [Shadow(color: Colors.black, blurRadius: 4)]),
+                                    _trafficMode
+                                        ? 'Google Maps • Trafic en direct (Fluide/Ralenti/Bouchon)'
+                                        : '© OpenStreetMap contributors — sans trafic',
+                                    style: const TextStyle(fontSize: 9, color: Colors.white, shadows: [Shadow(color: Colors.black, blurRadius: 4)]),
                                   ),
+                                ),
+                              ),
+                              Positioned(
+                                top: 10, right: 60,
+                                child: IconButton(
+                                  icon: Icon(Icons.traffic, color: _trafficMode ? Colors.greenAccent : Colors.black87, size: 24),
+                                  onPressed: () => setState(() => _trafficMode = !_trafficMode),
+                                  style: IconButton.styleFrom(backgroundColor: _trafficMode ? const Color(0xFF1B5E20) : Colors.white70),
+                                  tooltip: _trafficMode ? 'Trafic temps réel activé' : 'Activer le trafic',
                                 ),
                               ),
                               Positioned(
@@ -329,17 +344,18 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
                             children: [
                               _buildMapLayer(
                                 controller: _satController,
-                                url: _esriSatelliteUrl,
+                                url: _trafficMode ? _googleSatTrafficTileUrl : _esriSatelliteUrl,
                                 zoom: _zoomSat,
                                 onZoomChange: (z) => _zoomSat = z,
+                                subdomains: _trafficMode ? const ['0', '1', '2', '3'] : const [],
                               ),
-                              const Positioned(
+                              Positioned(
                                 right: 6,
                                 bottom: 3,
                                 child: IgnorePointer(
                                   child: Text(
-                                    'Imagerie © Esri',
-                                    style: TextStyle(fontSize: 9, color: Colors.white, shadows: [Shadow(color: Colors.black, blurRadius: 4)]),
+                                    _trafficMode ? 'Google Satellite + Trafic en direct' : 'Imagerie © Esri',
+                                    style: const TextStyle(fontSize: 9, color: Colors.white, shadows: [Shadow(color: Colors.black, blurRadius: 4)]),
                                   ),
                                 ),
                               ),
@@ -389,6 +405,7 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
     required String url,
     required double zoom,
     required Function(double) onZoomChange,
+    List<String> subdomains = const [],
   }) {
     LatLng centerPos = _currentPosition != null ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude) : const LatLng(36.7538, 3.0588);
     
@@ -397,7 +414,7 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
       options: MapOptions(
         initialCenter: centerPos,
         initialZoom: zoom,
-        maxZoom: 19,
+        maxZoom: 20,
         minZoom: 3,
         onPositionChanged: (pos, hasGesture) {
           if (pos.zoom != zoom) {
@@ -409,8 +426,9 @@ class _ExpertMapPageState extends State<ExpertMapPage> {
       children: [
         TileLayer(
           urlTemplate: url,
+          subdomains: subdomains,
           userAgentPackageName: 'com.mimo.spark',
-          maxZoom: 19,
+          maxZoom: 20,
           keepBuffer: 5,
         ),
         if (_currentPosition != null)

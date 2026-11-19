@@ -50,11 +50,16 @@ class _MapPageState extends State<MapPage> {
 
   StreamSubscription<Position>? _positionStream;
 
-  // Public key-free sources. Neither contains real-time traffic data.
+  // Sources de tuiles avec et sans trafic temps réel
   static const String _osmTileUrl =
       'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
   static const String _esriSatelliteUrl =
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+  static const String _googleTrafficTileUrl =
+      'https://mt{s}.google.com/vt/lyrs=m,traffic&x={x}&y={y}&z={z}';
+  static const String _googleSatTrafficTileUrl =
+      'https://mt{s}.google.com/vt/lyrs=y,traffic&x={x}&y={y}&z={z}';
+  bool _trafficMode = true;
 
   @override
   void initState() {
@@ -422,10 +427,13 @@ class _MapPageState extends State<MapPage> {
             ),
             children: [
               TileLayer(
-                key: ValueKey('map_tiles_${_satelliteMode}_$_tileRefreshVersion'),
-                urlTemplate: _satelliteMode ? _esriSatelliteUrl : _osmTileUrl,
+                key: ValueKey('map_tiles_${_satelliteMode}_${_trafficMode}_$_tileRefreshVersion'),
+                urlTemplate: _trafficMode
+                    ? (_satelliteMode ? _googleSatTrafficTileUrl : _googleTrafficTileUrl)
+                    : (_satelliteMode ? _esriSatelliteUrl : _osmTileUrl),
+                subdomains: _trafficMode ? const ['0', '1', '2', '3'] : const [],
                 userAgentPackageName: 'com.mimo.spark',
-                maxZoom: 19,
+                maxZoom: 20,
                 errorTileCallback: (tile, error, stack) => _onMapTileError(),
               ),
               if (_routePoints.isNotEmpty)
@@ -475,16 +483,20 @@ class _MapPageState extends State<MapPage> {
             ],
           ),
 
-          // Attribution is visible, and live traffic is not falsely advertised.
+          // Attribution de la carte et du trafic en temps réel
           Positioned(
             bottom: 3,
             left: 6,
             right: 6,
             child: IgnorePointer(
               child: Text(
-                _satelliteMode
-                    ? 'Imagerie © Esri — sans trafic en temps réel'
-                    : '© OpenStreetMap contributors — sans trafic en temps réel',
+                _trafficMode
+                    ? (_satelliteMode
+                        ? 'Google Maps Satellite • Trafic en direct (Fluide / Ralenti / Bouchon)'
+                        : 'Google Maps • Trafic en direct (Fluide / Ralenti / Bouchon)')
+                    : (_satelliteMode
+                        ? 'Imagerie © Esri — sans trafic en temps réel'
+                        : '© OpenStreetMap contributors — sans trafic en temps réel'),
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 9,
@@ -543,7 +555,7 @@ class _MapPageState extends State<MapPage> {
               ),
             ),
 
-          // BOUTON BASCULE CARTE / SATELLITE
+          // BOUTONS BASCULE CARTE / SATELLITE & TRAFIC EN TEMPS RÉEL
           Positioned(
             top: 0,
             right: 0,
@@ -553,19 +565,44 @@ class _MapPageState extends State<MapPage> {
                   top: (_destination != null && _navigationSteps.isNotEmpty) ? 105 : 8,
                   right: 12,
                 ),
-                child: Material(
-                  color: Colors.black87,
-                  shape: const CircleBorder(),
-                  elevation: 6,
-                  shadowColor: Colors.black54,
-                  child: IconButton(
-                    tooltip: _satelliteMode ? 'Carte routière' : 'Vue satellite',
-                    icon: Icon(
-                      _satelliteMode ? Icons.map_outlined : Icons.satellite_alt_outlined,
-                      color: Colors.white,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Material(
+                      color: Colors.black87,
+                      shape: const CircleBorder(),
+                      elevation: 6,
+                      shadowColor: Colors.black54,
+                      child: IconButton(
+                        tooltip: _satelliteMode ? 'Carte routière' : 'Vue satellite',
+                        icon: Icon(
+                          _satelliteMode ? Icons.map_outlined : Icons.satellite_alt_outlined,
+                          color: Colors.white,
+                        ),
+                        onPressed: () => _refreshMapTiles(toggleSatellite: true),
+                      ),
                     ),
-                    onPressed: () => _refreshMapTiles(toggleSatellite: true),
-                  ),
+                    const SizedBox(height: 8),
+                    Material(
+                      color: _trafficMode ? const Color(0xFF1B5E20) : Colors.black87,
+                      shape: const CircleBorder(),
+                      elevation: 6,
+                      shadowColor: Colors.black54,
+                      child: IconButton(
+                        tooltip: _trafficMode ? 'Trafic temps réel activé' : 'Activer le trafic temps réel',
+                        icon: Icon(
+                          Icons.traffic,
+                          color: _trafficMode ? Colors.greenAccent : Colors.white70,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _trafficMode = !_trafficMode;
+                            _tileRefreshVersion++;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
