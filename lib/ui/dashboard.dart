@@ -706,36 +706,44 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
           children: [
             // App Bar Personnalisée
             SafeArea(
+              bottom: false,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 2),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const SizedBox(width: 40), // Espace pour équilibrer le menu à droite
-                    Expanded(
-                      child: _buildHudTransform(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // Indicateur de statut
-                            Container(
-                              width: 8, height: 8,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: _obdService.socket != null ? Colors.greenAccent : Colors.redAccent,
-                                boxShadow: [BoxShadow(color: (_obdService.socket != null ? Colors.greenAccent : Colors.redAccent).withOpacity(0.5), blurRadius: 4, spreadRadius: 1)],
-                              ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const SizedBox(width: 40), // Espace pour équilibrer le menu à droite
+                        Expanded(
+                          child: _buildHudTransform(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                // Indicateur de statut (la tâche rouge / verte)
+                                Container(
+                                  width: 8, height: 8,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: _obdService.socket != null ? Colors.greenAccent : Colors.redAccent,
+                                    boxShadow: [BoxShadow(color: (_obdService.socket != null ? Colors.greenAccent : Colors.redAccent).withOpacity(0.5), blurRadius: 4, spreadRadius: 1)],
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                      ),
+                        Builder(builder: (context) {
+                          return IconButton(
+                            icon: const Icon(Icons.menu, color: const Color(0xFFFF3333)),
+                            onPressed: () => Scaffold.of(context).openEndDrawer(),
+                          );
+                        }),
+                      ],
                     ),
-                    Builder(builder: (context) {
-                      return IconButton(
-                        icon: const Icon(Icons.menu, color: const Color(0xFFFF3333)),
-                        onPressed: () => Scaffold.of(context).openEndDrawer(),
-                      );
-                    }),
+                    if (!isHudMode)
+                      _buildTopLphBanner(),
                   ],
                 ),
               ),
@@ -759,8 +767,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                 children: [
                                   if (!isHudMode) ...[
-                                    _buildTopLphBanner(),
-                                    const SizedBox(height: 6),
                                     _buildCompactTempWidget(),
                                     const SizedBox(height: 10),
                                     _buildFuelHeroCard(),
@@ -1073,8 +1079,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     );
   }
 
-  /// Bandeau L/h affiché en haut de l'écran, dans l'espace vide entre
-  /// le point de statut OBD et la carte température.
+  /// Bandeau L/h affiché tout en haut, juste sous le voyant OBD (la tâche rouge).
   Widget _buildTopLphBanner() {
     final double lph = _smoothLph;
     final bool isStopped = speed < 5.0;
@@ -1087,20 +1092,20 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
             ? Colors.orangeAccent
             : Colors.greenAccent;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+    return Padding(
+      padding: const EdgeInsets.only(top: 2, bottom: 2),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.local_gas_station, color: valueColor, size: 20),
+          Icon(Icons.local_gas_station, color: valueColor, size: 22),
           const SizedBox(width: 8),
           Text(
             valueStr,
             style: TextStyle(
               color: valueColor,
               fontSize: 26,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w900,
               letterSpacing: 1.5,
             ),
           ),
@@ -1186,7 +1191,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 2.0),
-      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 9.0),
+      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 13.0),
       decoration: BoxDecoration(
         color: const Color(0xFF0F0F0F).withOpacity(0.85),
         borderRadius: BorderRadius.circular(16),
@@ -1202,15 +1207,15 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(5),
+            padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: statusColor.withOpacity(0.15),
               border: Border.all(color: statusColor.withOpacity(0.4), width: 1.2),
             ),
-            child: Icon(Icons.thermostat, color: statusColor, size: 15),
+            child: Icon(Icons.thermostat, color: statusColor, size: 19),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
@@ -1219,7 +1224,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 tempText,
                 style: TextStyle(
                   color: statusColor,
-                  fontSize: 22,
+                  fontSize: 27,
                   fontWeight: FontWeight.w900,
                   letterSpacing: -0.5,
                 ),
@@ -1228,15 +1233,15 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 " °C",
                 style: TextStyle(
                   color: statusColor,
-                  fontSize: 11,
+                  fontSize: 13,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
               color: statusColor.withOpacity(0.15),
               borderRadius: BorderRadius.circular(6),
@@ -1246,7 +1251,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
               statusLabel,
               style: TextStyle(
                 color: statusColor,
-                fontSize: 8.0,
+                fontSize: 9.5,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 0.8,
               ),
@@ -1255,7 +1260,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
           const Spacer(),
           // Mini indicateur visuel (bargraph 4 couleurs : 31% Bleu, 34% Vert, 8% Orange, 27% Rouge)
           SizedBox(
-            width: 75,
+            width: 90,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
@@ -1263,7 +1268,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: Container(
-                    height: 5,
+                    height: 6,
                     color: Colors.white10,
                     child: Stack(
                       children: [
@@ -1299,9 +1304,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 const Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text("50", style: TextStyle(color: Colors.white30, fontSize: 8)),
-                    Text("90", style: TextStyle(color: Colors.greenAccent, fontSize: 8, fontWeight: FontWeight.bold)),
-                    Text("130", style: TextStyle(color: Colors.white30, fontSize: 8)),
+                    Text("50", style: TextStyle(color: Colors.white30, fontSize: 9)),
+                    Text("90", style: TextStyle(color: Colors.greenAccent, fontSize: 9, fontWeight: FontWeight.bold)),
+                    Text("130", style: TextStyle(color: Colors.white30, fontSize: 9)),
                   ],
                 ),
               ],
