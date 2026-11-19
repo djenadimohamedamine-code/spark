@@ -1191,7 +1191,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 2.0),
-      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 13.0),
+      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 10.0),
       decoration: BoxDecoration(
         color: const Color(0xFF0F0F0F).withOpacity(0.85),
         borderRadius: BorderRadius.circular(16),
@@ -1207,15 +1207,15 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(7),
+            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: statusColor.withOpacity(0.15),
               border: Border.all(color: statusColor.withOpacity(0.4), width: 1.2),
             ),
-            child: Icon(Icons.thermostat, color: statusColor, size: 19),
+            child: Icon(Icons.thermostat, color: statusColor, size: 18),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
@@ -1224,7 +1224,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 tempText,
                 style: TextStyle(
                   color: statusColor,
-                  fontSize: 27,
+                  fontSize: 25,
                   fontWeight: FontWeight.w900,
                   letterSpacing: -0.5,
                 ),
@@ -1233,15 +1233,15 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 " °C",
                 style: TextStyle(
                   color: statusColor,
-                  fontSize: 13,
+                  fontSize: 12,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
             decoration: BoxDecoration(
               color: statusColor.withOpacity(0.15),
               borderRadius: BorderRadius.circular(6),
@@ -1251,16 +1251,16 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
               statusLabel,
               style: TextStyle(
                 color: statusColor,
-                fontSize: 9.5,
+                fontSize: 8.5,
                 fontWeight: FontWeight.bold,
-                letterSpacing: 0.8,
+                letterSpacing: 0.6,
               ),
             ),
           ),
           const Spacer(),
           // Mini indicateur visuel (bargraph 4 couleurs : 31% Bleu, 34% Vert, 8% Orange, 27% Rouge)
           SizedBox(
-            width: 90,
+            width: 75,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
@@ -1268,7 +1268,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: Container(
-                    height: 6,
+                    height: 5,
                     color: Colors.white10,
                     child: Stack(
                       children: [
