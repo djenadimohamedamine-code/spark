@@ -70,6 +70,7 @@ class ObdService {
 
   bool _isReconnecting = false;
   int _noDataCount = 0;
+  int _unableCount = 0;
   Timer? _heartbeatTimer;
   DateTime _lastDataReceived = DateTime.now();
   bool _isDiagnosticMode = false;
@@ -88,7 +89,13 @@ class ObdService {
     return age <= maxAgeSeconds;
   }
 
-  // --- Watchdog Intelligent (Version 5.0) ---
+  /// Retourne true si des données fraîches ont été reçues depuis [since].
+  bool hasReceivedDataSince(DateTime since) {
+    if (_socket == null) return false;
+    return _lastDataReceived.isAfter(since);
+  }
+
+  // --- Watchdog Intelligent (Version 5.1) ---
   void _startWatchdog() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 4), (t) {
@@ -96,16 +103,16 @@ class ObdService {
 
       final secondsSinceLastData = DateTime.now().difference(_lastDataReceived).inSeconds;
       
-      // Sécurité 1 : Reconnexion si mort depuis 30 secondes
-      if (secondsSinceLastData > 30 && !_isDiagnosticMode && _isPolling) {
-        _log('WATCHDOG: Silence radio (30s) -> Reconnexion');
+      // Sécurité 1 : Reconnexion si mort depuis 15 secondes (au lieu de 30s)
+      if (secondsSinceLastData > 15 && !_isDiagnosticMode && _isPolling) {
+        _log('WATCHDOG: Silence radio (15s) -> Reconnexion automatique');
         t.cancel();
         _handleDisconnect();
         return;
       }
       
-      // Sécurité 2 : Heartbeat léger (seulement si silence > 5s)
-      if (secondsSinceLastData > 5 && !_isDiagnosticMode) {
+      // Sécurité 2 : Heartbeat léger (seulement si silence > 4s)
+      if (secondsSinceLastData > 4 && !_isDiagnosticMode) {
         try {
           _socket!.write('0100\r'); 
         } catch (e) {
@@ -123,13 +130,24 @@ class ObdService {
   }
 
   Future<void> _wakeUpEcu() async {
+    if (_isDiagnosticMode) return;
     _isDiagnosticMode = true;
-    _log("MIMO_OBD: Réveil ECU...");
-    await sendCommandWait('ATZ', delay: 2000);
-    await sendCommandWait('ATSP0', delay: 1500); 
-    await sendCommandWait('0100', delay: 1500);
-    _isDiagnosticMode = false;
-    _noDataCount = 0;
+    _log("MIMO_OBD: Réveil ECU & réinitialisation protocoles...");
+    try {
+      await sendCommandWait('ATZ', delay: 1000);
+      await sendCommandWait('ATE0', delay: 300);
+      await sendCommandWait('ATL0', delay: 200);
+      await sendCommandWait('ATH0', delay: 200);
+      await sendCommandWait('ATSP0', delay: 800); 
+      await sendCommandWait('0100', delay: 1000);
+      await sendCommandWait('ATSTFF', delay: 300);
+    } catch (e) {
+      _log("MIMO_OBD: Erreur réveil ECU: $e -> Reconnexion complète");
+      forceReconnect();
+    } finally {
+      _isDiagnosticMode = false;
+      _noDataCount = 0;
+    }
   }
 
   Future<bool> connect() async {
@@ -145,12 +163,23 @@ class ObdService {
         _log("MIMO_OBD: Erreur récupération IP WiFi: $e");
       }
 
-      _socket = await Socket.connect(
-        ip, 
-        port, 
-        timeout: const Duration(seconds: 10),
-        sourceAddress: wifiIp, // Force le routage par l'interface WiFi (split routing)
-      );
+      // Tentative avec sourceAddress (split routing), et fallback immédiat direct
+      // en cas de retour d'arrière-plan (Messenger, etc.) où la route WiFi peut fluctuer
+      try {
+        _socket = await Socket.connect(
+          ip, 
+          port, 
+          timeout: const Duration(seconds: 4),
+          sourceAddress: wifiIp, // Force le routage par l'interface WiFi si dispo
+        );
+      } catch (e) {
+        _log("MIMO_OBD: Connexion avec sourceAddress échouée ($e), essai direct sans sourceAddress...");
+        _socket = await Socket.connect(
+          ip, 
+          port, 
+          timeout: const Duration(seconds: 4),
+        );
+      }
       _socket!.setOption(SocketOption.tcpNoDelay, true); // Réduit la latence réseau (Important pour ELM327)
 
       _tcpBuffer = '';
@@ -188,11 +217,31 @@ class ObdService {
 
               if (_isConfigResponse(telegram)) continue;
               
-              if (telegram == 'NO DATA' || telegram == 'UNABLE TO CONNECT') {
-                _noDataCount++;
-                if (_noDataCount >= 4 && !_isDiagnosticMode) _wakeUpEcu();
+              final isErrorTelegram = telegram.contains('NO DATA') ||
+                  telegram.contains('UNABLE TO CONNECT') ||
+                  telegram.contains('BUS INIT') ||
+                  telegram.contains('CAN ERROR') ||
+                  telegram.contains('ERROR');
+
+              if (isErrorTelegram) {
+                if (telegram.contains('UNABLE TO CONNECT') || telegram.contains('BUS INIT')) {
+                  _unableCount++;
+                  _log("MIMO_OBD: Perte liaison ECU détectée ($telegram, count: $_unableCount)");
+                  if (_unableCount >= 2 && !_isDiagnosticMode) {
+                    _unableCount = 0;
+                    _log("MIMO_OBD: 'UNABLE TO CONNECT' répété -> Reconnexion propre immédiate");
+                    forceReconnect();
+                    return;
+                  }
+                } else {
+                  _noDataCount++;
+                  if (_noDataCount >= 4 && !_isDiagnosticMode) {
+                    _wakeUpEcu();
+                  }
+                }
               } else if (telegram.length >= 4) {
                 _noDataCount = 0;
+                _unableCount = 0;
                 _lastDataReceived = DateTime.now(); 
               }
 
@@ -217,14 +266,14 @@ class ObdService {
       });
 
       // Initialisation Standard
-      await sendCommandWait('ATZ', delay: 1200);   
-      await sendCommandWait('ATE0', delay: 500);    
-      await sendCommandWait('ATL0', delay: 500);    
-      await sendCommandWait('ATH0', delay: 500);    
-      await sendCommandWait('ATSP0', delay: 1000);  
+      await sendCommandWait('ATZ', delay: 1000);   
+      await sendCommandWait('ATE0', delay: 400);    
+      await sendCommandWait('ATL0', delay: 300);    
+      await sendCommandWait('ATH0', delay: 300);    
+      await sendCommandWait('ATSP0', delay: 800);  
       await sendCommandWait('0100', delay: 1000);   
-      await sendCommandWait('ATDP', delay: 500);
-      await sendCommandWait('ATSTFF', delay: 500); 
+      await sendCommandWait('ATDP', delay: 400);
+      await sendCommandWait('ATSTFF', delay: 400); 
 
       _log("Scanner MIMO_OBD prêt.");
       _isReconnecting = false;
@@ -236,7 +285,7 @@ class ObdService {
       _log("CONNECTION FAILED: $e");
       if (!_isReconnecting) {
         _isReconnecting = true;
-        Future.delayed(const Duration(seconds: 5), () {
+        Future.delayed(const Duration(milliseconds: 1500), () {
           _isReconnecting = false;
           if (_socket == null) connect();
         });
@@ -339,9 +388,10 @@ class ObdService {
     _isPolling = false;
     _tcpBuffer = '';
     _noDataCount = 0;
+    _unableCount = 0;
     if (autoReconnect && !_isReconnecting) {
       _isReconnecting = true;
-      Future.delayed(const Duration(seconds: 5), () {
+      Future.delayed(const Duration(milliseconds: 1500), () {
         _isReconnecting = false;
         if (_socket == null) connect();
       });

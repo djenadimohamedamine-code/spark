@@ -133,5 +133,9 @@ void main() {
     test('disconnect() appelé deux fois consécutives ne lance pas', () {
       expect(() => obd.disconnect(), returnsNormally);
     });
+
+    test('hasReceivedDataSince() retourne false quand socket est null', () {
+      expect(obd.hasReceivedDataSince(DateTime.now().subtract(const Duration(hours: 1))), isFalse);
+    });
   });
 }
