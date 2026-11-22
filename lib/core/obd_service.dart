@@ -129,24 +129,44 @@ class ObdService {
     _handleDisconnect(autoReconnect: true);
   }
 
+  Completer<String>? _promptCompleter;
+
+  /// Envoie une commande AT ou PID et attend activement l'arrivée du prompt '>'
+  /// de l'ELM327. Évite d'interrompre l'adaptateur pendant sa négociation de protocole.
+  Future<String> sendCommandWaitPrompt(String cmd, {Duration timeout = const Duration(seconds: 4)}) async {
+    if (_socket == null) return '';
+    _promptCompleter?.completeError('cancelled');
+    final completer = Completer<String>();
+    _promptCompleter = completer;
+    sendCommand(cmd);
+    try {
+      return await completer.future.timeout(timeout, onTimeout: () => '');
+    } catch (_) {
+      return '';
+    } finally {
+      if (_promptCompleter == completer) {
+        _promptCompleter = null;
+      }
+    }
+  }
+
   Future<void> _wakeUpEcu() async {
     if (_isDiagnosticMode) return;
     _isDiagnosticMode = true;
-    _log("MIMO_OBD: Réveil ECU & réinitialisation protocoles...");
+    _log("MIMO_OBD: Réveil ECU & réinitialisation protocoles (Warm Start)...");
     try {
-      await sendCommandWait('ATZ', delay: 1000);
-      await sendCommandWait('ATE0', delay: 300);
-      await sendCommandWait('ATL0', delay: 200);
-      await sendCommandWait('ATH0', delay: 200);
-      await sendCommandWait('ATSP0', delay: 800); 
-      await sendCommandWait('0100', delay: 1000);
-      await sendCommandWait('ATSTFF', delay: 300);
+      await sendCommandWaitPrompt('ATWS', timeout: const Duration(seconds: 2));
+      await sendCommandWaitPrompt('ATE0', timeout: const Duration(seconds: 1));
+      await sendCommandWaitPrompt('ATL0', timeout: const Duration(seconds: 1));
+      await sendCommandWaitPrompt('ATH0', timeout: const Duration(seconds: 1));
+      await sendCommandWaitPrompt('0100', timeout: const Duration(seconds: 7));
     } catch (e) {
       _log("MIMO_OBD: Erreur réveil ECU: $e -> Reconnexion complète");
       forceReconnect();
     } finally {
       _isDiagnosticMode = false;
       _noDataCount = 0;
+      _unableCount = 0;
     }
   }
 
@@ -193,6 +213,12 @@ class ObdService {
             String frame = _tcpBuffer.substring(0, promptIdx);
             _tcpBuffer = _tcpBuffer.substring(promptIdx + 1);
 
+            // Débloque l'attente du prompt '>' pour les commandes d'initialisation
+            if (_promptCompleter != null && !_promptCompleter!.isCompleted) {
+              _promptCompleter!.complete(frame.trim());
+              _promptCompleter = null;
+            }
+
             // En mode diagnostic, diffuser le bloc de trame complet pour l'assembleur ISO-TP
             if (_isDiagnosticMode && !_dtcStreamController.isClosed) {
               _dtcStreamController.add(frame.trim());
@@ -227,11 +253,15 @@ class ObdService {
                 if (telegram.contains('UNABLE TO CONNECT') || telegram.contains('BUS INIT')) {
                   _unableCount++;
                   _log("MIMO_OBD: Perte liaison ECU détectée ($telegram, count: $_unableCount)");
-                  if (_unableCount >= 2 && !_isDiagnosticMode) {
-                    _unableCount = 0;
-                    _log("MIMO_OBD: 'UNABLE TO CONNECT' répété -> Reconnexion propre immédiate");
-                    forceReconnect();
-                    return;
+                  if (!_isDiagnosticMode) {
+                    if (_unableCount == 1) {
+                      _wakeUpEcu();
+                    } else {
+                      _unableCount = 0;
+                      _log("MIMO_OBD: 'UNABLE TO CONNECT' persistant -> Reconnexion socket complète");
+                      forceReconnect();
+                      return;
+                    }
                   }
                 } else {
                   _noDataCount++;
@@ -265,15 +295,15 @@ class ObdService {
         _handleDisconnect();
       });
 
-      // Initialisation Standard
-      await sendCommandWait('ATZ', delay: 1000);   
-      await sendCommandWait('ATE0', delay: 400);    
-      await sendCommandWait('ATL0', delay: 300);    
-      await sendCommandWait('ATH0', delay: 300);    
-      await sendCommandWait('ATSP0', delay: 800);  
-      await sendCommandWait('0100', delay: 1000);   
-      await sendCommandWait('ATDP', delay: 400);
-      await sendCommandWait('ATSTFF', delay: 400); 
+      // Initialisation Standard avec attente réelle du prompt '>'
+      await sendCommandWaitPrompt('ATZ', timeout: const Duration(seconds: 2));   
+      await sendCommandWaitPrompt('ATE0', timeout: const Duration(seconds: 1));    
+      await sendCommandWaitPrompt('ATL0', timeout: const Duration(seconds: 1));    
+      await sendCommandWaitPrompt('ATH0', timeout: const Duration(seconds: 1));    
+      await sendCommandWaitPrompt('ATSP0', timeout: const Duration(seconds: 2));  
+      await sendCommandWaitPrompt('0100', timeout: const Duration(seconds: 8)); // 8s pour recherche protocole Spark 
+      await sendCommandWaitPrompt('ATDP', timeout: const Duration(seconds: 2));
+      await sendCommandWaitPrompt('ATSTFF', timeout: const Duration(seconds: 1)); 
 
       _log("Scanner MIMO_OBD prêt.");
       _isReconnecting = false;

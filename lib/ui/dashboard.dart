@@ -21,6 +21,7 @@ import 'add_fuel_dialog.dart';
 import '../vocal/voice_service.dart';
 import '../vocal/tts_service.dart';
 import '../core/gps_debug_logger.dart';
+import '../core/ios_background_keeper.dart';
 import 'gps_debug_log_page.dart';
 
 
@@ -81,6 +82,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   Timer? _startupTimer;
   DateTime? _lastSpeedTime;
   DateTime? _lastRpmTime;
+  bool _backgroundObdEnabled = true;
 
   // Ride Tracking (gardé pour compatibilité voix)
   bool isRideActive = false;
@@ -129,6 +131,12 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     });
     _setupObdListener();
     _startDataSync();
+    IosBackgroundKeeper().isEnabled().then((val) {
+      if (mounted) {
+        setState(() => _backgroundObdEnabled = val);
+        if (val) IosBackgroundKeeper().start();
+      }
+    });
     _voiceService.init().catchError((Object e) {
       _addLog("Voice init: $e");
       return false;
@@ -210,10 +218,12 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
       _wasPaused = true;
-      _lastSpeedTime = null;
-      _lastRpmTime = null;
-      _smoothLph = 0.0;
-      lastMafTime = DateTime.now();
+      if (!_backgroundObdEnabled) {
+        _lastSpeedTime = null;
+        _lastRpmTime = null;
+        _smoothLph = 0.0;
+        lastMafTime = DateTime.now();
+      }
       unawaited(_fuelCalculator.save().catchError((Object error, StackTrace stack) {
         debugPrint('Sauvegarde carburant cycle de vie: $error');
       }));
@@ -221,6 +231,13 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed && _wasPaused) {
       _wasPaused = false;
       final resumeTime = DateTime.now();
+
+      // Si le mode arrière-plan est actif et que la socket continue de recevoir du flux
+      if (_backgroundObdEnabled && _obdService.isConnected && _obdService.checkConnectionHealth(maxAgeSeconds: 4)) {
+        _addLog('🟢 OBD2 : liaison ininterrompue en arrière-plan — calcul maintenu.');
+        return;
+      }
+
       _addLog('📱 Retour premier plan : vérification liaison OBD2...');
 
       // 1. Si la socket a été fermée en arrière-plan par iOS, reconnecter directement
@@ -345,6 +362,9 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
       bool connected = await _obdService.connect();
       if (connected && mounted) {
         _addLog('✅ OBD2 : connecté.');
+        if (_backgroundObdEnabled) {
+          IosBackgroundKeeper().start();
+        }
       } else if (mounted) {
         _addLog('❌ OBD2 : échec de connexion — nouvelle tentative automatique...');
       }
@@ -694,6 +714,18 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsPage()));
+                },
+              ),
+              SwitchListTile(
+                secondary: const Icon(Icons.sync, color: Colors.greenAccent),
+                title: const Text('OBD & Calcul Arrière-Plan', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                subtitle: const Text('Garde la liaison OBD et le calcul carburant actifs hors de l\'application', style: TextStyle(color: Colors.white38, fontSize: 10)),
+                value: _backgroundObdEnabled,
+                activeColor: Colors.greenAccent,
+                onChanged: (val) async {
+                  setState(() => _backgroundObdEnabled = val);
+                  await IosBackgroundKeeper().setEnabled(val);
+                  _addLog(val ? "Mode arrière-plan activé" : "Mode arrière-plan désactivé");
                 },
               ),
             ],
@@ -1669,6 +1701,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     _dataSyncTimer?.cancel();
     _obdSubscription?.cancel();
     _obdService.dispose();
+    IosBackgroundKeeper().dispose();
     unawaited(_fuelCalculator.save().catchError((Object error, StackTrace stack) {
       debugPrint('Sauvegarde carburant fermeture: $error');
     }));

@@ -50,6 +50,7 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string location" $PLIST
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" $PLIST
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:2 string processing" $PLIST
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:3 string audio" $PLIST
 
       - name: Get_Deps
         run: |
