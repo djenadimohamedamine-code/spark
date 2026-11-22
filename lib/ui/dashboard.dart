@@ -18,7 +18,6 @@ import 'engine_data_page.dart';
 import 'performance_page.dart';
 import 'fuel_gauge_widget.dart';
 import 'add_fuel_dialog.dart';
-import '../vocal/voice_service.dart';
 import '../vocal/tts_service.dart';
 import '../core/gps_debug_logger.dart';
 import '../core/ios_background_keeper.dart';
@@ -60,7 +59,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   
   final FuelCalculator _fuelCalculator = FuelCalculator();
   final ObdService _obdService = ObdService();
-  final VoiceService _voiceService = VoiceService();
   final TtsService _ttsService = TtsService();
   
   bool alert98Triggered = false;
@@ -136,10 +134,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
         setState(() => _backgroundObdEnabled = val);
         if (val) IosBackgroundKeeper().start();
       }
-    });
-    _voiceService.init().catchError((Object e) {
-      _addLog("Voice init: $e");
-      return false;
     });
     _addLog("MIMO_OBD Démarré");
     
@@ -218,20 +212,33 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
       _wasPaused = true;
-      _addLog('📱 Sortie app : coupure propre liaison OBD2...');
-      _obdService.disconnect();
-      _lastSpeedTime = null;
-      _lastRpmTime = null;
-      _smoothLph = 0.0;
-      lastMafTime = DateTime.now();
+      if (!_backgroundObdEnabled) {
+        _addLog('📱 Sortie app : mode arrière-plan inactif -> coupure propre OBD2...');
+        _obdService.disconnect();
+        _lastSpeedTime = null;
+        _lastRpmTime = null;
+        _smoothLph = 0.0;
+        lastMafTime = DateTime.now();
+      } else {
+        _addLog('📱 Sortie app : mode arrière-plan actif -> maintien liaison OBD2 & calcul carburant.');
+      }
       unawaited(_fuelCalculator.save().catchError((Object error, StackTrace stack) {
         debugPrint('Sauvegarde carburant cycle de vie: $error');
       }));
     }
     if (state == AppLifecycleState.resumed && _wasPaused) {
       _wasPaused = false;
-      _addLog('📱 Retour premier plan : attente stabilisation Wi-Fi (600ms)...');
+      if (_backgroundObdEnabled) {
+        IosBackgroundKeeper().ensureRunning();
+      }
 
+      if (_obdService.isConnected && _obdService.checkConnectionHealth(maxAgeSeconds: 5)) {
+        _addLog('🟢 OBD2 : liaison arrière-plan active — données fraîches confirmées.');
+        return;
+      }
+
+      _addLog('📱 Retour premier plan : liaison perdue ou périmée -> reconnexion (600ms)...');
+      _obdService.disconnect();
       Future.delayed(const Duration(milliseconds: 600), () {
         if (!mounted) return;
         _connectObd(isReconnect: true);
@@ -734,13 +741,29 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                // Indicateur de statut (la tâche rouge / verte)
-                                Container(
-                                  width: 8, height: 8,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: _obdService.socket != null ? Colors.greenAccent : Colors.redAccent,
-                                    boxShadow: [BoxShadow(color: (_obdService.socket != null ? Colors.greenAccent : Colors.redAccent).withOpacity(0.5), blurRadius: 4, spreadRadius: 1)],
+                                // Indicateur de statut (la tâche rouge / verte) cliquable
+                                GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: () {
+                                    _addLog('🔄 Reconnexion manuelle OBD2 demandée via statut...');
+                                    _obdService.forceReconnect();
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Container(
+                                      width: 10, height: 10,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: _obdService.socket != null ? Colors.greenAccent : Colors.redAccent,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: (_obdService.socket != null ? Colors.greenAccent : Colors.redAccent).withOpacity(0.5),
+                                            blurRadius: 4,
+                                            spreadRadius: 1,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -864,20 +887,35 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                   child: Row(
                     children: [
                       const SizedBox(width: 12),
-                      Icon(
-                        Icons.circle,
-                        color: _obdService.socket != null
-                            ? Colors.greenAccent
-                            : Colors.redAccent,
-                        size: 9,
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          _addLog('🔄 Reconnexion manuelle OBD2 demandée via statut...');
+                          _obdService.forceReconnect();
+                        },
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4.0),
+                              child: Icon(
+                                Icons.circle,
+                                color: _obdService.socket != null
+                                    ? Colors.greenAccent
+                                    : Colors.redAccent,
+                                size: 10,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text('MIMO SPARK',
+                                style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.2)),
+                          ],
+                        ),
                       ),
-                      const SizedBox(width: 8),
-                      const Text('MIMO SPARK',
-                          style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2)),
                       const Spacer(),
                       Builder(builder: (context) {
                         return IconButton(

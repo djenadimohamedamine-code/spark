@@ -16,6 +16,18 @@ class TtsService {
       await _flutterTts.setSpeechRate(0.5); // Vitesse normale
       await _flutterTts.setVolume(1.0);
       await _flutterTts.setPitch(1.0);
+      try {
+        await _flutterTts.setIosAudioCategory(
+          IosTextToSpeechAudioCategory.playback,
+          [
+            IosTextToSpeechAudioCategoryOptions.mixWithOthers,
+            IosTextToSpeechAudioCategoryOptions.duckOthers,
+          ],
+          IosTextToSpeechAudioMode.defaultMode,
+        );
+      } catch (e) {
+        print("TTS: Note audioCategory iOS: $e");
+      }
       _isInitialized = true;
       print("TTS: Service de synthèse vocale prêt (fr-FR)");
     } catch (e) {

@@ -71,11 +71,25 @@ class ObdService {
   }
 
   bool _isReconnecting = false;
+  bool _isManualDisconnect = false;
   int _noDataCount = 0;
   int _unableCount = 0;
+  int _savedProtocolFailureCount = 0;
   Timer? _heartbeatTimer;
+  Timer? _retryTimer;
   DateTime _lastDataReceived = DateTime.now();
   bool _isDiagnosticMode = false;
+
+  void _scheduleRetry() {
+    if (_isManualDisconnect) return;
+    _retryTimer?.cancel();
+    _retryTimer = Timer(const Duration(seconds: 4), () {
+      if (_socket == null && !_isManualDisconnect) {
+        _log("MIMO_OBD: 🔄 Tentative de reconnexion automatique (retry timer 4s)...");
+        connect(isReconnect: true);
+      }
+    });
+  }
 
   // --- Getter public : permet au dashboard de lire l'âge des données ---
   // Utilisé pour décider si une reconnexion est nécessaire au retour de
@@ -128,6 +142,8 @@ class ObdService {
 
   void forceReconnect() {
     _log("MIMO_OBD: Reconnexion forcée demandée");
+    _isManualDisconnect = false;
+    _retryTimer?.cancel();
     _handleDisconnect(autoReconnect: true);
   }
 
@@ -293,10 +309,16 @@ class ObdService {
       await sendCommandWaitPrompt('ATSP$_savedProtocol', timeout: const Duration(seconds: 2));
       final res = await sendCommandWaitPrompt('0100', timeout: const Duration(seconds: 5));
       if (res.contains('UNABLE') || res.contains('ERROR')) {
-        _log("MIMO_OBD: Échec avec protocole mémorisé ($_savedProtocol), bascule sur détection complète...");
-        _savedProtocol = null;
+        _savedProtocolFailureCount++;
+        _log("MIMO_OBD: Échec avec protocole mémorisé ($_savedProtocol, tentative $_savedProtocolFailureCount/3)");
+        if (_savedProtocolFailureCount >= 3) {
+          _log("MIMO_OBD: 3 échecs consécutifs -> Réinitialisation protocole mémorisé (retour ATSP0)");
+          _savedProtocol = null;
+          _savedProtocolFailureCount = 0;
+        }
         return false;
       }
+      _savedProtocolFailureCount = 0;
       return true;
     }
 
@@ -325,6 +347,7 @@ class ObdService {
     }
     if (cleaned.isNotEmpty) {
       _savedProtocol = cleaned[0];
+      _savedProtocolFailureCount = 0;
       _log("MIMO_OBD: ✅ Protocole Spark mémorisé -> ATSP$_savedProtocol (DPN: $dpnRaw)");
     }
 
@@ -334,6 +357,10 @@ class ObdService {
   }
 
   Future<bool> connect({bool isReconnect = false, int maxRetries = 3}) async {
+    _isManualDisconnect = false;
+    _retryTimer?.cancel();
+    _retryTimer = null;
+
     if (_isReconnecting) {
       _log("MIMO_OBD: Connexion déjà en cours — appel ignoré.");
       return false;
@@ -379,6 +406,8 @@ class ObdService {
         bool initOk = await _initializeElm327(isReconnect: isReconnect);
         if (initOk) {
           _log("Scanner MIMO_OBD prêt.");
+          _retryTimer?.cancel();
+          _retryTimer = null;
           _isReconnecting = false;
           _lastDataReceived = DateTime.now();
           _startWatchdog();
@@ -402,6 +431,9 @@ class ObdService {
     }
 
     _isReconnecting = false;
+    if (!_isManualDisconnect && _socket == null) {
+      _scheduleRetry();
+    }
     return false;
   }
 
@@ -500,12 +532,8 @@ class ObdService {
     _tcpBuffer = '';
     _noDataCount = 0;
     _unableCount = 0;
-    if (autoReconnect && !_isReconnecting) {
-      _isReconnecting = true;
-      Future.delayed(const Duration(milliseconds: 1500), () {
-        _isReconnecting = false;
-        if (_socket == null) connect();
-      });
+    if (autoReconnect && !_isManualDisconnect) {
+      _scheduleRetry();
     }
   }
 
@@ -537,6 +565,9 @@ class ObdService {
 
   void disconnect() {
     _log("MIMO_OBD: Déconnexion manuelle demandée");
+    _isManualDisconnect = true;
+    _retryTimer?.cancel();
+    _retryTimer = null;
     _handleDisconnect(autoReconnect: false);
   }
 
@@ -571,6 +602,9 @@ class ObdService {
   }
 
   void dispose() {
+    _isManualDisconnect = true;
+    _retryTimer?.cancel();
+    _retryTimer = null;
     _heartbeatTimer?.cancel();
     _handleDisconnect(autoReconnect: false);
     _dataStreamController.close();
