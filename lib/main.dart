@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'ui/dashboard.dart';
 import 'core/spark_theme.dart';
@@ -120,7 +119,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   late Animation<double> _opacityAnimation;
-  final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
   void initState() {
@@ -130,10 +128,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
     
     _controller.forward();
-    _playStartupSequence();
     
-    // Après 5s : fade-out puis navigation vers le Dashboard
-    Timer(const Duration(seconds: 5), () {
+    // Après 3s : transition vers le Dashboard (sans couper la musique)
+    Timer(const Duration(seconds: 3), () {
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const Dashboard()),
@@ -142,20 +139,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     });
   }
 
-  void _playStartupSequence() async {
-    try {
-      await _audioPlayer.play(AssetSource('sounds/dragon-studio-car-engine-372477.mp3'));
-      await Future.delayed(const Duration(milliseconds: 1500));
-      print('MIMO_OBD prêt.');
-    } catch (e) {
-      print('Erreur Audio: $e');
-    }
-  }
-
   @override
   void dispose() {
     _controller.dispose();
-    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -171,7 +157,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             child: Container(
               color: Colors.black,
               child: Image.asset(
-                'assets/images/IMG_0730.JPG',
+                'assets/images/spark2.png',
                 fit: BoxFit.contain,
                 width: double.infinity,
                 height: double.infinity,
