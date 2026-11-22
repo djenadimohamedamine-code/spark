@@ -218,52 +218,23 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
       _wasPaused = true;
-      if (!_backgroundObdEnabled) {
-        _lastSpeedTime = null;
-        _lastRpmTime = null;
-        _smoothLph = 0.0;
-        lastMafTime = DateTime.now();
-      }
+      _addLog('📱 Sortie app : coupure propre liaison OBD2...');
+      _obdService.disconnect();
+      _lastSpeedTime = null;
+      _lastRpmTime = null;
+      _smoothLph = 0.0;
+      lastMafTime = DateTime.now();
       unawaited(_fuelCalculator.save().catchError((Object error, StackTrace stack) {
         debugPrint('Sauvegarde carburant cycle de vie: $error');
       }));
     }
     if (state == AppLifecycleState.resumed && _wasPaused) {
       _wasPaused = false;
-      final resumeTime = DateTime.now();
+      _addLog('📱 Retour premier plan : attente stabilisation Wi-Fi (600ms)...');
 
-      // Si le mode arrière-plan est actif et que la socket continue de recevoir du flux
-      if (_backgroundObdEnabled && _obdService.isConnected && _obdService.checkConnectionHealth(maxAgeSeconds: 4)) {
-        _addLog('🟢 OBD2 : liaison ininterrompue en arrière-plan — calcul maintenu.');
-        return;
-      }
-
-      _addLog('📱 Retour premier plan : vérification liaison OBD2...');
-
-      // 1. Si la socket a été fermée en arrière-plan par iOS, reconnecter directement
-      if (!_obdService.isConnected) {
-        _addLog('🔄 OBD2 : socket fermée en arrière-plan — reconnexion immédiate...');
-        _connectObd();
-        return;
-      }
-
-      // 2. Si la socket est toujours ouverte, envoyer un test PID (010C)
-      _obdService.sendCommand('010C');
-
-      // 3. Après 1.2s, vérifier si des données ont EFFECTIVEMENT été reçues DEPUIS le retour
-      // (vérification de flux actif au lieu d'un vieux timestamp d'avant la mise en pause)
-      Future.delayed(const Duration(milliseconds: 1200), () {
+      Future.delayed(const Duration(milliseconds: 600), () {
         if (!mounted) return;
-        final hasFreshData = _obdService.hasReceivedDataSince(resumeTime);
-        if (hasFreshData) {
-          _addLog('🟢 OBD2 : liaison active — données en temps réel confirmées.');
-        } else {
-          _addLog('🔄 OBD2 : aucune réponse reçue depuis le retour — reconnexion propre...');
-          _obdService.disconnect();
-          Future.delayed(const Duration(milliseconds: 300), () {
-            if (mounted) _connectObd();
-          });
-        }
+        _connectObd(isReconnect: true);
       });
     }
   }
@@ -351,7 +322,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   // une reconnexion watchdog).
   bool _isConnecting = false;
 
-  void _connectObd() async {
+  void _connectObd({bool isReconnect = false}) async {
     if (_isConnecting) {
       _addLog('⚠️ OBD2 : connexion déjà en cours — ignoré.');
       return;
@@ -359,7 +330,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     _isConnecting = true;
     _setupObdListener();
     try {
-      bool connected = await _obdService.connect();
+      bool connected = await _obdService.connect(isReconnect: isReconnect);
       if (connected && mounted) {
         _addLog('✅ OBD2 : connecté.');
         if (_backgroundObdEnabled) {

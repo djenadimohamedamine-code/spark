@@ -12,6 +12,8 @@ class ObdService {
   // --- Protocole OBD détecté (CAN vs K-Line) ---
   ObdProtocolType detectedProtocol = ObdProtocolType.auto;
   String detectedProtocolName = 'AUTO';
+  String? _savedProtocol;
+  String? get savedProtocol => _savedProtocol;
 
   final String ip = '192.168.0.10';
   final int port = 35000;
@@ -155,11 +157,19 @@ class ObdService {
     _isDiagnosticMode = true;
     _log("MIMO_OBD: Réveil ECU & réinitialisation protocoles (Warm Start)...");
     try {
+      await sendCommandWaitPrompt('\r', timeout: const Duration(milliseconds: 500));
+      _tcpBuffer = '';
       await sendCommandWaitPrompt('ATWS', timeout: const Duration(seconds: 2));
+      await Future.delayed(const Duration(milliseconds: 200));
+      _tcpBuffer = '';
       await sendCommandWaitPrompt('ATE0', timeout: const Duration(seconds: 1));
       await sendCommandWaitPrompt('ATL0', timeout: const Duration(seconds: 1));
+      await sendCommandWaitPrompt('ATS0', timeout: const Duration(seconds: 1));
       await sendCommandWaitPrompt('ATH0', timeout: const Duration(seconds: 1));
-      await sendCommandWaitPrompt('0100', timeout: const Duration(seconds: 7));
+      if (_savedProtocol != null) {
+        await sendCommandWaitPrompt('ATSP$_savedProtocol', timeout: const Duration(seconds: 2));
+      }
+      await sendCommandWaitPrompt('0100', timeout: const Duration(seconds: 5));
     } catch (e) {
       _log("MIMO_OBD: Erreur réveil ECU: $e -> Reconnexion complète");
       forceReconnect();
@@ -170,158 +180,229 @@ class ObdService {
     }
   }
 
-  Future<bool> connect() async {
-    await _initLogFile();
-    try {
-      _log("MIMO_OBD: Connexion Socket directe (IP Statique conseillée)...");
-      
-      String? wifiIp;
-      try {
-        wifiIp = await NetworkInfo().getWifiIP();
-        _log("MIMO_OBD: IP WiFi locale = $wifiIp");
-      } catch (e) {
-        _log("MIMO_OBD: Erreur récupération IP WiFi: $e");
-      }
+  void _setupSocketListeners() {
+    _tcpBuffer = '';
+    _socket!.listen(
+      (List<int> event) {
+        final String chunk = String.fromCharCodes(event);
+        _tcpBuffer += chunk;
 
-      // Tentative avec sourceAddress (split routing), et fallback immédiat direct
-      // en cas de retour d'arrière-plan (Messenger, etc.) où la route WiFi peut fluctuer
-      try {
-        _socket = await Socket.connect(
-          ip, 
-          port, 
-          timeout: const Duration(seconds: 4),
-          sourceAddress: wifiIp, // Force le routage par l'interface WiFi si dispo
-        );
-      } catch (e) {
-        _log("MIMO_OBD: Connexion avec sourceAddress échouée ($e), essai direct sans sourceAddress...");
-        _socket = await Socket.connect(
-          ip, 
-          port, 
-          timeout: const Duration(seconds: 4),
-        );
-      }
-      _socket!.setOption(SocketOption.tcpNoDelay, true); // Réduit la latence réseau (Important pour ELM327)
+        while (_tcpBuffer.contains('>')) {
+          int promptIdx = _tcpBuffer.indexOf('>');
+          String frame = _tcpBuffer.substring(0, promptIdx);
+          _tcpBuffer = _tcpBuffer.substring(promptIdx + 1);
 
-      _tcpBuffer = '';
-      _socket!.listen(
-        (List<int> event) {
-          final String chunk = String.fromCharCodes(event);
-          _tcpBuffer += chunk;
+          // Débloque l'attente du prompt '>' pour les commandes d'initialisation
+          if (_promptCompleter != null && !_promptCompleter!.isCompleted) {
+            _promptCompleter!.complete(frame.trim());
+            _promptCompleter = null;
+          }
 
-          while (_tcpBuffer.contains('>')) {
-            int promptIdx = _tcpBuffer.indexOf('>');
-            String frame = _tcpBuffer.substring(0, promptIdx);
-            _tcpBuffer = _tcpBuffer.substring(promptIdx + 1);
+          // En mode diagnostic, diffuser le bloc de trame complet pour l'assembleur ISO-TP
+          if (_isDiagnosticMode && !_dtcStreamController.isClosed) {
+            _dtcStreamController.add(frame.trim());
+          }
 
-            // Débloque l'attente du prompt '>' pour les commandes d'initialisation
-            if (_promptCompleter != null && !_promptCompleter!.isCompleted) {
-              _promptCompleter!.complete(frame.trim());
-              _promptCompleter = null;
+          List<String> lines = frame.split(RegExp(r'[\r\n]+'));
+          for (String line in lines) {
+            String telegram = line.trim();
+            if (telegram.isEmpty) continue;
+
+            // Détection dynamique du protocole véhicule (CAN vs K-Line)
+            final upper = telegram.toUpperCase();
+            if (upper.contains('CAN') || upper.contains('ISO 15765')) {
+              detectedProtocol = ObdProtocolType.can;
+              detectedProtocolName = telegram;
+              _log("MIMO_OBD: Protocole détecté -> CAN ($telegram)");
+            } else if (upper.contains('KWP') || upper.contains('ISO 14230') || upper.contains('ISO 9141')) {
+              detectedProtocol = ObdProtocolType.kline;
+              detectedProtocolName = telegram;
+              _log("MIMO_OBD: Protocole détecté -> K-Line ($telegram)");
             }
 
-            // En mode diagnostic, diffuser le bloc de trame complet pour l'assembleur ISO-TP
-            if (_isDiagnosticMode && !_dtcStreamController.isClosed) {
-              _dtcStreamController.add(frame.trim());
-            }
+            if (_isConfigResponse(telegram)) continue;
+            
+            final isErrorTelegram = telegram.contains('NO DATA') ||
+                telegram.contains('UNABLE TO CONNECT') ||
+                telegram.contains('BUS INIT') ||
+                telegram.contains('CAN ERROR') ||
+                telegram.contains('ERROR');
 
-            List<String> lines = frame.split(RegExp(r'[\r\n]+'));
-            for (String line in lines) {
-              String telegram = line.trim();
-              if (telegram.isEmpty) continue;
-
-              // Détection dynamique du protocole véhicule (CAN vs K-Line)
-              final upper = telegram.toUpperCase();
-              if (upper.contains('CAN') || upper.contains('ISO 15765')) {
-                detectedProtocol = ObdProtocolType.can;
-                detectedProtocolName = telegram;
-                _log("MIMO_OBD: Protocole détecté -> CAN ($telegram)");
-              } else if (upper.contains('KWP') || upper.contains('ISO 14230') || upper.contains('ISO 9141')) {
-                detectedProtocol = ObdProtocolType.kline;
-                detectedProtocolName = telegram;
-                _log("MIMO_OBD: Protocole détecté -> K-Line ($telegram)");
-              }
-
-              if (_isConfigResponse(telegram)) continue;
-              
-              final isErrorTelegram = telegram.contains('NO DATA') ||
-                  telegram.contains('UNABLE TO CONNECT') ||
-                  telegram.contains('BUS INIT') ||
-                  telegram.contains('CAN ERROR') ||
-                  telegram.contains('ERROR');
-
-              if (isErrorTelegram) {
-                if (telegram.contains('UNABLE TO CONNECT') || telegram.contains('BUS INIT')) {
-                  _unableCount++;
-                  _log("MIMO_OBD: Perte liaison ECU détectée ($telegram, count: $_unableCount)");
-                  if (!_isDiagnosticMode) {
-                    if (_unableCount == 1) {
-                      _wakeUpEcu();
-                    } else {
-                      _unableCount = 0;
-                      _log("MIMO_OBD: 'UNABLE TO CONNECT' persistant -> Reconnexion socket complète");
-                      forceReconnect();
-                      return;
-                    }
-                  }
-                } else {
-                  _noDataCount++;
-                  if (_noDataCount >= 4 && !_isDiagnosticMode) {
+            if (isErrorTelegram) {
+              if (telegram.contains('UNABLE TO CONNECT') || telegram.contains('BUS INIT')) {
+                _unableCount++;
+                _log("MIMO_OBD: Perte liaison ECU détectée ($telegram, count: $_unableCount)");
+                if (!_isDiagnosticMode) {
+                  if (_unableCount == 1) {
                     _wakeUpEcu();
+                  } else {
+                    _unableCount = 0;
+                    _log("MIMO_OBD: 'UNABLE TO CONNECT' persistant -> Reconnexion socket complète");
+                    forceReconnect();
+                    return;
                   }
                 }
-              } else if (telegram.length >= 4) {
-                _noDataCount = 0;
-                _unableCount = 0;
-                _lastDataReceived = DateTime.now(); 
+              } else {
+                _noDataCount++;
+                if (_noDataCount >= 4 && !_isDiagnosticMode) {
+                  _wakeUpEcu();
+                }
               }
-
-              _updateLastValues(telegram);
-              if (!_dataStreamController.isClosed) _dataStreamController.add(telegram);
-              if (!_isDiagnosticMode && !_dtcStreamController.isClosed) _dtcStreamController.add(telegram);
-              if (!_mileageStreamController.isClosed) _mileageStreamController.add(telegram);
+            } else if (telegram.length >= 4) {
+              _noDataCount = 0;
+              _unableCount = 0;
+              _lastDataReceived = DateTime.now(); 
             }
+
+            _updateLastValues(telegram);
+            if (!_dataStreamController.isClosed) _dataStreamController.add(telegram);
+            if (!_isDiagnosticMode && !_dtcStreamController.isClosed) _dtcStreamController.add(telegram);
+            if (!_mileageStreamController.isClosed) _mileageStreamController.add(telegram);
           }
-        },
-        onError: (error) {
-          _log("SOCKET ERROR: $error");
-          _handleDisconnect();
-        },
-        onDone: () => _handleDisconnect(),
-      );
-
-      // Gérer le future 'done' pour éviter les crashs asynchrones (ex: SocketException au moment de l'écriture)
-      _socket!.done.catchError((error) {
-        _log("SOCKET DONE ASYNC ERROR: $error");
+        }
+      },
+      onError: (error) {
+        _log("SOCKET ERROR: $error");
         _handleDisconnect();
-      });
+      },
+      onDone: () => _handleDisconnect(),
+    );
 
-      // Initialisation Standard avec attente réelle du prompt '>'
-      await sendCommandWaitPrompt('ATZ', timeout: const Duration(seconds: 2));   
-      await sendCommandWaitPrompt('ATE0', timeout: const Duration(seconds: 1));    
-      await sendCommandWaitPrompt('ATL0', timeout: const Duration(seconds: 1));    
-      await sendCommandWaitPrompt('ATH0', timeout: const Duration(seconds: 1));    
-      await sendCommandWaitPrompt('ATSP0', timeout: const Duration(seconds: 2));  
-      await sendCommandWaitPrompt('0100', timeout: const Duration(seconds: 8)); // 8s pour recherche protocole Spark 
-      await sendCommandWaitPrompt('ATDP', timeout: const Duration(seconds: 2));
-      await sendCommandWaitPrompt('ATSTFF', timeout: const Duration(seconds: 1)); 
+    // Gérer le future 'done' pour éviter les crashs asynchrones (ex: SocketException au moment de l'écriture)
+    _socket!.done.catchError((error) {
+      _log("SOCKET DONE ASYNC ERROR: $error");
+      _handleDisconnect();
+    });
+  }
 
-      _log("Scanner MIMO_OBD prêt.");
-      _isReconnecting = false;
-      _lastDataReceived = DateTime.now();
-      _startWatchdog();
-      _startPolling();
-      return true;
-    } catch (e) {
-      _log("CONNECTION FAILED: $e");
-      if (!_isReconnecting) {
-        _isReconnecting = true;
-        Future.delayed(const Duration(milliseconds: 1500), () {
-          _isReconnecting = false;
-          if (_socket == null) connect();
-        });
+  Future<bool> _initializeElm327({bool isReconnect = false}) async {
+    _tcpBuffer = '';
+
+    // CAS 1 : Reconnexion / retour d'arrière-plan avec protocole mémorisé -> Warm Start (ATWS)
+    if ((isReconnect || _savedProtocol != null) && _savedProtocol != null) {
+      _log("MIMO_OBD: 🔄 Reconnexion rapide (ATWS) avec protocole mémorisé ATSP$_savedProtocol...");
+      await sendCommandWaitPrompt('\r', timeout: const Duration(milliseconds: 500));
+      _tcpBuffer = '';
+      await sendCommandWaitPrompt('ATWS', timeout: const Duration(seconds: 2));
+      await Future.delayed(const Duration(milliseconds: 200));
+      _tcpBuffer = '';
+      await sendCommandWaitPrompt('ATE0', timeout: const Duration(seconds: 1));
+      await sendCommandWaitPrompt('ATL0', timeout: const Duration(seconds: 1));
+      await sendCommandWaitPrompt('ATH0', timeout: const Duration(seconds: 1));
+      await sendCommandWaitPrompt('ATSTFF', timeout: const Duration(seconds: 1));
+      await sendCommandWaitPrompt('ATSP$_savedProtocol', timeout: const Duration(seconds: 2));
+      final res = await sendCommandWaitPrompt('0100', timeout: const Duration(seconds: 5));
+      if (res.contains('UNABLE') || res.contains('ERROR')) {
+        _log("MIMO_OBD: Échec avec protocole mémorisé ($_savedProtocol), bascule sur détection complète...");
+        _savedProtocol = null;
+        return false;
       }
+      return true;
+    }
+
+    // CAS 2 : Premier démarrage à froid -> Initialisation complète (ATZ + ATSP0 + mémorisation ATDPN)
+    _log("MIMO_OBD: Initialisation complète à froid (ATZ)...");
+    await sendCommandWaitPrompt('ATZ', timeout: const Duration(seconds: 2));
+    await Future.delayed(const Duration(milliseconds: 500));
+    _tcpBuffer = '';
+    await sendCommandWaitPrompt('ATE0', timeout: const Duration(seconds: 1));
+    await sendCommandWaitPrompt('ATL0', timeout: const Duration(seconds: 1));
+    await sendCommandWaitPrompt('ATH0', timeout: const Duration(seconds: 1));
+    await sendCommandWaitPrompt('ATSP0', timeout: const Duration(seconds: 2));
+    final initResp = await sendCommandWaitPrompt('0100', timeout: const Duration(seconds: 8));
+
+    if (initResp.contains('UNABLE') || initResp.contains('ERROR')) {
+      _log("MIMO_OBD: Échec négociation protocole initiale (0100 -> $initResp)");
       return false;
     }
+
+    // Lecture du protocole exact avec ATDPN
+    final dpnRaw = await sendCommandWaitPrompt('ATDPN', timeout: const Duration(seconds: 2));
+    _log("MIMO_OBD: Réponse ATDPN = '$dpnRaw'");
+    String cleaned = dpnRaw.replaceAll(RegExp(r'[^0-9A-Fa-f]'), '').toUpperCase();
+    if (cleaned.startsWith('A') && cleaned.length > 1) {
+      cleaned = cleaned.substring(1);
+    }
+    if (cleaned.isNotEmpty) {
+      _savedProtocol = cleaned[0];
+      _log("MIMO_OBD: ✅ Protocole Spark mémorisé -> ATSP$_savedProtocol (DPN: $dpnRaw)");
+    }
+
+    await sendCommandWaitPrompt('ATDP', timeout: const Duration(seconds: 2));
+    await sendCommandWaitPrompt('ATSTFF', timeout: const Duration(seconds: 1));
+    return true;
+  }
+
+  Future<bool> connect({bool isReconnect = false, int maxRetries = 3}) async {
+    if (_isReconnecting) {
+      _log("MIMO_OBD: Connexion déjà en cours — appel ignoré.");
+      return false;
+    }
+    _isReconnecting = true;
+    await _initLogFile();
+
+    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        _log("MIMO_OBD: Tentative connexion Socket ($attempt/$maxRetries)...");
+        
+        // Nettoyage socket résiduelle
+        _heartbeatTimer?.cancel();
+        try { _socket?.destroy(); } catch (_) {}
+        _socket = null;
+        _isPolling = false;
+
+        String? wifiIp;
+        try {
+          wifiIp = await NetworkInfo().getWifiIP();
+          _log("MIMO_OBD: IP WiFi locale = $wifiIp");
+        } catch (_) {}
+
+        try {
+          _socket = await Socket.connect(
+            ip, 
+            port, 
+            timeout: const Duration(seconds: 2),
+            sourceAddress: wifiIp,
+          );
+        } catch (e) {
+          _log("MIMO_OBD: Connexion directe sans sourceAddress (fallback)...");
+          _socket = await Socket.connect(
+            ip, 
+            port, 
+            timeout: const Duration(seconds: 2),
+          );
+        }
+        _socket!.setOption(SocketOption.tcpNoDelay, true);
+
+        _setupSocketListeners();
+
+        bool initOk = await _initializeElm327(isReconnect: isReconnect);
+        if (initOk) {
+          _log("Scanner MIMO_OBD prêt.");
+          _isReconnecting = false;
+          _lastDataReceived = DateTime.now();
+          _startWatchdog();
+          _startPolling();
+          return true;
+        } else {
+          _log("MIMO_OBD: Échec initialisation ELM327 (tentative $attempt)");
+        }
+      } catch (e) {
+        _log("CONNECTION FAILED ($attempt/$maxRetries): $e");
+      }
+
+      _heartbeatTimer?.cancel();
+      try { _socket?.destroy(); } catch (_) {}
+      _socket = null;
+      _isPolling = false;
+
+      if (attempt < maxRetries) {
+        await Future.delayed(const Duration(seconds: 1));
+      }
+    }
+
+    _isReconnecting = false;
+    return false;
   }
 
   bool _isConfigResponse(String s) {
